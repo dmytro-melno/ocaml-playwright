@@ -4,12 +4,12 @@ let fix_file path =
   let content = really_input_string ic (in_channel_length ic) in
   close_in ic;
   
-  let content = Str.global_replace (Str.regexp " root ()") " root" content in
-  let content = Str.global_replace (Str.regexp " chromium ()") " chromium" content in
-  let content = Str.global_replace (Str.regexp " browser ()") " browser" content in
-  let content = Str.global_replace (Str.regexp " ctx ()") " ctx" content in
-  let content = Str.global_replace (Str.regexp " page ()") " page" content in
-  let content = Str.global_replace (Str.regexp " main_frame ()") " main_frame" content in
+  let content = Re.replace_string (Re.Pcre.regexp "_+") ~by:"_" res in
+  let content = Re.replace_string (Re.Pcre.regexp "_+") ~by:"_" res in
+  let content = Re.replace_string (Re.Pcre.regexp "_+") ~by:"_" res in
+  let content = Re.replace_string (Re.Pcre.regexp "_+") ~by:"_" res in
+  let content = Re.replace_string (Re.Pcre.regexp "_+") ~by:"_" res in
+  let content = Re.replace_string (Re.Pcre.regexp "_+") ~by:"_" res in
   
   let oc = open_out path in
   output_string oc content;

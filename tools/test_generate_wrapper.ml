@@ -26,9 +26,9 @@ let ocaml_name ?(is_type=false) s =
     else Buffer.add_char buf c
   ) s;
   let res = Buffer.contents buf in
-  let res = Str.global_replace (Str.regexp "_+") "_" res in
-  let res = Str.global_replace (Str.regexp "^_+") "" res in
-  let res = Str.global_replace (Str.regexp "_+$") "" res in
+  let res = Re.replace_string (Re.Pcre.regexp "_+") ~by:"_" res in
+  let res = Re.replace_string (Re.Pcre.regexp "^_+") ~by:"" res in
+  let res = Re.replace_string (Re.Pcre.regexp "_+$") ~by:"" res in
   let res = if is_type && String.length res > 0 && res.[0] >= 'A' && res.[0] <= 'Z' then
     String.lowercase_ascii (String.sub res 0 1) ^ String.sub res 1 (String.length res - 1)
   else res in
