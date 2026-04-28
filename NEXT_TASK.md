@@ -1,38 +1,28 @@
 # Next Tasks for OCaml Playwright Bindings
 
-Great progress was made in the previous session:
-1. **Connection Lifecycle & Background Loop**: Handled successfully. The connection loop runs in an Eio Fiber, and shutting down the pipes allows the driver process to exit cleanly without hanging.
-2. **Protocol Generation for Mixins**: The `tools/generate_protocol.ml` generator was updated to correctly expand `$mixin` and `$mixin1` references from `protocol.yml`. Previously, fields like `headless` or `executablePath` were missing from the `launch` arguments. Now, they are correctly generated, and all APIs typecheck.
-3. **End-to-End Navigation Test**: We successfully wrote an end-to-end test (`test/test_connection.ml`) that:
-   - Starts the Playwright driver.
-   - Initializes the connection.
-   - Launches a Chromium browser (`BrowserType.launch`).
-   - Creates a browser context (`Browser.new_context`).
-   - Creates a new page (`BrowserContext.new_page`).
-   - Navigates to `https://example.com` (`Frame.goto`).
-
-The generated low-level APIs work perfectly and communicate gracefully with the Playwright driver process.
+Tremendous progress was made in the previous session:
+1. **High-Level API Wrappers**: We implemented the `tools/generate_hl.ml` script which correctly generated `lib/hl.ml`. This encapsulates the low-level `Api` and `Protocol` modules.
+   - Requires minimal syntax from the end-user (labeled arguments instead of `Protocol` records).
+   - Generates getters for object initializer properties (e.g., `Page.main_frame page`).
+   - Exceptions are raised via `Playwright.Hl.Error of string` instead of messy `Result` unwrapping for RPC replies.
+2. **Typed Event Listeners**: Events are now generated with typed callback signatures (`on_<event_name> t cb`). The `Connection.on` function has been refined to append typed listeners to objects.
+3. **End-to-End Success**: Tested using `test/test_hl2.ml`. We successfully used the high-level wrappers to start the driver, launch Chromium, create a context, create a page, extract the `mainFrame` getter, and `goto` `example.com` cleanly.
 
 ### Next Steps:
 
-1. **High-Level API Wrappers**:
-   - Right now, the low-level generated API in `Api.ml` requires users to explicitly construct large records with many `None` values and manually pass `Connection.t` and object `guid`s around.
-   - We need to create high-level OCaml wrappers that encapsulate the `Connection.t` and `guid` (similar to the Python `Page` and `Browser` classes).
-   - This should ideally be generated automatically by a script (e.g. `tools/generate_high_level_api.ml`), or by extending `tools/generate_api.ml` to output a user-friendly wrapper module.
-   - The user-friendly functions should use optional labeled arguments instead of requiring the user to pass a record with 30 `None`s.
-   - Example desired syntax:
-     ```ocaml
-     let playwright = Playwright.create ~sw ~env () in
-     let browser = BrowserType.launch playwright.chromium ~headless:true () in
-     let page = Browser.new_page browser () in
-     Page.goto page "https://example.com" ()
-     ```
+1. **Top-Level Orchestration API (`playwright.ml`)**:
+   - Currently, starting the driver and spinning up the connection loop requires 20 lines of boilerplate (`Eio.Process.pipe`, `Driver.run`, `Connection.create`, `Root.initialize`, etc.).
+   - Create a `Playwright.create ~sw ~env ()` function that handles the driver run loop and root initialization in the background, returning a user-friendly high-level `Playwright` object (the one with the `chromium`, `firefox`, and `webkit` getters).
+   - Add a `Playwright.close` or `stop` to cleanly kill the Eio pipes and driver process.
 
-2. **Wait for Events (Concurrency/Synchronization)**:
-   - When Playwright events occur (e.g., `Page.route`), they are sent as asynchronous JSON RPC events.
-   - `lib/connection.ml` already maintains an `events` hashtable for objects. We need to expose a typed event listener system so users can register callbacks (e.g., `Page.on_request page (fun req -> ...)`).
+2. **Wait for Events / Promisification**:
+   - Currently, `on_event` just registers a callback. We need a way to block the current fiber until a specific event fires (like `page.wait_for_request()` in Python).
+   - Eio's `Promise` can be used to wrap events. Write a generalized `wait_for_event` utility.
 
-3. **Error Handling**:
-   - Wrap the `Error "msg"` results into specific exceptions or a unified error type.
+3. **Refine Error Handling**:
+   - Enhance the exception thrown in `Hl.ml`. If `dispatch` receives a full error stack trace via `SerializedError`, we should parse it and present it as a native OCaml backtrace or detailed string, using the `Error.ml` template drafted previously.
 
-Start by looking at `test/test_connection.ml` to see the working low-level flow, and begin designing the generation logic for the high-level API.
+4. **Integration Tests**:
+   - Translate standard Playwright end-to-end tests into our OCaml bindings to test locators, clicks, typing, and expect checks.
+
+Start by examining `test/test_hl2.ml` and `lib/connection.ml` to see the current working boilerplate, then write the high-level `Playwright.create` orchestrator inside `lib/playwright.ml`.

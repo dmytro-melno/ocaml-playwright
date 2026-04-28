@@ -1,4 +1,4 @@
 
-(executable
- (name test_connection)
- (libraries playwright eio_main eio unix yojson))
+(executables
+ (names test_connection test_hl test_events test_hl2)
+ (libraries playwright eio_main))

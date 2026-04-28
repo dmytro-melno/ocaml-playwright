@@ -59,7 +59,7 @@ let dispatch (t : t) (msg : Yojson.Safe.t) =
        else
          let result = member "result" msg in
          Promise.resolve resolver (Ok result)
-     | None -> Printf.eprintf "Received response for unknown id %d\n%!" id)
+     | None -> ())
   | None ->
     let method_ = member "method" msg |> to_string_option in
     let guid = member "guid" msg |> to_string_option in
@@ -70,11 +70,9 @@ let dispatch (t : t) (msg : Yojson.Safe.t) =
       let guid_new = member "guid" params |> to_string in
       let initializer_ = member "initializer" params in
       let obj = { guid = guid_new; connection = t; obj_type = type_; parent = None; initializer_; events = Hashtbl.create 5 } in
-      Hashtbl.add t.objects guid_new obj;
-      Printf.printf "Created object %s of type %s\n%!" guid_new type_
+      Hashtbl.add t.objects guid_new obj
     | Some "__dispose__", Some guid ->
-      Hashtbl.remove t.objects guid;
-      Printf.printf "Disposed object %s\n%!" guid
+      Hashtbl.remove t.objects guid
     | Some method_, Some guid ->
       (match Hashtbl.find_opt t.objects guid with
        | Some obj ->
@@ -83,9 +81,8 @@ let dispatch (t : t) (msg : Yojson.Safe.t) =
             let params = member "params" msg in
             List.iter (fun cb -> try cb params with _ -> ()) cbs
           | None -> ())
-       | None -> Printf.printf "Received event %s for unknown object %s\n%!" method_ guid)
-    | _ ->
-      Printf.eprintf "Received unknown message: %s\n%!" (Yojson.Safe.to_string msg)
+       | None -> ())
+    | _ -> ()
 
 let run_loop (t : t) =
   try
@@ -95,16 +92,18 @@ let run_loop (t : t) =
         (try
            let msg = Yojson.Safe.from_string msg_str in
            dispatch t msg
-         with exn ->
-           Printf.eprintf "Error parsing or dispatching message: %s\n%!" (Printexc.to_string exn))
+         with _ -> ())
       | None ->
         raise Exit
     done
   with Exit -> ()
 
-let on (obj : channel_owner) event_name cb =
-  let cbs = match Hashtbl.find_opt obj.events event_name with
-    | Some cbs -> cbs
-    | None -> []
-  in
-  Hashtbl.replace obj.events event_name (cbs @ [cb])
+let on (conn : t) guid event_name cb =
+  match Hashtbl.find_opt conn.objects guid with
+  | Some obj ->
+      let cbs = match Hashtbl.find_opt obj.events event_name with
+        | Some cbs -> cbs
+        | None -> []
+      in
+      Hashtbl.replace obj.events event_name (cbs @ [cb])
+  | None -> Printf.eprintf "Cannot add event listener to unknown object %s\n%!" guid
