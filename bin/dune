@@ -1,0 +1,4 @@
+(executable
+ (public_name playwright)
+ (name main)
+ (libraries playwright))

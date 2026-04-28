@@ -1,0 +1,4 @@
+
+(executable
+ (name test_connection)
+ (libraries playwright eio_main eio unix yojson))

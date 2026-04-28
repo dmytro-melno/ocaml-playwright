@@ -1,0 +1,10 @@
+
+(executable
+ (name generate_protocol)
+ (libraries yaml str)
+ (flags :standard -w -26-27-32-33-37-39))
+
+(executable
+ (name analyze)
+ (libraries yaml str)
+ (flags :standard -w -26-27-32-33-37-39))
