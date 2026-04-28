@@ -156,14 +156,27 @@ let () =
                          Buffer.add_string args_sig (sprintf "~%s " ocaml_pk)
                      ) props;
                      
-                     pf "  let %s %s(t : t) () =\n" fn_name (Buffer.contents args_sig);
+                     (* REMOVED () from here *)
+                     pf "  let %s %s(t : t) =\n" fn_name (Buffer.contents args_sig);
                      
                      if List.length props > 0 then begin
                        pf "    let args : Protocol.%s = {\n" (ocaml_type_name raw_args_t);
-                       List.iter (fun (pk, _pv) ->
+                       List.iter (fun (pk, pv) ->
+                         let type_str = match pv with 
+                           | `O po -> (match List.assoc_opt "type" po with Some (`String s) -> s | _ -> "") 
+                           | `String s -> s | _ -> "" 
+                         in
+                         let is_bin = (type_str = "binary" || type_str = "binary?") in
                          let ocaml_pk = ocaml_name pk in
                          let field_name = sprintf "%s_%s" (ocaml_type_name raw_args_t) ocaml_pk in
-                         pf "      Protocol.%s = %s;\n" field_name ocaml_pk
+                         if is_bin then begin
+                           if is_optional pv then
+                             pf "      Protocol.%s = Option.map Base64.encode_exn %s;\n" field_name ocaml_pk
+                           else
+                             pf "      Protocol.%s = Base64.encode_exn %s;\n" field_name ocaml_pk
+                         end else begin
+                           pf "      Protocol.%s = %s;\n" field_name ocaml_pk
+                         end
                        ) props;
                        pf "    } in\n"
                      end;
@@ -179,12 +192,18 @@ let () =
                          | `O ro -> (match List.assoc_opt "type" ro with Some (`String s) -> s | _ -> "") 
                          | `String s -> s | _ -> "" 
                        in
+                       let is_bin = (type_str_ret = "binary" || type_str_ret = "binary?") in
                        let raw_ret_t = k ^ "_" ^ cmd_k ^ "_returns" in
                        let field_name = sprintf "%s_%s" (ocaml_type_name raw_ret_t) (ocaml_name rk) in
                        
                        if Hashtbl.mem interfaces type_str_ret then
                          pf "    | Ok res -> ({ conn = t.conn; guid = res.Protocol.%s.guid } : %s_type obj)\n" field_name (ocaml_type_name type_str_ret)
-                       else
+                       else if is_bin then begin
+                         if is_optional rv then
+                           pf "    | Ok res -> Option.map Base64.decode_exn res.Protocol.%s\n" field_name
+                         else
+                           pf "    | Ok res -> Base64.decode_exn res.Protocol.%s\n" field_name
+                       end else
                          pf "    | Ok res -> res.Protocol.%s\n" field_name
                      end else begin
                        pf "    | Ok res -> res\n"

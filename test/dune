@@ -1,4 +1,4 @@
 
 (executables
- (names test_connection test_hl test_events test_hl2)
+ (names test_connection test_hl test_events test_hl2 test_screenshot)
  (libraries playwright eio_main))

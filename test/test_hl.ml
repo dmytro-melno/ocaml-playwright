@@ -17,7 +17,7 @@ let () =
   
   let root = { Playwright.Hl.conn = conn; guid = "" } in
   
-  let _result = Playwright.Hl.Root.initialize ~sdk_language:`Javascript root () in
+  let _result = Playwright.Hl.Root.initialize ~sdk_language:`Javascript root in
   
   Eio.Time.sleep (Eio.Stdenv.clock env) 1.0;
   
@@ -31,15 +31,15 @@ let () =
       
       Printf.printf "Launching browser...\n%!";
       (try
-         let browser = Playwright.Hl.Browser_type.launch ~executable_path:"/usr/bin/chromium" ~headless:true ~timeout:0.0 chromium () in
+         let browser = Playwright.Hl.Browser_type.launch ~executable_path:"/usr/bin/chromium" ~headless:true ~timeout:0.0 chromium in
          Printf.printf "Browser launched! GUID: %s\n%!" browser.guid;
          
          Printf.printf "Creating new context...\n%!";
-         let ctx = Playwright.Hl.Browser.new_context browser () in
+         let ctx = Playwright.Hl.Browser.new_context browser in
          Printf.printf "Context created! GUID: %s\n%!" ctx.guid;
          
          Printf.printf "Creating new page...\n%!";
-         let page = Playwright.Hl.Browser_context.new_page ctx () in
+         let page = Playwright.Hl.Browser_context.new_page ctx in
          Printf.printf "Page created! GUID: %s\n%!" page.guid;
          
          let page_obj_opt = Hashtbl.find_opt conn.objects page.guid in
@@ -52,7 +52,7 @@ let () =
               
               Printf.printf "Navigating to example.com...\n%!";
               (try
-                 let _resp = Playwright.Hl.Frame.goto ~url:"https://example.com" ~timeout:10000.0 main_frame () in
+                 let _resp = Playwright.Hl.Frame.goto ~url:"https://example.com" ~timeout:10000.0 main_frame in
                  Printf.printf "Navigated to example.com!\n%!"
                with Playwright.Hl.Error err -> Printf.printf "Failed to goto: %s\n%!" err)
 
