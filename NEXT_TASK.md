@@ -1,36 +1,38 @@
 # Next Tasks for OCaml Playwright Bindings
 
 Great progress was made in the previous session:
-1. **Driver Management (`lib/driver.ml`)**: Downloading and running the pre-compiled Playwright driver binary works successfully via `Eio.Process.spawn`.
-2. **Transport Layer (`lib/transport.ml`)**: `stdin`/`stdout` transport layer using `Eio` works.
-3. **Connection & Object Registry (`lib/connection.ml`)**: Basic `Connection` logic, handling auto-incrementing IDs and object creation/disposal via `__create__` and `__dispose__` events, works!
-4. **Client API Generation (`tools/generate_api.ml` and `tools/generate_protocol.ml`)**:
-   - `lib/protocol.ml` now correctly generates variants for enums with manual `to_yojson` and `of_yojson` handlers (to handle dashed strings like `"-inf"` or `"mac-arm64"`).
-   - `lib/api.ml` generated functions are fully typed. We successfully called `Api.Root.initialize` and received the resulting `Playwright` object.
+1. **Connection Lifecycle & Background Loop**: Handled successfully. The connection loop runs in an Eio Fiber, and shutting down the pipes allows the driver process to exit cleanly without hanging.
+2. **Protocol Generation for Mixins**: The `tools/generate_protocol.ml` generator was updated to correctly expand `$mixin` and `$mixin1` references from `protocol.yml`. Previously, fields like `headless` or `executablePath` were missing from the `launch` arguments. Now, they are correctly generated, and all APIs typecheck.
+3. **End-to-End Navigation Test**: We successfully wrote an end-to-end test (`test/test_connection.ml`) that:
+   - Starts the Playwright driver.
+   - Initializes the connection.
+   - Launches a Chromium browser (`BrowserType.launch`).
+   - Creates a browser context (`Browser.new_context`).
+   - Creates a new page (`BrowserContext.new_page`).
+   - Navigates to `https://example.com` (`Frame.goto`).
+
+The generated low-level APIs work perfectly and communicate gracefully with the Playwright driver process.
 
 ### Next Steps:
 
-1. **Connection Lifecycle & Background Loop**:
-   - Currently, `Playwright.Connection.run_loop` runs indefinitely, so `test_connection.exe` never exits. We need a way to cleanly shutdown the connection and kill the Playwright driver process.
-   - The driver is spawned using `Eio.Process.spawn`. We should probably store the process handle and send it a termination signal (or close the stdin pipe) when the connection is closed.
-
-2. **Wait for Events (Concurrency/Synchronization)**:
-   - When Playwright events occur (e.g., `Page.route`), they are sent as asynchronous JSON RPC events (without an `id`).
-   - We need an event listener system in `Connection` (or `ChannelOwner`) so users can register callbacks (e.g., `page |> Page.on_route (fun route -> ...)`).
-
-3. **High-Level API Wrappers**:
-   - Right now, `Api.ml` exposes raw functions like `Api.Page.goto conn guid args`.
-   - We need to wrap these in higher-level OCaml classes or modules that encapsulate the `conn` and `guid` (similar to the Python `Page` class).
-   - For example:
+1. **High-Level API Wrappers**:
+   - Right now, the low-level generated API in `Api.ml` requires users to explicitly construct large records with many `None` values and manually pass `Connection.t` and object `guid`s around.
+   - We need to create high-level OCaml wrappers that encapsulate the `Connection.t` and `guid` (similar to the Python `Page` and `Browser` classes).
+   - This should ideally be generated automatically by a script (e.g. `tools/generate_high_level_api.ml`), or by extending `tools/generate_api.ml` to output a user-friendly wrapper module.
+   - The user-friendly functions should use optional labeled arguments instead of requiring the user to pass a record with 30 `None`s.
+   - Example desired syntax:
      ```ocaml
+     let playwright = Playwright.create ~sw ~env () in
      let browser = BrowserType.launch playwright.chromium ~headless:true () in
      let page = Browser.new_page browser () in
      Page.goto page "https://example.com" ()
      ```
-   - This might require adjusting the generator scripts to generate these wrappers instead of or in addition to the raw API.
 
-4. **Testing**:
-   - Write a proper end-to-end test (e.g., opening a browser, navigating to a page, taking a screenshot) to validate the end-to-end flow.
-   - Use locally installed browser executable `/usr/bin/chromium`, not a one shipped with bundled Playwright. The bundled browsers work only on Ubuntu, they wont work in Arch Linux.
+2. **Wait for Events (Concurrency/Synchronization)**:
+   - When Playwright events occur (e.g., `Page.route`), they are sent as asynchronous JSON RPC events.
+   - `lib/connection.ml` already maintains an `events` hashtable for objects. We need to expose a typed event listener system so users can register callbacks (e.g., `Page.on_request page (fun req -> ...)`).
 
-See `test/test_connection.ml` for a working example of spinning up the driver and sending the `initialize` command.
+3. **Error Handling**:
+   - Wrap the `Error "msg"` results into specific exceptions or a unified error type.
+
+Start by looking at `test/test_connection.ml` to see the working low-level flow, and begin designing the generation logic for the high-level API.

@@ -123,6 +123,22 @@ type type_desc =
 let flattened_types = Hashtbl.create 100
 let queue = Queue.create ()
 
+
+let rec flatten_props root props_v =
+  List.fold_left (fun acc (k, v) ->
+    if String.starts_with ~prefix:"$mixin" k then
+      match v with
+      | `String mixin_name ->
+          (match List.assoc_opt mixin_name root with
+           | Some (`O m) ->
+               let mixin_props = match List.assoc_opt "properties" m with Some (`O p) -> p | _ -> [] in
+               acc @ (flatten_props root mixin_props)
+           | _ -> acc)
+      | _ -> acc
+    else
+      acc @ [(k, v)]
+  ) [] props_v
+
 let rec parse_type path v =
   match v with
   | `String s ->
@@ -146,6 +162,7 @@ let rec parse_type path v =
       
       if t_str = "object" || t_str = "mixin" || (t_str = "" && List.mem_assoc "properties" o) then begin
         let props_v = match List.assoc_opt "properties" o with Some (`O p) -> p | _ -> [] in
+        let props_v = flatten_props root props_v in
         let props = List.map (fun (k, v) ->
           let t, is_opt = parse_type (path ^ "_" ^ k) v in
           (k, t, is_opt)
@@ -173,8 +190,10 @@ let rec parse_type path v =
             );
             (TRef t_name, opt)
         | _ -> (TString, opt)
-      end else if List.mem_assoc "$mixin" o || List.mem_assoc "$mixin1" o then begin
-        (TJson, opt)
+      end else if List.mem_assoc "$mixin" o then begin
+        (TRef (match List.assoc_opt "$mixin" o with Some (`String s) -> s | _ -> "json"), opt)
+      end else if List.mem_assoc "$mixin1" o then begin
+        (TRef (match List.assoc_opt "$mixin1" o with Some (`String s) -> s | _ -> "json"), opt)
       end else begin
         (TAny, opt)
       end
@@ -333,4 +352,4 @@ let () =
   ) sccs;
 
   close_out out;
-  Printf.printf "Generated lib/protocol.ml with %d SCCs.\n" (List.length sccs)
+  Printf.eprintf "Generated lib/protocol.ml with %d SCCs.\n" (List.length sccs)

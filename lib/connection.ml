@@ -16,6 +16,8 @@ and channel_owner = {
   connection : t;
   obj_type : string;
   mutable parent : channel_owner option;
+  initializer_ : Yojson.Safe.t;
+  events : (string, (Yojson.Safe.t -> unit) list) Hashtbl.t;
 }
 
 let create transport_r transport_w =
@@ -66,15 +68,22 @@ let dispatch (t : t) (msg : Yojson.Safe.t) =
       let params = member "params" msg in
       let type_ = member "type" params |> to_string in
       let guid_new = member "guid" params |> to_string in
-      let _initializer = member "initializer" params in
-      let obj = { guid = guid_new; connection = t; obj_type = type_; parent = None } in
+      let initializer_ = member "initializer" params in
+      let obj = { guid = guid_new; connection = t; obj_type = type_; parent = None; initializer_; events = Hashtbl.create 5 } in
       Hashtbl.add t.objects guid_new obj;
       Printf.printf "Created object %s of type %s\n%!" guid_new type_
     | Some "__dispose__", Some guid ->
       Hashtbl.remove t.objects guid;
       Printf.printf "Disposed object %s\n%!" guid
     | Some method_, Some guid ->
-      Printf.printf "Received event %s for object %s\n%!" method_ guid
+      (match Hashtbl.find_opt t.objects guid with
+       | Some obj ->
+         (match Hashtbl.find_opt obj.events method_ with
+          | Some cbs ->
+            let params = member "params" msg in
+            List.iter (fun cb -> try cb params with _ -> ()) cbs
+          | None -> ())
+       | None -> Printf.printf "Received event %s for unknown object %s\n%!" method_ guid)
     | _ ->
       Printf.eprintf "Received unknown message: %s\n%!" (Yojson.Safe.to_string msg)
 
@@ -89,7 +98,13 @@ let run_loop (t : t) =
          with exn ->
            Printf.eprintf "Error parsing or dispatching message: %s\n%!" (Printexc.to_string exn))
       | None ->
-        Printf.printf "Transport EOF\n%!";
         raise Exit
     done
   with Exit -> ()
+
+let on (obj : channel_owner) event_name cb =
+  let cbs = match Hashtbl.find_opt obj.events event_name with
+    | Some cbs -> cbs
+    | None -> []
+  in
+  Hashtbl.replace obj.events event_name (cbs @ [cb])

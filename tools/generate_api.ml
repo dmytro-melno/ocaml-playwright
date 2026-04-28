@@ -102,4 +102,4 @@ let () =
     end
   ) root;
   close_out out;
-  Printf.printf "Generated lib/api.ml\n"
+  Printf.eprintf "Generated lib/api.ml\n"

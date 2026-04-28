@@ -369,6 +369,24 @@ type page_go_forward_args =
     page_go_forward_args_wait_until: lifecycle_event option [@key "waitUntil"] [@default None];
   } [@@deriving yojson { strict = false }]
 
+type browser_type_launch_persistent_context_args_reduced_motion =
+  [
+  | `Reduce
+  | `No_preference
+  | `No_override
+  ]
+
+let browser_type_launch_persistent_context_args_reduced_motion_to_yojson = function
+  | `Reduce -> `String "reduce"
+  | `No_preference -> `String "no-preference"
+  | `No_override -> `String "no-override"
+
+let browser_type_launch_persistent_context_args_reduced_motion_of_yojson = function
+  | `String "reduce" -> Ok `Reduce
+  | `String "no-preference" -> Ok `No_preference
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum browser_type_launch_persistent_context_args_reduced_motion"
+
 type context_options_geolocation =
   {
     context_options_geolocation_longitude: float [@key "longitude"];
@@ -482,10 +500,64 @@ type local_utils_har_lookup_returns =
     local_utils_har_lookup_returns_body: string option [@key "body"] [@default None];
   } [@@deriving yojson { strict = false }]
 
+type browser_new_context_for_reuse_args_record_video_show_actions_position =
+  [
+  | `Top_left
+  | `Top
+  | `Top_right
+  | `Bottom_left
+  | `Bottom
+  | `Bottom_right
+  ]
+
+let browser_new_context_for_reuse_args_record_video_show_actions_position_to_yojson = function
+  | `Top_left -> `String "top-left"
+  | `Top -> `String "top"
+  | `Top_right -> `String "top-right"
+  | `Bottom_left -> `String "bottom-left"
+  | `Bottom -> `String "bottom"
+  | `Bottom_right -> `String "bottom-right"
+
+let browser_new_context_for_reuse_args_record_video_show_actions_position_of_yojson = function
+  | `String "top-left" -> Ok `Top_left
+  | `String "top" -> Ok `Top
+  | `String "top-right" -> Ok `Top_right
+  | `String "bottom-left" -> Ok `Bottom_left
+  | `String "bottom" -> Ok `Bottom
+  | `String "bottom-right" -> Ok `Bottom_right
+  | _ -> Error "Invalid enum browser_new_context_for_reuse_args_record_video_show_actions_position"
+
 type frame_aria_snapshot_returns =
   {
     frame_aria_snapshot_returns_snapshot: string [@key "snapshot"];
   } [@@deriving yojson { strict = false }]
+
+type browser_type_launch_persistent_context_args_record_video_show_actions_position =
+  [
+  | `Top_left
+  | `Top
+  | `Top_right
+  | `Bottom_left
+  | `Bottom
+  | `Bottom_right
+  ]
+
+let browser_type_launch_persistent_context_args_record_video_show_actions_position_to_yojson = function
+  | `Top_left -> `String "top-left"
+  | `Top -> `String "top"
+  | `Top_right -> `String "top-right"
+  | `Bottom_left -> `String "bottom-left"
+  | `Bottom -> `String "bottom"
+  | `Bottom_right -> `String "bottom-right"
+
+let browser_type_launch_persistent_context_args_record_video_show_actions_position_of_yojson = function
+  | `String "top-left" -> Ok `Top_left
+  | `String "top" -> Ok `Top
+  | `String "top-right" -> Ok `Top_right
+  | `String "bottom-left" -> Ok `Bottom_left
+  | `String "bottom" -> Ok `Bottom
+  | `String "bottom-right" -> Ok `Bottom_right
+  | _ -> Error "Invalid enum browser_type_launch_persistent_context_args_record_video_show_actions_position"
 
 type browser_context_storage_state_args =
   {
@@ -540,6 +612,21 @@ type socks_support_socks_data_event =
     socks_support_socks_data_event_data: string [@key "data"];
   } [@@deriving yojson { strict = false }]
 
+type browser_new_context_for_reuse_args_service_workers =
+  [
+  | `Allow
+  | `Block
+  ]
+
+let browser_new_context_for_reuse_args_service_workers_to_yojson = function
+  | `Allow -> `String "allow"
+  | `Block -> `String "block"
+
+let browser_new_context_for_reuse_args_service_workers_of_yojson = function
+  | `String "allow" -> Ok `Allow
+  | `String "block" -> Ok `Block
+  | _ -> Error "Invalid enum browser_new_context_for_reuse_args_service_workers"
+
 type artifact_path_after_finished_returns =
   {
     artifact_path_after_finished_returns_value: string [@key "value"];
@@ -558,6 +645,33 @@ type web_socket_route_close_page_args =
     web_socket_route_close_page_args_reason: string option [@key "reason"] [@default None];
     web_socket_route_close_page_args_was_clean: bool [@key "wasClean"];
   } [@@deriving yojson { strict = false }]
+
+type browser_new_context_args_client_certificates_item =
+  {
+    browser_new_context_args_client_certificates_item_origin: string [@key "origin"];
+    browser_new_context_args_client_certificates_item_cert: string option [@key "cert"] [@default None];
+    browser_new_context_args_client_certificates_item_key: string option [@key "key"] [@default None];
+    browser_new_context_args_client_certificates_item_passphrase: string option [@key "passphrase"] [@default None];
+    browser_new_context_args_client_certificates_item_pfx: string option [@key "pfx"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type android_device_launch_browser_args_contrast =
+  [
+  | `No_preference
+  | `More
+  | `No_override
+  ]
+
+let android_device_launch_browser_args_contrast_to_yojson = function
+  | `No_preference -> `String "no-preference"
+  | `More -> `String "more"
+  | `No_override -> `String "no-override"
+
+let android_device_launch_browser_args_contrast_of_yojson = function
+  | `String "no-preference" -> Ok `No_preference
+  | `String "more" -> Ok `More
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum android_device_launch_browser_args_contrast"
 
 type element_handle_dblclick_args_button =
   [
@@ -882,229 +996,224 @@ type selector_engine =
     selector_engine_content_script: bool option [@key "contentScript"] [@default None];
   } [@@deriving yojson { strict = false }]
 
-type context_options_service_workers =
+type browser_type_launch_persistent_context_args_service_workers =
   [
   | `Allow
   | `Block
   ]
 
-let context_options_service_workers_to_yojson = function
+let browser_type_launch_persistent_context_args_service_workers_to_yojson = function
   | `Allow -> `String "allow"
   | `Block -> `String "block"
 
-let context_options_service_workers_of_yojson = function
+let browser_type_launch_persistent_context_args_service_workers_of_yojson = function
   | `String "allow" -> Ok `Allow
   | `String "block" -> Ok `Block
-  | _ -> Error "Invalid enum context_options_service_workers"
+  | _ -> Error "Invalid enum browser_type_launch_persistent_context_args_service_workers"
 
-type show_actions_options_position =
-  [
-  | `Top_left
-  | `Top
-  | `Top_right
-  | `Bottom_left
-  | `Bottom
-  | `Bottom_right
-  ]
-
-let show_actions_options_position_to_yojson = function
-  | `Top_left -> `String "top-left"
-  | `Top -> `String "top"
-  | `Top_right -> `String "top-right"
-  | `Bottom_left -> `String "bottom-left"
-  | `Bottom -> `String "bottom"
-  | `Bottom_right -> `String "bottom-right"
-
-let show_actions_options_position_of_yojson = function
-  | `String "top-left" -> Ok `Top_left
-  | `String "top" -> Ok `Top
-  | `String "top-right" -> Ok `Top_right
-  | `String "bottom-left" -> Ok `Bottom_left
-  | `String "bottom" -> Ok `Bottom
-  | `String "bottom-right" -> Ok `Bottom_right
-  | _ -> Error "Invalid enum show_actions_options_position"
-
-type show_actions_options =
+type browser_type_launch_persistent_context_args_record_video_show_actions =
   {
-    show_actions_options_duration: float option [@key "duration"] [@default None];
-    show_actions_options_position: show_actions_options_position option [@key "position"] [@default None];
-    show_actions_options_font_size: int option [@key "fontSize"] [@default None];
+    browser_type_launch_persistent_context_args_record_video_show_actions_duration: float option [@key "duration"] [@default None];
+    browser_type_launch_persistent_context_args_record_video_show_actions_position: browser_type_launch_persistent_context_args_record_video_show_actions_position option [@key "position"] [@default None];
+    browser_type_launch_persistent_context_args_record_video_show_actions_font_size: int option [@key "fontSize"] [@default None];
   } [@@deriving yojson { strict = false }]
 
-type context_options_record_video_show_actions =
+type browser_type_launch_persistent_context_args_record_video_size =
   {
-    context_options_record_video_show_actions_mixin: show_actions_options [@key "$mixin"];
+    browser_type_launch_persistent_context_args_record_video_size_width: int [@key "width"];
+    browser_type_launch_persistent_context_args_record_video_size_height: int [@key "height"];
   } [@@deriving yojson { strict = false }]
 
-type context_options_record_video_size =
+type browser_type_launch_persistent_context_args_record_video =
   {
-    context_options_record_video_size_width: int [@key "width"];
-    context_options_record_video_size_height: int [@key "height"];
+    browser_type_launch_persistent_context_args_record_video_dir: string option [@key "dir"] [@default None];
+    browser_type_launch_persistent_context_args_record_video_size: browser_type_launch_persistent_context_args_record_video_size option [@key "size"] [@default None];
+    browser_type_launch_persistent_context_args_record_video_show_actions: browser_type_launch_persistent_context_args_record_video_show_actions option [@key "showActions"] [@default None];
   } [@@deriving yojson { strict = false }]
 
-type context_options_record_video =
-  {
-    context_options_record_video_dir: string option [@key "dir"] [@default None];
-    context_options_record_video_size: context_options_record_video_size option [@key "size"] [@default None];
-    context_options_record_video_show_actions: context_options_record_video_show_actions option [@key "showActions"] [@default None];
-  } [@@deriving yojson { strict = false }]
-
-type context_options_contrast =
+type browser_type_launch_persistent_context_args_contrast =
   [
   | `No_preference
   | `More
   | `No_override
   ]
 
-let context_options_contrast_to_yojson = function
+let browser_type_launch_persistent_context_args_contrast_to_yojson = function
   | `No_preference -> `String "no-preference"
   | `More -> `String "more"
   | `No_override -> `String "no-override"
 
-let context_options_contrast_of_yojson = function
+let browser_type_launch_persistent_context_args_contrast_of_yojson = function
   | `String "no-preference" -> Ok `No_preference
   | `String "more" -> Ok `More
   | `String "no-override" -> Ok `No_override
-  | _ -> Error "Invalid enum context_options_contrast"
+  | _ -> Error "Invalid enum browser_type_launch_persistent_context_args_contrast"
 
-type context_options_accept_downloads =
+type browser_type_launch_persistent_context_args_accept_downloads =
   [
   | `Accept
   | `Deny
   | `Internal_browser_default
   ]
 
-let context_options_accept_downloads_to_yojson = function
+let browser_type_launch_persistent_context_args_accept_downloads_to_yojson = function
   | `Accept -> `String "accept"
   | `Deny -> `String "deny"
   | `Internal_browser_default -> `String "internal-browser-default"
 
-let context_options_accept_downloads_of_yojson = function
+let browser_type_launch_persistent_context_args_accept_downloads_of_yojson = function
   | `String "accept" -> Ok `Accept
   | `String "deny" -> Ok `Deny
   | `String "internal-browser-default" -> Ok `Internal_browser_default
-  | _ -> Error "Invalid enum context_options_accept_downloads"
+  | _ -> Error "Invalid enum browser_type_launch_persistent_context_args_accept_downloads"
 
-type context_options_forced_colors =
+type browser_type_launch_persistent_context_args_forced_colors =
   [
   | `Active
   | `None
   | `No_override
   ]
 
-let context_options_forced_colors_to_yojson = function
+let browser_type_launch_persistent_context_args_forced_colors_to_yojson = function
   | `Active -> `String "active"
   | `None -> `String "none"
   | `No_override -> `String "no-override"
 
-let context_options_forced_colors_of_yojson = function
+let browser_type_launch_persistent_context_args_forced_colors_of_yojson = function
   | `String "active" -> Ok `Active
   | `String "none" -> Ok `None
   | `String "no-override" -> Ok `No_override
-  | _ -> Error "Invalid enum context_options_forced_colors"
+  | _ -> Error "Invalid enum browser_type_launch_persistent_context_args_forced_colors"
 
-type context_options_http_credentials_send =
+type browser_type_launch_persistent_context_args_color_scheme =
+  [
+  | `Dark
+  | `Light
+  | `No_preference
+  | `No_override
+  ]
+
+let browser_type_launch_persistent_context_args_color_scheme_to_yojson = function
+  | `Dark -> `String "dark"
+  | `Light -> `String "light"
+  | `No_preference -> `String "no-preference"
+  | `No_override -> `String "no-override"
+
+let browser_type_launch_persistent_context_args_color_scheme_of_yojson = function
+  | `String "dark" -> Ok `Dark
+  | `String "light" -> Ok `Light
+  | `String "no-preference" -> Ok `No_preference
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum browser_type_launch_persistent_context_args_color_scheme"
+
+type browser_type_launch_persistent_context_args_http_credentials_send =
   [
   | `Always
   | `Unauthorized
   ]
 
-let context_options_http_credentials_send_to_yojson = function
+let browser_type_launch_persistent_context_args_http_credentials_send_to_yojson = function
   | `Always -> `String "always"
   | `Unauthorized -> `String "unauthorized"
 
-let context_options_http_credentials_send_of_yojson = function
+let browser_type_launch_persistent_context_args_http_credentials_send_of_yojson = function
   | `String "always" -> Ok `Always
   | `String "unauthorized" -> Ok `Unauthorized
-  | _ -> Error "Invalid enum context_options_http_credentials_send"
+  | _ -> Error "Invalid enum browser_type_launch_persistent_context_args_http_credentials_send"
 
-type context_options_http_credentials =
+type browser_type_launch_persistent_context_args_http_credentials =
   {
-    context_options_http_credentials_username: string [@key "username"];
-    context_options_http_credentials_password: string [@key "password"];
-    context_options_http_credentials_origin: string option [@key "origin"] [@default None];
-    context_options_http_credentials_send: context_options_http_credentials_send option [@key "send"] [@default None];
+    browser_type_launch_persistent_context_args_http_credentials_username: string [@key "username"];
+    browser_type_launch_persistent_context_args_http_credentials_password: string [@key "password"];
+    browser_type_launch_persistent_context_args_http_credentials_origin: string option [@key "origin"] [@default None];
+    browser_type_launch_persistent_context_args_http_credentials_send: browser_type_launch_persistent_context_args_http_credentials_send option [@key "send"] [@default None];
   } [@@deriving yojson { strict = false }]
 
-type context_options_screen =
+type browser_type_launch_persistent_context_args_geolocation =
   {
-    context_options_screen_width: int [@key "width"];
-    context_options_screen_height: int [@key "height"];
+    browser_type_launch_persistent_context_args_geolocation_longitude: float [@key "longitude"];
+    browser_type_launch_persistent_context_args_geolocation_latitude: float [@key "latitude"];
+    browser_type_launch_persistent_context_args_geolocation_accuracy: float option [@key "accuracy"] [@default None];
   } [@@deriving yojson { strict = false }]
 
-type context_options_viewport =
+type browser_type_launch_persistent_context_args_client_certificates_item =
   {
-    context_options_viewport_width: int [@key "width"];
-    context_options_viewport_height: int [@key "height"];
+    browser_type_launch_persistent_context_args_client_certificates_item_origin: string [@key "origin"];
+    browser_type_launch_persistent_context_args_client_certificates_item_cert: string option [@key "cert"] [@default None];
+    browser_type_launch_persistent_context_args_client_certificates_item_key: string option [@key "key"] [@default None];
+    browser_type_launch_persistent_context_args_client_certificates_item_passphrase: string option [@key "passphrase"] [@default None];
+    browser_type_launch_persistent_context_args_client_certificates_item_pfx: string option [@key "pfx"] [@default None];
   } [@@deriving yojson { strict = false }]
 
-type context_options =
+type browser_type_launch_persistent_context_args_screen =
   {
-    context_options_no_default_viewport: bool option [@key "noDefaultViewport"] [@default None];
-    context_options_viewport: context_options_viewport option [@key "viewport"] [@default None];
-    context_options_screen: context_options_screen option [@key "screen"] [@default None];
-    context_options_ignore_https_errors: bool option [@key "ignoreHTTPSErrors"] [@default None];
-    context_options_client_certificates: context_options_client_certificates_item list option [@key "clientCertificates"] [@default None];
-    context_options_java_script_enabled: bool option [@key "javaScriptEnabled"] [@default None];
-    context_options_bypass_csp: bool option [@key "bypassCSP"] [@default None];
-    context_options_user_agent: string option [@key "userAgent"] [@default None];
-    context_options_locale: string option [@key "locale"] [@default None];
-    context_options_timezone_id: string option [@key "timezoneId"] [@default None];
-    context_options_geolocation: context_options_geolocation option [@key "geolocation"] [@default None];
-    context_options_permissions: string list option [@key "permissions"] [@default None];
-    context_options_extra_http_headers: name_value list option [@key "extraHTTPHeaders"] [@default None];
-    context_options_offline: bool option [@key "offline"] [@default None];
-    context_options_http_credentials: context_options_http_credentials option [@key "httpCredentials"] [@default None];
-    context_options_device_scale_factor: float option [@key "deviceScaleFactor"] [@default None];
-    context_options_is_mobile: bool option [@key "isMobile"] [@default None];
-    context_options_has_touch: bool option [@key "hasTouch"] [@default None];
-    context_options_color_scheme: context_options_color_scheme option [@key "colorScheme"] [@default None];
-    context_options_reduced_motion: context_options_reduced_motion option [@key "reducedMotion"] [@default None];
-    context_options_forced_colors: context_options_forced_colors option [@key "forcedColors"] [@default None];
-    context_options_accept_downloads: context_options_accept_downloads option [@key "acceptDownloads"] [@default None];
-    context_options_contrast: context_options_contrast option [@key "contrast"] [@default None];
-    context_options_base_url: string option [@key "baseURL"] [@default None];
-    context_options_record_video: context_options_record_video option [@key "recordVideo"] [@default None];
-    context_options_strict_selectors: bool option [@key "strictSelectors"] [@default None];
-    context_options_service_workers: context_options_service_workers option [@key "serviceWorkers"] [@default None];
-    context_options_selector_engines: selector_engine list option [@key "selectorEngines"] [@default None];
-    context_options_test_id_attribute_name: string option [@key "testIdAttributeName"] [@default None];
+    browser_type_launch_persistent_context_args_screen_width: int [@key "width"];
+    browser_type_launch_persistent_context_args_screen_height: int [@key "height"];
   } [@@deriving yojson { strict = false }]
 
-type launch_options_proxy =
+type browser_type_launch_persistent_context_args_viewport =
   {
-    launch_options_proxy_server: string [@key "server"];
-    launch_options_proxy_bypass: string option [@key "bypass"] [@default None];
-    launch_options_proxy_username: string option [@key "username"] [@default None];
-    launch_options_proxy_password: string option [@key "password"] [@default None];
+    browser_type_launch_persistent_context_args_viewport_width: int [@key "width"];
+    browser_type_launch_persistent_context_args_viewport_height: int [@key "height"];
   } [@@deriving yojson { strict = false }]
 
-type launch_options =
+type browser_type_launch_persistent_context_args_proxy =
   {
-    launch_options_channel: string option [@key "channel"] [@default None];
-    launch_options_executable_path: string option [@key "executablePath"] [@default None];
-    launch_options_args: string list option [@key "args"] [@default None];
-    launch_options_ignore_all_default_args: bool option [@key "ignoreAllDefaultArgs"] [@default None];
-    launch_options_ignore_default_args: string list option [@key "ignoreDefaultArgs"] [@default None];
-    launch_options_handle_sigint: bool option [@key "handleSIGINT"] [@default None];
-    launch_options_handle_sigterm: bool option [@key "handleSIGTERM"] [@default None];
-    launch_options_handle_sighup: bool option [@key "handleSIGHUP"] [@default None];
-    launch_options_timeout: float [@key "timeout"];
-    launch_options_env: name_value list option [@key "env"] [@default None];
-    launch_options_headless: bool option [@key "headless"] [@default None];
-    launch_options_proxy: launch_options_proxy option [@key "proxy"] [@default None];
-    launch_options_downloads_path: string option [@key "downloadsPath"] [@default None];
-    launch_options_traces_dir: string option [@key "tracesDir"] [@default None];
-    launch_options_artifacts_dir: string option [@key "artifactsDir"] [@default None];
-    launch_options_chromium_sandbox: bool option [@key "chromiumSandbox"] [@default None];
-    launch_options_firefox_user_prefs: json option [@key "firefoxUserPrefs"] [@default None];
-    launch_options_cdp_port: int option [@key "cdpPort"] [@default None];
+    browser_type_launch_persistent_context_args_proxy_server: string [@key "server"];
+    browser_type_launch_persistent_context_args_proxy_bypass: string option [@key "bypass"] [@default None];
+    browser_type_launch_persistent_context_args_proxy_username: string option [@key "username"] [@default None];
+    browser_type_launch_persistent_context_args_proxy_password: string option [@key "password"] [@default None];
   } [@@deriving yojson { strict = false }]
 
 type browser_type_launch_persistent_context_args =
   {
-    browser_type_launch_persistent_context_args_mixin1: launch_options [@key "$mixin1"];
-    browser_type_launch_persistent_context_args_mixin2: context_options [@key "$mixin2"];
+    browser_type_launch_persistent_context_args_channel: string option [@key "channel"] [@default None];
+    browser_type_launch_persistent_context_args_executable_path: string option [@key "executablePath"] [@default None];
+    browser_type_launch_persistent_context_args_args: string list option [@key "args"] [@default None];
+    browser_type_launch_persistent_context_args_ignore_all_default_args: bool option [@key "ignoreAllDefaultArgs"] [@default None];
+    browser_type_launch_persistent_context_args_ignore_default_args: string list option [@key "ignoreDefaultArgs"] [@default None];
+    browser_type_launch_persistent_context_args_handle_sigint: bool option [@key "handleSIGINT"] [@default None];
+    browser_type_launch_persistent_context_args_handle_sigterm: bool option [@key "handleSIGTERM"] [@default None];
+    browser_type_launch_persistent_context_args_handle_sighup: bool option [@key "handleSIGHUP"] [@default None];
+    browser_type_launch_persistent_context_args_timeout: float [@key "timeout"];
+    browser_type_launch_persistent_context_args_env: name_value list option [@key "env"] [@default None];
+    browser_type_launch_persistent_context_args_headless: bool option [@key "headless"] [@default None];
+    browser_type_launch_persistent_context_args_proxy: browser_type_launch_persistent_context_args_proxy option [@key "proxy"] [@default None];
+    browser_type_launch_persistent_context_args_downloads_path: string option [@key "downloadsPath"] [@default None];
+    browser_type_launch_persistent_context_args_traces_dir: string option [@key "tracesDir"] [@default None];
+    browser_type_launch_persistent_context_args_artifacts_dir: string option [@key "artifactsDir"] [@default None];
+    browser_type_launch_persistent_context_args_chromium_sandbox: bool option [@key "chromiumSandbox"] [@default None];
+    browser_type_launch_persistent_context_args_firefox_user_prefs: json option [@key "firefoxUserPrefs"] [@default None];
+    browser_type_launch_persistent_context_args_cdp_port: int option [@key "cdpPort"] [@default None];
+    browser_type_launch_persistent_context_args_no_default_viewport: bool option [@key "noDefaultViewport"] [@default None];
+    browser_type_launch_persistent_context_args_viewport: browser_type_launch_persistent_context_args_viewport option [@key "viewport"] [@default None];
+    browser_type_launch_persistent_context_args_screen: browser_type_launch_persistent_context_args_screen option [@key "screen"] [@default None];
+    browser_type_launch_persistent_context_args_ignore_https_errors: bool option [@key "ignoreHTTPSErrors"] [@default None];
+    browser_type_launch_persistent_context_args_client_certificates: browser_type_launch_persistent_context_args_client_certificates_item list option [@key "clientCertificates"] [@default None];
+    browser_type_launch_persistent_context_args_java_script_enabled: bool option [@key "javaScriptEnabled"] [@default None];
+    browser_type_launch_persistent_context_args_bypass_csp: bool option [@key "bypassCSP"] [@default None];
+    browser_type_launch_persistent_context_args_user_agent: string option [@key "userAgent"] [@default None];
+    browser_type_launch_persistent_context_args_locale: string option [@key "locale"] [@default None];
+    browser_type_launch_persistent_context_args_timezone_id: string option [@key "timezoneId"] [@default None];
+    browser_type_launch_persistent_context_args_geolocation: browser_type_launch_persistent_context_args_geolocation option [@key "geolocation"] [@default None];
+    browser_type_launch_persistent_context_args_permissions: string list option [@key "permissions"] [@default None];
+    browser_type_launch_persistent_context_args_extra_http_headers: name_value list option [@key "extraHTTPHeaders"] [@default None];
+    browser_type_launch_persistent_context_args_offline: bool option [@key "offline"] [@default None];
+    browser_type_launch_persistent_context_args_http_credentials: browser_type_launch_persistent_context_args_http_credentials option [@key "httpCredentials"] [@default None];
+    browser_type_launch_persistent_context_args_device_scale_factor: float option [@key "deviceScaleFactor"] [@default None];
+    browser_type_launch_persistent_context_args_is_mobile: bool option [@key "isMobile"] [@default None];
+    browser_type_launch_persistent_context_args_has_touch: bool option [@key "hasTouch"] [@default None];
+    browser_type_launch_persistent_context_args_color_scheme: browser_type_launch_persistent_context_args_color_scheme option [@key "colorScheme"] [@default None];
+    browser_type_launch_persistent_context_args_reduced_motion: browser_type_launch_persistent_context_args_reduced_motion option [@key "reducedMotion"] [@default None];
+    browser_type_launch_persistent_context_args_forced_colors: browser_type_launch_persistent_context_args_forced_colors option [@key "forcedColors"] [@default None];
+    browser_type_launch_persistent_context_args_accept_downloads: browser_type_launch_persistent_context_args_accept_downloads option [@key "acceptDownloads"] [@default None];
+    browser_type_launch_persistent_context_args_contrast: browser_type_launch_persistent_context_args_contrast option [@key "contrast"] [@default None];
+    browser_type_launch_persistent_context_args_base_url: string option [@key "baseURL"] [@default None];
+    browser_type_launch_persistent_context_args_record_video: browser_type_launch_persistent_context_args_record_video option [@key "recordVideo"] [@default None];
+    browser_type_launch_persistent_context_args_strict_selectors: bool option [@key "strictSelectors"] [@default None];
+    browser_type_launch_persistent_context_args_service_workers: browser_type_launch_persistent_context_args_service_workers option [@key "serviceWorkers"] [@default None];
+    browser_type_launch_persistent_context_args_selector_engines: selector_engine list option [@key "selectorEngines"] [@default None];
+    browser_type_launch_persistent_context_args_test_id_attribute_name: string option [@key "testIdAttributeName"] [@default None];
     browser_type_launch_persistent_context_args_user_data_dir: string [@key "userDataDir"];
     browser_type_launch_persistent_context_args_slow_mo: float option [@key "slowMo"] [@default None];
   } [@@deriving yojson { strict = false }]
@@ -1193,10 +1302,43 @@ let element_handle_wait_for_element_state_args_state_of_yojson = function
   | `String "editable" -> Ok `Editable
   | _ -> Error "Invalid enum element_handle_wait_for_element_state_args_state"
 
+type browser_context_initializer_options_service_workers =
+  [
+  | `Allow
+  | `Block
+  ]
+
+let browser_context_initializer_options_service_workers_to_yojson = function
+  | `Allow -> `String "allow"
+  | `Block -> `String "block"
+
+let browser_context_initializer_options_service_workers_of_yojson = function
+  | `String "allow" -> Ok `Allow
+  | `String "block" -> Ok `Block
+  | _ -> Error "Invalid enum browser_context_initializer_options_service_workers"
+
 type tracing_tracing_start_chunk_returns =
   {
     tracing_tracing_start_chunk_returns_trace_name: string [@key "traceName"];
   } [@@deriving yojson { strict = false }]
+
+type context_options_forced_colors =
+  [
+  | `Active
+  | `None
+  | `No_override
+  ]
+
+let context_options_forced_colors_to_yojson = function
+  | `Active -> `String "active"
+  | `None -> `String "none"
+  | `No_override -> `String "no-override"
+
+let context_options_forced_colors_of_yojson = function
+  | `String "active" -> Ok `Active
+  | `String "none" -> Ok `None
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum context_options_forced_colors"
 
 type page_pdf_args_margin =
   {
@@ -1330,10 +1472,32 @@ type page_screencast_start_args_size =
     page_screencast_start_args_size_height: int [@key "height"];
   } [@@deriving yojson { strict = false }]
 
+type browser_new_context_args_http_credentials_send =
+  [
+  | `Always
+  | `Unauthorized
+  ]
+
+let browser_new_context_args_http_credentials_send_to_yojson = function
+  | `Always -> `String "always"
+  | `Unauthorized -> `String "unauthorized"
+
+let browser_new_context_args_http_credentials_send_of_yojson = function
+  | `String "always" -> Ok `Always
+  | `String "unauthorized" -> Ok `Unauthorized
+  | _ -> Error "Invalid enum browser_new_context_args_http_credentials_send"
+
 type socks_support_socks_error_args =
   {
     socks_support_socks_error_args_uid: string [@key "uid"];
     socks_support_socks_error_args_error: string [@key "error"];
+  } [@@deriving yojson { strict = false }]
+
+type browser_context_console_event_location =
+  {
+    browser_context_console_event_location_url: string [@key "url"];
+    browser_context_console_event_location_line_number: int [@key "lineNumber"];
+    browser_context_console_event_location_column_number: int [@key "columnNumber"];
   } [@@deriving yojson { strict = false }]
 
 type frame_hover_args_modifiers_item =
@@ -1426,6 +1590,36 @@ type browser_context_storage_state_returns =
     browser_context_storage_state_returns_origins: origin_storage list [@key "origins"];
   } [@@deriving yojson { strict = false }]
 
+type launch_options_proxy =
+  {
+    launch_options_proxy_server: string [@key "server"];
+    launch_options_proxy_bypass: string option [@key "bypass"] [@default None];
+    launch_options_proxy_username: string option [@key "username"] [@default None];
+    launch_options_proxy_password: string option [@key "password"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type launch_options =
+  {
+    launch_options_channel: string option [@key "channel"] [@default None];
+    launch_options_executable_path: string option [@key "executablePath"] [@default None];
+    launch_options_args: string list option [@key "args"] [@default None];
+    launch_options_ignore_all_default_args: bool option [@key "ignoreAllDefaultArgs"] [@default None];
+    launch_options_ignore_default_args: string list option [@key "ignoreDefaultArgs"] [@default None];
+    launch_options_handle_sigint: bool option [@key "handleSIGINT"] [@default None];
+    launch_options_handle_sigterm: bool option [@key "handleSIGTERM"] [@default None];
+    launch_options_handle_sighup: bool option [@key "handleSIGHUP"] [@default None];
+    launch_options_timeout: float [@key "timeout"];
+    launch_options_env: name_value list option [@key "env"] [@default None];
+    launch_options_headless: bool option [@key "headless"] [@default None];
+    launch_options_proxy: launch_options_proxy option [@key "proxy"] [@default None];
+    launch_options_downloads_path: string option [@key "downloadsPath"] [@default None];
+    launch_options_traces_dir: string option [@key "tracesDir"] [@default None];
+    launch_options_artifacts_dir: string option [@key "artifactsDir"] [@default None];
+    launch_options_chromium_sandbox: bool option [@key "chromiumSandbox"] [@default None];
+    launch_options_firefox_user_prefs: json option [@key "firefoxUserPrefs"] [@default None];
+    launch_options_cdp_port: int option [@key "cdpPort"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
 type playwright_new_request_args_client_certificates_item =
   {
     playwright_new_request_args_client_certificates_item_origin: string [@key "origin"];
@@ -1457,6 +1651,29 @@ type browser_context_create_temp_files_args =
     browser_context_create_temp_files_args_items: browser_context_create_temp_files_args_items_item list [@key "items"];
   } [@@deriving yojson { strict = false }]
 
+type context_options_http_credentials_send =
+  [
+  | `Always
+  | `Unauthorized
+  ]
+
+let context_options_http_credentials_send_to_yojson = function
+  | `Always -> `String "always"
+  | `Unauthorized -> `String "unauthorized"
+
+let context_options_http_credentials_send_of_yojson = function
+  | `String "always" -> Ok `Always
+  | `String "unauthorized" -> Ok `Unauthorized
+  | _ -> Error "Invalid enum context_options_http_credentials_send"
+
+type context_options_http_credentials =
+  {
+    context_options_http_credentials_username: string [@key "username"];
+    context_options_http_credentials_password: string [@key "password"];
+    context_options_http_credentials_origin: string option [@key "origin"] [@default None];
+    context_options_http_credentials_send: context_options_http_credentials_send option [@key "send"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
 type element_handle_select_option_args_options_item =
   {
     element_handle_select_option_args_options_item_value_or_label: string option [@key "valueOrLabel"] [@default None];
@@ -1473,10 +1690,36 @@ type element_handle_select_option_args =
     element_handle_select_option_args_timeout: float [@key "timeout"];
   } [@@deriving yojson { strict = false }]
 
+type browser_type_launch_args_proxy =
+  {
+    browser_type_launch_args_proxy_server: string [@key "server"];
+    browser_type_launch_args_proxy_bypass: string option [@key "bypass"] [@default None];
+    browser_type_launch_args_proxy_username: string option [@key "username"] [@default None];
+    browser_type_launch_args_proxy_password: string option [@key "password"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
 type element_handle_eval_on_selector_returns =
   {
     element_handle_eval_on_selector_returns_value: serialized_value [@key "value"];
   } [@@deriving yojson { strict = false }]
+
+type browser_new_context_for_reuse_args_accept_downloads =
+  [
+  | `Accept
+  | `Deny
+  | `Internal_browser_default
+  ]
+
+let browser_new_context_for_reuse_args_accept_downloads_to_yojson = function
+  | `Accept -> `String "accept"
+  | `Deny -> `String "deny"
+  | `Internal_browser_default -> `String "internal-browser-default"
+
+let browser_new_context_for_reuse_args_accept_downloads_of_yojson = function
+  | `String "accept" -> Ok `Accept
+  | `String "deny" -> Ok `Deny
+  | `String "internal-browser-default" -> Ok `Internal_browser_default
+  | _ -> Error "Invalid enum browser_new_context_for_reuse_args_accept_downloads"
 
 type frame_resolve_selector_returns =
   {
@@ -1635,6 +1878,24 @@ type browser_context_recorder_event_event =
     browser_context_recorder_event_event_code: string [@key "code"];
   } [@@deriving yojson { strict = false }]
 
+type browser_new_context_args_forced_colors =
+  [
+  | `Active
+  | `None
+  | `No_override
+  ]
+
+let browser_new_context_args_forced_colors_to_yojson = function
+  | `Active -> `String "active"
+  | `None -> `String "none"
+  | `No_override -> `String "no-override"
+
+let browser_new_context_args_forced_colors_of_yojson = function
+  | `String "active" -> Ok `Active
+  | `String "none" -> Ok `None
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum browser_new_context_args_forced_colors"
+
 type page_screencast_start_args =
   {
     page_screencast_start_args_size: page_screencast_start_args_size option [@key "size"] [@default None];
@@ -1673,6 +1934,15 @@ type frame_input_value_returns =
     frame_input_value_returns_value: string [@key "value"];
   } [@@deriving yojson { strict = false }]
 
+type android_device_launch_browser_args_client_certificates_item =
+  {
+    android_device_launch_browser_args_client_certificates_item_origin: string [@key "origin"];
+    android_device_launch_browser_args_client_certificates_item_cert: string option [@key "cert"] [@default None];
+    android_device_launch_browser_args_client_certificates_item_key: string option [@key "key"] [@default None];
+    android_device_launch_browser_args_client_certificates_item_passphrase: string option [@key "passphrase"] [@default None];
+    android_device_launch_browser_args_client_certificates_item_pfx: string option [@key "pfx"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
 type frame_inner_htm_l_returns =
   {
     frame_inner_htm_l_returns_value: string [@key "value"];
@@ -1696,10 +1966,43 @@ type android_device_input_swipe_args =
     android_device_input_swipe_args_steps: int [@key "steps"];
   } [@@deriving yojson { strict = false }]
 
+type browser_new_context_args_accept_downloads =
+  [
+  | `Accept
+  | `Deny
+  | `Internal_browser_default
+  ]
+
+let browser_new_context_args_accept_downloads_to_yojson = function
+  | `Accept -> `String "accept"
+  | `Deny -> `String "deny"
+  | `Internal_browser_default -> `String "internal-browser-default"
+
+let browser_new_context_args_accept_downloads_of_yojson = function
+  | `String "accept" -> Ok `Accept
+  | `String "deny" -> Ok `Deny
+  | `String "internal-browser-default" -> Ok `Internal_browser_default
+  | _ -> Error "Invalid enum browser_new_context_args_accept_downloads"
+
 type frame_add_script_tag_returns =
   {
     frame_add_script_tag_returns_element: channel [@key "element"];
   } [@@deriving yojson { strict = false }]
+
+type page_expect_screenshot_args_scale =
+  [
+  | `Css
+  | `Device
+  ]
+
+let page_expect_screenshot_args_scale_to_yojson = function
+  | `Css -> `String "css"
+  | `Device -> `String "device"
+
+let page_expect_screenshot_args_scale_of_yojson = function
+  | `String "css" -> Ok `Css
+  | `String "device" -> Ok `Device
+  | _ -> Error "Invalid enum page_expect_screenshot_args_scale"
 
 type browser_context_enable_recorder_args_recorder_mode =
   [
@@ -1775,6 +2078,33 @@ type artifact_save_as_stream_returns =
     artifact_save_as_stream_returns_stream: channel [@key "stream"];
   } [@@deriving yojson { strict = false }]
 
+type context_options_record_video_show_actions_position =
+  [
+  | `Top_left
+  | `Top
+  | `Top_right
+  | `Bottom_left
+  | `Bottom
+  | `Bottom_right
+  ]
+
+let context_options_record_video_show_actions_position_to_yojson = function
+  | `Top_left -> `String "top-left"
+  | `Top -> `String "top"
+  | `Top_right -> `String "top-right"
+  | `Bottom_left -> `String "bottom-left"
+  | `Bottom -> `String "bottom"
+  | `Bottom_right -> `String "bottom-right"
+
+let context_options_record_video_show_actions_position_of_yojson = function
+  | `String "top-left" -> Ok `Top_left
+  | `String "top" -> Ok `Top
+  | `String "top-right" -> Ok `Top_right
+  | `String "bottom-left" -> Ok `Bottom_left
+  | `String "bottom" -> Ok `Bottom
+  | `String "bottom-right" -> Ok `Bottom_right
+  | _ -> Error "Invalid enum context_options_record_video_show_actions_position"
+
 type browser_context_clock_run_for_args =
   {
     browser_context_clock_run_for_args_ticks_number: float option [@key "ticksNumber"] [@default None];
@@ -1790,6 +2120,12 @@ type page_viewport_size_changed_event_viewport_size =
   {
     page_viewport_size_changed_event_viewport_size_width: int [@key "width"];
     page_viewport_size_changed_event_viewport_size_height: int [@key "height"];
+  } [@@deriving yojson { strict = false }]
+
+type browser_new_context_for_reuse_args_viewport =
+  {
+    browser_new_context_for_reuse_args_viewport_width: int [@key "width"];
+    browser_new_context_for_reuse_args_viewport_height: int [@key "height"];
   } [@@deriving yojson { strict = false }]
 
 type web_socket_route_message_from_server_event =
@@ -1835,9 +2171,33 @@ type debug_controller_initialize_args =
     debug_controller_initialize_args_sdk_language: sdk_language [@key "sdkLanguage"];
   } [@@deriving yojson { strict = false }]
 
+type context_options_accept_downloads =
+  [
+  | `Accept
+  | `Deny
+  | `Internal_browser_default
+  ]
+
+let context_options_accept_downloads_to_yojson = function
+  | `Accept -> `String "accept"
+  | `Deny -> `String "deny"
+  | `Internal_browser_default -> `String "internal-browser-default"
+
+let context_options_accept_downloads_of_yojson = function
+  | `String "accept" -> Ok `Accept
+  | `String "deny" -> Ok `Deny
+  | `String "internal-browser-default" -> Ok `Internal_browser_default
+  | _ -> Error "Invalid enum context_options_accept_downloads"
+
 type frame_evaluate_expression_handle_returns =
   {
     frame_evaluate_expression_handle_returns_handle: channel [@key "handle"];
+  } [@@deriving yojson { strict = false }]
+
+type android_device_launch_browser_args_screen =
+  {
+    android_device_launch_browser_args_screen_width: int [@key "width"];
+    android_device_launch_browser_args_screen_height: int [@key "height"];
   } [@@deriving yojson { strict = false }]
 
 type browser_context_create_temp_files_returns =
@@ -1887,31 +2247,41 @@ type browser_new_context_for_reuse_args_storage_state =
     browser_new_context_for_reuse_args_storage_state_origins: set_origin_storage list option [@key "origins"] [@default None];
   } [@@deriving yojson { strict = false }]
 
-type console_message_location =
+type page_console_messages_returns_messages_item_location =
   {
-    console_message_location_url: string [@key "url"];
-    console_message_location_line_number: int [@key "lineNumber"];
-    console_message_location_column_number: int [@key "columnNumber"];
-  } [@@deriving yojson { strict = false }]
-
-type console_message =
-  {
-    console_message_type_: string [@key "type"];
-    console_message_text: string [@key "text"];
-    console_message_args: channel list [@key "args"];
-    console_message_location: console_message_location [@key "location"];
-    console_message_timestamp: float [@key "timestamp"];
+    page_console_messages_returns_messages_item_location_url: string [@key "url"];
+    page_console_messages_returns_messages_item_location_line_number: int [@key "lineNumber"];
+    page_console_messages_returns_messages_item_location_column_number: int [@key "columnNumber"];
   } [@@deriving yojson { strict = false }]
 
 type page_console_messages_returns_messages_item =
   {
-    page_console_messages_returns_messages_item_mixin: console_message [@key "$mixin"];
+    page_console_messages_returns_messages_item_type_: string [@key "type"];
+    page_console_messages_returns_messages_item_text: string [@key "text"];
+    page_console_messages_returns_messages_item_args: channel list [@key "args"];
+    page_console_messages_returns_messages_item_location: page_console_messages_returns_messages_item_location [@key "location"];
+    page_console_messages_returns_messages_item_timestamp: float [@key "timestamp"];
   } [@@deriving yojson { strict = false }]
 
 type page_console_messages_returns =
   {
     page_console_messages_returns_messages: page_console_messages_returns_messages_item list [@key "messages"];
   } [@@deriving yojson { strict = false }]
+
+type browser_new_context_for_reuse_args_http_credentials_send =
+  [
+  | `Always
+  | `Unauthorized
+  ]
+
+let browser_new_context_for_reuse_args_http_credentials_send_to_yojson = function
+  | `Always -> `String "always"
+  | `Unauthorized -> `String "unauthorized"
+
+let browser_new_context_for_reuse_args_http_credentials_send_of_yojson = function
+  | `String "always" -> Ok `Always
+  | `String "unauthorized" -> Ok `Unauthorized
+  | _ -> Error "Invalid enum browser_new_context_for_reuse_args_http_credentials_send"
 
 type web_socket_socket_error_event =
   {
@@ -1952,6 +2322,12 @@ type frame_navigated_event =
     frame_navigated_event_error: string option [@key "error"] [@default None];
   } [@@deriving yojson { strict = false }]
 
+type context_options_screen =
+  {
+    context_options_screen_width: int [@key "width"];
+    context_options_screen_height: int [@key "height"];
+  } [@@deriving yojson { strict = false }]
+
 type element_handle_input_value_returns =
   {
     element_handle_input_value_returns_value: string [@key "value"];
@@ -1962,10 +2338,95 @@ type page_set_extra_http_headers_args =
     page_set_extra_http_headers_args_headers: name_value list [@key "headers"];
   } [@@deriving yojson { strict = false }]
 
+type android_device_launch_browser_args_reduced_motion =
+  [
+  | `Reduce
+  | `No_preference
+  | `No_override
+  ]
+
+let android_device_launch_browser_args_reduced_motion_to_yojson = function
+  | `Reduce -> `String "reduce"
+  | `No_preference -> `String "no-preference"
+  | `No_override -> `String "no-override"
+
+let android_device_launch_browser_args_reduced_motion_of_yojson = function
+  | `String "reduce" -> Ok `Reduce
+  | `String "no-preference" -> Ok `No_preference
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum android_device_launch_browser_args_reduced_motion"
+
+type browser_new_context_for_reuse_args_reduced_motion =
+  [
+  | `Reduce
+  | `No_preference
+  | `No_override
+  ]
+
+let browser_new_context_for_reuse_args_reduced_motion_to_yojson = function
+  | `Reduce -> `String "reduce"
+  | `No_preference -> `String "no-preference"
+  | `No_override -> `String "no-override"
+
+let browser_new_context_for_reuse_args_reduced_motion_of_yojson = function
+  | `String "reduce" -> Ok `Reduce
+  | `String "no-preference" -> Ok `No_preference
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum browser_new_context_for_reuse_args_reduced_motion"
+
+type android_device_launch_browser_args_record_video_show_actions_position =
+  [
+  | `Top_left
+  | `Top
+  | `Top_right
+  | `Bottom_left
+  | `Bottom
+  | `Bottom_right
+  ]
+
+let android_device_launch_browser_args_record_video_show_actions_position_to_yojson = function
+  | `Top_left -> `String "top-left"
+  | `Top -> `String "top"
+  | `Top_right -> `String "top-right"
+  | `Bottom_left -> `String "bottom-left"
+  | `Bottom -> `String "bottom"
+  | `Bottom_right -> `String "bottom-right"
+
+let android_device_launch_browser_args_record_video_show_actions_position_of_yojson = function
+  | `String "top-left" -> Ok `Top_left
+  | `String "top" -> Ok `Top
+  | `String "top-right" -> Ok `Top_right
+  | `String "bottom-left" -> Ok `Bottom_left
+  | `String "bottom" -> Ok `Bottom
+  | `String "bottom-right" -> Ok `Bottom_right
+  | _ -> Error "Invalid enum android_device_launch_browser_args_record_video_show_actions_position"
+
+type android_device_launch_browser_args_record_video_show_actions =
+  {
+    android_device_launch_browser_args_record_video_show_actions_duration: float option [@key "duration"] [@default None];
+    android_device_launch_browser_args_record_video_show_actions_position: android_device_launch_browser_args_record_video_show_actions_position option [@key "position"] [@default None];
+    android_device_launch_browser_args_record_video_show_actions_font_size: int option [@key "fontSize"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
 type root_initialize_args =
   {
     root_initialize_args_sdk_language: sdk_language [@key "sdkLanguage"];
   } [@@deriving yojson { strict = false }]
+
+type element_handle_screenshot_args_scale =
+  [
+  | `Css
+  | `Device
+  ]
+
+let element_handle_screenshot_args_scale_to_yojson = function
+  | `Css -> `String "css"
+  | `Device -> `String "device"
+
+let element_handle_screenshot_args_scale_of_yojson = function
+  | `String "css" -> Ok `Css
+  | `String "device" -> Ok `Device
+  | _ -> Error "Invalid enum element_handle_screenshot_args_scale"
 
 type browser_new_context_for_reuse_args_proxy =
   {
@@ -2016,9 +2477,50 @@ type browser_context_new_cdp_session_returns =
     browser_context_new_cdp_session_returns_session: channel [@key "session"];
   } [@@deriving yojson { strict = false }]
 
+type page_screencast_show_actions_args_position =
+  [
+  | `Top_left
+  | `Top
+  | `Top_right
+  | `Bottom_left
+  | `Bottom
+  | `Bottom_right
+  ]
+
+let page_screencast_show_actions_args_position_to_yojson = function
+  | `Top_left -> `String "top-left"
+  | `Top -> `String "top"
+  | `Top_right -> `String "top-right"
+  | `Bottom_left -> `String "bottom-left"
+  | `Bottom -> `String "bottom"
+  | `Bottom_right -> `String "bottom-right"
+
+let page_screencast_show_actions_args_position_of_yojson = function
+  | `String "top-left" -> Ok `Top_left
+  | `String "top" -> Ok `Top
+  | `String "top-right" -> Ok `Top_right
+  | `String "bottom-left" -> Ok `Bottom_left
+  | `String "bottom" -> Ok `Bottom
+  | `String "bottom-right" -> Ok `Bottom_right
+  | _ -> Error "Invalid enum page_screencast_show_actions_args_position"
+
 type page_screencast_show_actions_args =
   {
-    page_screencast_show_actions_args_mixin: show_actions_options [@key "$mixin"];
+    page_screencast_show_actions_args_duration: float option [@key "duration"] [@default None];
+    page_screencast_show_actions_args_position: page_screencast_show_actions_args_position option [@key "position"] [@default None];
+    page_screencast_show_actions_args_font_size: int option [@key "fontSize"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type browser_new_context_args_viewport =
+  {
+    browser_new_context_args_viewport_width: int [@key "width"];
+    browser_new_context_args_viewport_height: int [@key "height"];
+  } [@@deriving yojson { strict = false }]
+
+type context_options_viewport =
+  {
+    context_options_viewport_width: int [@key "width"];
+    context_options_viewport_height: int [@key "height"];
   } [@@deriving yojson { strict = false }]
 
 type android_device_open_returns =
@@ -2043,52 +2545,41 @@ type browser_context_close_args =
     browser_context_close_args_reason: string option [@key "reason"] [@default None];
   } [@@deriving yojson { strict = false }]
 
-type common_screenshot_options_mask_item =
+type element_handle_screenshot_args_mask_item =
   {
-    common_screenshot_options_mask_item_frame: channel [@key "frame"];
-    common_screenshot_options_mask_item_selector: string [@key "selector"];
+    element_handle_screenshot_args_mask_item_frame: channel [@key "frame"];
+    element_handle_screenshot_args_mask_item_selector: string [@key "selector"];
   } [@@deriving yojson { strict = false }]
 
-type common_screenshot_options_scale =
-  [
-  | `Css
-  | `Device
-  ]
-
-let common_screenshot_options_scale_to_yojson = function
-  | `Css -> `String "css"
-  | `Device -> `String "device"
-
-let common_screenshot_options_scale_of_yojson = function
-  | `String "css" -> Ok `Css
-  | `String "device" -> Ok `Device
-  | _ -> Error "Invalid enum common_screenshot_options_scale"
-
-type common_screenshot_options_animations =
+type element_handle_screenshot_args_animations =
   [
   | `Disabled
   | `Allow
   ]
 
-let common_screenshot_options_animations_to_yojson = function
+let element_handle_screenshot_args_animations_to_yojson = function
   | `Disabled -> `String "disabled"
   | `Allow -> `String "allow"
 
-let common_screenshot_options_animations_of_yojson = function
+let element_handle_screenshot_args_animations_of_yojson = function
   | `String "disabled" -> Ok `Disabled
   | `String "allow" -> Ok `Allow
-  | _ -> Error "Invalid enum common_screenshot_options_animations"
+  | _ -> Error "Invalid enum element_handle_screenshot_args_animations"
 
-type common_screenshot_options =
-  {
-    common_screenshot_options_omit_background: bool option [@key "omitBackground"] [@default None];
-    common_screenshot_options_caret: common_screenshot_options_caret option [@key "caret"] [@default None];
-    common_screenshot_options_animations: common_screenshot_options_animations option [@key "animations"] [@default None];
-    common_screenshot_options_scale: common_screenshot_options_scale option [@key "scale"] [@default None];
-    common_screenshot_options_mask: common_screenshot_options_mask_item list option [@key "mask"] [@default None];
-    common_screenshot_options_mask_color: string option [@key "maskColor"] [@default None];
-    common_screenshot_options_style: string option [@key "style"] [@default None];
-  } [@@deriving yojson { strict = false }]
+type element_handle_screenshot_args_caret =
+  [
+  | `Hide
+  | `Initial
+  ]
+
+let element_handle_screenshot_args_caret_to_yojson = function
+  | `Hide -> `String "hide"
+  | `Initial -> `String "initial"
+
+let element_handle_screenshot_args_caret_of_yojson = function
+  | `String "hide" -> Ok `Hide
+  | `String "initial" -> Ok `Initial
+  | _ -> Error "Invalid enum element_handle_screenshot_args_caret"
 
 type element_handle_screenshot_args_type =
   [
@@ -2110,8 +2601,29 @@ type element_handle_screenshot_args =
     element_handle_screenshot_args_timeout: float [@key "timeout"];
     element_handle_screenshot_args_type_: element_handle_screenshot_args_type option [@key "type"] [@default None];
     element_handle_screenshot_args_quality: int option [@key "quality"] [@default None];
-    element_handle_screenshot_args_mixin: common_screenshot_options [@key "$mixin"];
+    element_handle_screenshot_args_omit_background: bool option [@key "omitBackground"] [@default None];
+    element_handle_screenshot_args_caret: element_handle_screenshot_args_caret option [@key "caret"] [@default None];
+    element_handle_screenshot_args_animations: element_handle_screenshot_args_animations option [@key "animations"] [@default None];
+    element_handle_screenshot_args_scale: element_handle_screenshot_args_scale option [@key "scale"] [@default None];
+    element_handle_screenshot_args_mask: element_handle_screenshot_args_mask_item list option [@key "mask"] [@default None];
+    element_handle_screenshot_args_mask_color: string option [@key "maskColor"] [@default None];
+    element_handle_screenshot_args_style: string option [@key "style"] [@default None];
   } [@@deriving yojson { strict = false }]
+
+type android_device_launch_browser_args_service_workers =
+  [
+  | `Allow
+  | `Block
+  ]
+
+let android_device_launch_browser_args_service_workers_to_yojson = function
+  | `Allow -> `String "allow"
+  | `Block -> `String "block"
+
+let android_device_launch_browser_args_service_workers_of_yojson = function
+  | `String "allow" -> Ok `Allow
+  | `String "block" -> Ok `Block
+  | _ -> Error "Invalid enum android_device_launch_browser_args_service_workers"
 
 type browser_context_page_error_event_location =
   {
@@ -2154,6 +2666,14 @@ type frame_add_style_tag_returns =
     frame_add_style_tag_returns_element: channel [@key "element"];
   } [@@deriving yojson { strict = false }]
 
+type browser_new_context_args_http_credentials =
+  {
+    browser_new_context_args_http_credentials_username: string [@key "username"];
+    browser_new_context_args_http_credentials_password: string [@key "password"];
+    browser_new_context_args_http_credentials_origin: string option [@key "origin"] [@default None];
+    browser_new_context_args_http_credentials_send: browser_new_context_args_http_credentials_send option [@key "send"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
 type metadata_location =
   {
     metadata_location_file: string [@key "file"];
@@ -2161,9 +2681,228 @@ type metadata_location =
     metadata_location_column: int option [@key "column"] [@default None];
   } [@@deriving yojson { strict = false }]
 
+type browser_context_initializer_options_record_video_show_actions_position =
+  [
+  | `Top_left
+  | `Top
+  | `Top_right
+  | `Bottom_left
+  | `Bottom
+  | `Bottom_right
+  ]
+
+let browser_context_initializer_options_record_video_show_actions_position_to_yojson = function
+  | `Top_left -> `String "top-left"
+  | `Top -> `String "top"
+  | `Top_right -> `String "top-right"
+  | `Bottom_left -> `String "bottom-left"
+  | `Bottom -> `String "bottom"
+  | `Bottom_right -> `String "bottom-right"
+
+let browser_context_initializer_options_record_video_show_actions_position_of_yojson = function
+  | `String "top-left" -> Ok `Top_left
+  | `String "top" -> Ok `Top
+  | `String "top-right" -> Ok `Top_right
+  | `String "bottom-left" -> Ok `Bottom_left
+  | `String "bottom" -> Ok `Bottom
+  | `String "bottom-right" -> Ok `Bottom_right
+  | _ -> Error "Invalid enum browser_context_initializer_options_record_video_show_actions_position"
+
+type browser_context_initializer_options_record_video_show_actions =
+  {
+    browser_context_initializer_options_record_video_show_actions_duration: float option [@key "duration"] [@default None];
+    browser_context_initializer_options_record_video_show_actions_position: browser_context_initializer_options_record_video_show_actions_position option [@key "position"] [@default None];
+    browser_context_initializer_options_record_video_show_actions_font_size: int option [@key "fontSize"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type browser_context_initializer_options_record_video_size =
+  {
+    browser_context_initializer_options_record_video_size_width: int [@key "width"];
+    browser_context_initializer_options_record_video_size_height: int [@key "height"];
+  } [@@deriving yojson { strict = false }]
+
+type browser_context_initializer_options_record_video =
+  {
+    browser_context_initializer_options_record_video_dir: string option [@key "dir"] [@default None];
+    browser_context_initializer_options_record_video_size: browser_context_initializer_options_record_video_size option [@key "size"] [@default None];
+    browser_context_initializer_options_record_video_show_actions: browser_context_initializer_options_record_video_show_actions option [@key "showActions"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type browser_context_initializer_options_contrast =
+  [
+  | `No_preference
+  | `More
+  | `No_override
+  ]
+
+let browser_context_initializer_options_contrast_to_yojson = function
+  | `No_preference -> `String "no-preference"
+  | `More -> `String "more"
+  | `No_override -> `String "no-override"
+
+let browser_context_initializer_options_contrast_of_yojson = function
+  | `String "no-preference" -> Ok `No_preference
+  | `String "more" -> Ok `More
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum browser_context_initializer_options_contrast"
+
+type browser_context_initializer_options_accept_downloads =
+  [
+  | `Accept
+  | `Deny
+  | `Internal_browser_default
+  ]
+
+let browser_context_initializer_options_accept_downloads_to_yojson = function
+  | `Accept -> `String "accept"
+  | `Deny -> `String "deny"
+  | `Internal_browser_default -> `String "internal-browser-default"
+
+let browser_context_initializer_options_accept_downloads_of_yojson = function
+  | `String "accept" -> Ok `Accept
+  | `String "deny" -> Ok `Deny
+  | `String "internal-browser-default" -> Ok `Internal_browser_default
+  | _ -> Error "Invalid enum browser_context_initializer_options_accept_downloads"
+
+type browser_context_initializer_options_forced_colors =
+  [
+  | `Active
+  | `None
+  | `No_override
+  ]
+
+let browser_context_initializer_options_forced_colors_to_yojson = function
+  | `Active -> `String "active"
+  | `None -> `String "none"
+  | `No_override -> `String "no-override"
+
+let browser_context_initializer_options_forced_colors_of_yojson = function
+  | `String "active" -> Ok `Active
+  | `String "none" -> Ok `None
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum browser_context_initializer_options_forced_colors"
+
+type browser_context_initializer_options_reduced_motion =
+  [
+  | `Reduce
+  | `No_preference
+  | `No_override
+  ]
+
+let browser_context_initializer_options_reduced_motion_to_yojson = function
+  | `Reduce -> `String "reduce"
+  | `No_preference -> `String "no-preference"
+  | `No_override -> `String "no-override"
+
+let browser_context_initializer_options_reduced_motion_of_yojson = function
+  | `String "reduce" -> Ok `Reduce
+  | `String "no-preference" -> Ok `No_preference
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum browser_context_initializer_options_reduced_motion"
+
+type browser_context_initializer_options_color_scheme =
+  [
+  | `Dark
+  | `Light
+  | `No_preference
+  | `No_override
+  ]
+
+let browser_context_initializer_options_color_scheme_to_yojson = function
+  | `Dark -> `String "dark"
+  | `Light -> `String "light"
+  | `No_preference -> `String "no-preference"
+  | `No_override -> `String "no-override"
+
+let browser_context_initializer_options_color_scheme_of_yojson = function
+  | `String "dark" -> Ok `Dark
+  | `String "light" -> Ok `Light
+  | `String "no-preference" -> Ok `No_preference
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum browser_context_initializer_options_color_scheme"
+
+type browser_context_initializer_options_http_credentials_send =
+  [
+  | `Always
+  | `Unauthorized
+  ]
+
+let browser_context_initializer_options_http_credentials_send_to_yojson = function
+  | `Always -> `String "always"
+  | `Unauthorized -> `String "unauthorized"
+
+let browser_context_initializer_options_http_credentials_send_of_yojson = function
+  | `String "always" -> Ok `Always
+  | `String "unauthorized" -> Ok `Unauthorized
+  | _ -> Error "Invalid enum browser_context_initializer_options_http_credentials_send"
+
+type browser_context_initializer_options_http_credentials =
+  {
+    browser_context_initializer_options_http_credentials_username: string [@key "username"];
+    browser_context_initializer_options_http_credentials_password: string [@key "password"];
+    browser_context_initializer_options_http_credentials_origin: string option [@key "origin"] [@default None];
+    browser_context_initializer_options_http_credentials_send: browser_context_initializer_options_http_credentials_send option [@key "send"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type browser_context_initializer_options_geolocation =
+  {
+    browser_context_initializer_options_geolocation_longitude: float [@key "longitude"];
+    browser_context_initializer_options_geolocation_latitude: float [@key "latitude"];
+    browser_context_initializer_options_geolocation_accuracy: float option [@key "accuracy"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type browser_context_initializer_options_client_certificates_item =
+  {
+    browser_context_initializer_options_client_certificates_item_origin: string [@key "origin"];
+    browser_context_initializer_options_client_certificates_item_cert: string option [@key "cert"] [@default None];
+    browser_context_initializer_options_client_certificates_item_key: string option [@key "key"] [@default None];
+    browser_context_initializer_options_client_certificates_item_passphrase: string option [@key "passphrase"] [@default None];
+    browser_context_initializer_options_client_certificates_item_pfx: string option [@key "pfx"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type browser_context_initializer_options_screen =
+  {
+    browser_context_initializer_options_screen_width: int [@key "width"];
+    browser_context_initializer_options_screen_height: int [@key "height"];
+  } [@@deriving yojson { strict = false }]
+
+type browser_context_initializer_options_viewport =
+  {
+    browser_context_initializer_options_viewport_width: int [@key "width"];
+    browser_context_initializer_options_viewport_height: int [@key "height"];
+  } [@@deriving yojson { strict = false }]
+
 type browser_context_initializer_options =
   {
-    browser_context_initializer_options_mixin: context_options [@key "$mixin"];
+    browser_context_initializer_options_no_default_viewport: bool option [@key "noDefaultViewport"] [@default None];
+    browser_context_initializer_options_viewport: browser_context_initializer_options_viewport option [@key "viewport"] [@default None];
+    browser_context_initializer_options_screen: browser_context_initializer_options_screen option [@key "screen"] [@default None];
+    browser_context_initializer_options_ignore_https_errors: bool option [@key "ignoreHTTPSErrors"] [@default None];
+    browser_context_initializer_options_client_certificates: browser_context_initializer_options_client_certificates_item list option [@key "clientCertificates"] [@default None];
+    browser_context_initializer_options_java_script_enabled: bool option [@key "javaScriptEnabled"] [@default None];
+    browser_context_initializer_options_bypass_csp: bool option [@key "bypassCSP"] [@default None];
+    browser_context_initializer_options_user_agent: string option [@key "userAgent"] [@default None];
+    browser_context_initializer_options_locale: string option [@key "locale"] [@default None];
+    browser_context_initializer_options_timezone_id: string option [@key "timezoneId"] [@default None];
+    browser_context_initializer_options_geolocation: browser_context_initializer_options_geolocation option [@key "geolocation"] [@default None];
+    browser_context_initializer_options_permissions: string list option [@key "permissions"] [@default None];
+    browser_context_initializer_options_extra_http_headers: name_value list option [@key "extraHTTPHeaders"] [@default None];
+    browser_context_initializer_options_offline: bool option [@key "offline"] [@default None];
+    browser_context_initializer_options_http_credentials: browser_context_initializer_options_http_credentials option [@key "httpCredentials"] [@default None];
+    browser_context_initializer_options_device_scale_factor: float option [@key "deviceScaleFactor"] [@default None];
+    browser_context_initializer_options_is_mobile: bool option [@key "isMobile"] [@default None];
+    browser_context_initializer_options_has_touch: bool option [@key "hasTouch"] [@default None];
+    browser_context_initializer_options_color_scheme: browser_context_initializer_options_color_scheme option [@key "colorScheme"] [@default None];
+    browser_context_initializer_options_reduced_motion: browser_context_initializer_options_reduced_motion option [@key "reducedMotion"] [@default None];
+    browser_context_initializer_options_forced_colors: browser_context_initializer_options_forced_colors option [@key "forcedColors"] [@default None];
+    browser_context_initializer_options_accept_downloads: browser_context_initializer_options_accept_downloads option [@key "acceptDownloads"] [@default None];
+    browser_context_initializer_options_contrast: browser_context_initializer_options_contrast option [@key "contrast"] [@default None];
+    browser_context_initializer_options_base_url: string option [@key "baseURL"] [@default None];
+    browser_context_initializer_options_record_video: browser_context_initializer_options_record_video option [@key "recordVideo"] [@default None];
+    browser_context_initializer_options_strict_selectors: bool option [@key "strictSelectors"] [@default None];
+    browser_context_initializer_options_service_workers: browser_context_initializer_options_service_workers option [@key "serviceWorkers"] [@default None];
+    browser_context_initializer_options_selector_engines: selector_engine list option [@key "selectorEngines"] [@default None];
+    browser_context_initializer_options_test_id_attribute_name: string option [@key "testIdAttributeName"] [@default None];
   } [@@deriving yojson { strict = false }]
 
 type browser_context_expose_binding_returns =
@@ -2213,6 +2952,42 @@ type page_set_network_interception_patterns_args =
     page_set_network_interception_patterns_args_patterns: page_set_network_interception_patterns_args_patterns_item list [@key "patterns"];
   } [@@deriving yojson { strict = false }]
 
+type page_expect_screenshot_args_mask_item =
+  {
+    page_expect_screenshot_args_mask_item_frame: channel [@key "frame"];
+    page_expect_screenshot_args_mask_item_selector: string [@key "selector"];
+  } [@@deriving yojson { strict = false }]
+
+type page_expect_screenshot_args_animations =
+  [
+  | `Disabled
+  | `Allow
+  ]
+
+let page_expect_screenshot_args_animations_to_yojson = function
+  | `Disabled -> `String "disabled"
+  | `Allow -> `String "allow"
+
+let page_expect_screenshot_args_animations_of_yojson = function
+  | `String "disabled" -> Ok `Disabled
+  | `String "allow" -> Ok `Allow
+  | _ -> Error "Invalid enum page_expect_screenshot_args_animations"
+
+type page_expect_screenshot_args_caret =
+  [
+  | `Hide
+  | `Initial
+  ]
+
+let page_expect_screenshot_args_caret_to_yojson = function
+  | `Hide -> `String "hide"
+  | `Initial -> `String "initial"
+
+let page_expect_screenshot_args_caret_of_yojson = function
+  | `String "hide" -> Ok `Hide
+  | `String "initial" -> Ok `Initial
+  | _ -> Error "Invalid enum page_expect_screenshot_args_caret"
+
 type rect =
   {
     rect_x: float [@key "x"];
@@ -2239,7 +3014,13 @@ type page_expect_screenshot_args =
     page_expect_screenshot_args_threshold: float option [@key "threshold"] [@default None];
     page_expect_screenshot_args_full_page: bool option [@key "fullPage"] [@default None];
     page_expect_screenshot_args_clip: rect option [@key "clip"] [@default None];
-    page_expect_screenshot_args_mixin: common_screenshot_options [@key "$mixin"];
+    page_expect_screenshot_args_omit_background: bool option [@key "omitBackground"] [@default None];
+    page_expect_screenshot_args_caret: page_expect_screenshot_args_caret option [@key "caret"] [@default None];
+    page_expect_screenshot_args_animations: page_expect_screenshot_args_animations option [@key "animations"] [@default None];
+    page_expect_screenshot_args_scale: page_expect_screenshot_args_scale option [@key "scale"] [@default None];
+    page_expect_screenshot_args_mask: page_expect_screenshot_args_mask_item list option [@key "mask"] [@default None];
+    page_expect_screenshot_args_mask_color: string option [@key "maskColor"] [@default None];
+    page_expect_screenshot_args_style: string option [@key "style"] [@default None];
   } [@@deriving yojson { strict = false }]
 
 type local_utils_connect_args =
@@ -2265,6 +3046,14 @@ type page_page_errors_returns =
 type dialog_accept_args =
   {
     dialog_accept_args_prompt_text: string option [@key "promptText"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type browser_new_context_for_reuse_args_http_credentials =
+  {
+    browser_new_context_for_reuse_args_http_credentials_username: string [@key "username"];
+    browser_new_context_for_reuse_args_http_credentials_password: string [@key "password"];
+    browser_new_context_for_reuse_args_http_credentials_origin: string option [@key "origin"] [@default None];
+    browser_new_context_for_reuse_args_http_credentials_send: browser_new_context_for_reuse_args_http_credentials_send option [@key "send"] [@default None];
   } [@@deriving yojson { strict = false }]
 
 type playwright_new_request_args_proxy =
@@ -2402,9 +3191,38 @@ type socks_support_socks_connected_args =
     socks_support_socks_connected_args_port: int [@key "port"];
   } [@@deriving yojson { strict = false }]
 
+type context_options_record_video_size =
+  {
+    context_options_record_video_size_width: int [@key "width"];
+    context_options_record_video_size_height: int [@key "height"];
+  } [@@deriving yojson { strict = false }]
+
 type js_handle_evaluate_expression_handle_returns =
   {
     js_handle_evaluate_expression_handle_returns_handle: channel [@key "handle"];
+  } [@@deriving yojson { strict = false }]
+
+type android_device_launch_browser_args_http_credentials_send =
+  [
+  | `Always
+  | `Unauthorized
+  ]
+
+let android_device_launch_browser_args_http_credentials_send_to_yojson = function
+  | `Always -> `String "always"
+  | `Unauthorized -> `String "unauthorized"
+
+let android_device_launch_browser_args_http_credentials_send_of_yojson = function
+  | `String "always" -> Ok `Always
+  | `String "unauthorized" -> Ok `Unauthorized
+  | _ -> Error "Invalid enum android_device_launch_browser_args_http_credentials_send"
+
+type android_device_launch_browser_args_http_credentials =
+  {
+    android_device_launch_browser_args_http_credentials_username: string [@key "username"];
+    android_device_launch_browser_args_http_credentials_password: string [@key "password"];
+    android_device_launch_browser_args_http_credentials_origin: string option [@key "origin"] [@default None];
+    android_device_launch_browser_args_http_credentials_send: android_device_launch_browser_args_http_credentials_send option [@key "send"] [@default None];
   } [@@deriving yojson { strict = false }]
 
 type browser_context_request_finished_event =
@@ -2462,6 +3280,13 @@ type frame_select_option_args_options_item =
     frame_select_option_args_options_item_index: int option [@key "index"] [@default None];
   } [@@deriving yojson { strict = false }]
 
+type browser_new_context_for_reuse_args_record_video_show_actions =
+  {
+    browser_new_context_for_reuse_args_record_video_show_actions_duration: float option [@key "duration"] [@default None];
+    browser_new_context_for_reuse_args_record_video_show_actions_position: browser_new_context_for_reuse_args_record_video_show_actions_position option [@key "position"] [@default None];
+    browser_new_context_for_reuse_args_record_video_show_actions_font_size: int option [@key "fontSize"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
 type tracing_tracing_start_chunk_args =
   {
     tracing_tracing_start_chunk_args_name: string option [@key "name"] [@default None];
@@ -2472,6 +3297,33 @@ type page_web_socket_route_event =
   {
     page_web_socket_route_event_web_socket_route: channel [@key "webSocketRoute"];
   } [@@deriving yojson { strict = false }]
+
+type browser_new_context_args_record_video_show_actions_position =
+  [
+  | `Top_left
+  | `Top
+  | `Top_right
+  | `Bottom_left
+  | `Bottom
+  | `Bottom_right
+  ]
+
+let browser_new_context_args_record_video_show_actions_position_to_yojson = function
+  | `Top_left -> `String "top-left"
+  | `Top -> `String "top"
+  | `Top_right -> `String "top-right"
+  | `Bottom_left -> `String "bottom-left"
+  | `Bottom -> `String "bottom"
+  | `Bottom_right -> `String "bottom-right"
+
+let browser_new_context_args_record_video_show_actions_position_of_yojson = function
+  | `String "top-left" -> Ok `Top_left
+  | `String "top" -> Ok `Top
+  | `String "top-right" -> Ok `Top_right
+  | `String "bottom-left" -> Ok `Bottom_left
+  | `String "bottom" -> Ok `Bottom
+  | `String "bottom-right" -> Ok `Bottom_right
+  | _ -> Error "Invalid enum browser_new_context_args_record_video_show_actions_position"
 
 type browser_context_register_selector_engine_args =
   {
@@ -2484,6 +3336,21 @@ type web_socket_route_close_server_event =
     web_socket_route_close_server_event_reason: string option [@key "reason"] [@default None];
     web_socket_route_close_server_event_was_clean: bool [@key "wasClean"];
   } [@@deriving yojson { strict = false }]
+
+type page_screenshot_args_scale =
+  [
+  | `Css
+  | `Device
+  ]
+
+let page_screenshot_args_scale_to_yojson = function
+  | `Css -> `String "css"
+  | `Device -> `String "device"
+
+let page_screenshot_args_scale_of_yojson = function
+  | `String "css" -> Ok `Css
+  | `String "device" -> Ok `Device
+  | _ -> Error "Invalid enum page_screenshot_args_scale"
 
 type page_mouse_move_args =
   {
@@ -2528,6 +3395,12 @@ type android_device_shell_returns =
 type frame_inner_text_returns =
   {
     frame_inner_text_returns_value: string [@key "value"];
+  } [@@deriving yojson { strict = false }]
+
+type browser_new_context_args_screen =
+  {
+    browser_new_context_args_screen_width: int [@key "width"];
+    browser_new_context_args_screen_height: int [@key "height"];
   } [@@deriving yojson { strict = false }]
 
 type root_initialize_returns =
@@ -2579,6 +3452,24 @@ type android_device_pinch_open_args =
     android_device_pinch_open_args_timeout: float [@key "timeout"];
   } [@@deriving yojson { strict = false }]
 
+type android_device_launch_browser_args_forced_colors =
+  [
+  | `Active
+  | `None
+  | `No_override
+  ]
+
+let android_device_launch_browser_args_forced_colors_to_yojson = function
+  | `Active -> `String "active"
+  | `None -> `String "none"
+  | `No_override -> `String "no-override"
+
+let android_device_launch_browser_args_forced_colors_of_yojson = function
+  | `String "active" -> Ok `Active
+  | `String "none" -> Ok `None
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum android_device_launch_browser_args_forced_colors"
+
 type tracing_tracing_group_args_location =
   {
     tracing_tracing_group_args_location_file: string [@key "file"];
@@ -2592,6 +3483,86 @@ type page_stop_js_coverage_returns_entries_item =
     page_stop_js_coverage_returns_entries_item_script_id: string [@key "scriptId"];
     page_stop_js_coverage_returns_entries_item_source: string option [@key "source"] [@default None];
     page_stop_js_coverage_returns_entries_item_functions: page_stop_js_coverage_returns_entries_item_functions_item list [@key "functions"];
+  } [@@deriving yojson { strict = false }]
+
+type context_options_service_workers =
+  [
+  | `Allow
+  | `Block
+  ]
+
+let context_options_service_workers_to_yojson = function
+  | `Allow -> `String "allow"
+  | `Block -> `String "block"
+
+let context_options_service_workers_of_yojson = function
+  | `String "allow" -> Ok `Allow
+  | `String "block" -> Ok `Block
+  | _ -> Error "Invalid enum context_options_service_workers"
+
+type context_options_record_video_show_actions =
+  {
+    context_options_record_video_show_actions_duration: float option [@key "duration"] [@default None];
+    context_options_record_video_show_actions_position: context_options_record_video_show_actions_position option [@key "position"] [@default None];
+    context_options_record_video_show_actions_font_size: int option [@key "fontSize"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type context_options_record_video =
+  {
+    context_options_record_video_dir: string option [@key "dir"] [@default None];
+    context_options_record_video_size: context_options_record_video_size option [@key "size"] [@default None];
+    context_options_record_video_show_actions: context_options_record_video_show_actions option [@key "showActions"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type context_options_contrast =
+  [
+  | `No_preference
+  | `More
+  | `No_override
+  ]
+
+let context_options_contrast_to_yojson = function
+  | `No_preference -> `String "no-preference"
+  | `More -> `String "more"
+  | `No_override -> `String "no-override"
+
+let context_options_contrast_of_yojson = function
+  | `String "no-preference" -> Ok `No_preference
+  | `String "more" -> Ok `More
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum context_options_contrast"
+
+type context_options =
+  {
+    context_options_no_default_viewport: bool option [@key "noDefaultViewport"] [@default None];
+    context_options_viewport: context_options_viewport option [@key "viewport"] [@default None];
+    context_options_screen: context_options_screen option [@key "screen"] [@default None];
+    context_options_ignore_https_errors: bool option [@key "ignoreHTTPSErrors"] [@default None];
+    context_options_client_certificates: context_options_client_certificates_item list option [@key "clientCertificates"] [@default None];
+    context_options_java_script_enabled: bool option [@key "javaScriptEnabled"] [@default None];
+    context_options_bypass_csp: bool option [@key "bypassCSP"] [@default None];
+    context_options_user_agent: string option [@key "userAgent"] [@default None];
+    context_options_locale: string option [@key "locale"] [@default None];
+    context_options_timezone_id: string option [@key "timezoneId"] [@default None];
+    context_options_geolocation: context_options_geolocation option [@key "geolocation"] [@default None];
+    context_options_permissions: string list option [@key "permissions"] [@default None];
+    context_options_extra_http_headers: name_value list option [@key "extraHTTPHeaders"] [@default None];
+    context_options_offline: bool option [@key "offline"] [@default None];
+    context_options_http_credentials: context_options_http_credentials option [@key "httpCredentials"] [@default None];
+    context_options_device_scale_factor: float option [@key "deviceScaleFactor"] [@default None];
+    context_options_is_mobile: bool option [@key "isMobile"] [@default None];
+    context_options_has_touch: bool option [@key "hasTouch"] [@default None];
+    context_options_color_scheme: context_options_color_scheme option [@key "colorScheme"] [@default None];
+    context_options_reduced_motion: context_options_reduced_motion option [@key "reducedMotion"] [@default None];
+    context_options_forced_colors: context_options_forced_colors option [@key "forcedColors"] [@default None];
+    context_options_accept_downloads: context_options_accept_downloads option [@key "acceptDownloads"] [@default None];
+    context_options_contrast: context_options_contrast option [@key "contrast"] [@default None];
+    context_options_base_url: string option [@key "baseURL"] [@default None];
+    context_options_record_video: context_options_record_video option [@key "recordVideo"] [@default None];
+    context_options_strict_selectors: bool option [@key "strictSelectors"] [@default None];
+    context_options_service_workers: context_options_service_workers option [@key "serviceWorkers"] [@default None];
+    context_options_selector_engines: selector_engine list option [@key "selectorEngines"] [@default None];
+    context_options_test_id_attribute_name: string option [@key "testIdAttributeName"] [@default None];
   } [@@deriving yojson { strict = false }]
 
 type element_handle_inner_text_returns =
@@ -2680,6 +3651,22 @@ type frame_type_args =
     frame_type_args_timeout: float [@key "timeout"];
   } [@@deriving yojson { strict = false }]
 
+type console_message_location =
+  {
+    console_message_location_url: string [@key "url"];
+    console_message_location_line_number: int [@key "lineNumber"];
+    console_message_location_column_number: int [@key "columnNumber"];
+  } [@@deriving yojson { strict = false }]
+
+type console_message =
+  {
+    console_message_type_: string [@key "type"];
+    console_message_text: string [@key "text"];
+    console_message_args: channel list [@key "args"];
+    console_message_location: console_message_location [@key "location"];
+    console_message_timestamp: float [@key "timestamp"];
+  } [@@deriving yojson { strict = false }]
+
 type frame_dblclick_args_button =
   [
   | `Left
@@ -2720,7 +3707,11 @@ type debug_controller_inspect_requested_event =
 
 type browser_context_console_event =
   {
-    browser_context_console_event_mixin: console_message [@key "$mixin"];
+    browser_context_console_event_type_: string [@key "type"];
+    browser_context_console_event_text: string [@key "text"];
+    browser_context_console_event_args: channel list [@key "args"];
+    browser_context_console_event_location: browser_context_console_event_location [@key "location"];
+    browser_context_console_event_timestamp: float [@key "timestamp"];
     browser_context_console_event_page: channel option [@key "page"] [@default None];
     browser_context_console_event_worker: channel option [@key "worker"] [@default None];
   } [@@deriving yojson { strict = false }]
@@ -2750,6 +3741,13 @@ type browser_context_response_event =
 type page_pick_locator_returns =
   {
     page_pick_locator_returns_selector: string [@key "selector"];
+  } [@@deriving yojson { strict = false }]
+
+type worker_console_event_location =
+  {
+    worker_console_event_location_url: string [@key "url"];
+    worker_console_event_location_line_number: int [@key "lineNumber"];
+    worker_console_event_location_column_number: int [@key "columnNumber"];
   } [@@deriving yojson { strict = false }]
 
 type android_device_scroll_args_direction =
@@ -2821,6 +3819,21 @@ type local_utils_har_lookup_args =
     local_utils_har_lookup_args_post_data: string option [@key "postData"] [@default None];
     local_utils_har_lookup_args_is_navigation_request: bool [@key "isNavigationRequest"];
   } [@@deriving yojson { strict = false }]
+
+type common_screenshot_options_animations =
+  [
+  | `Disabled
+  | `Allow
+  ]
+
+let common_screenshot_options_animations_to_yojson = function
+  | `Disabled -> `String "disabled"
+  | `Allow -> `String "allow"
+
+let common_screenshot_options_animations_of_yojson = function
+  | `String "disabled" -> Ok `Disabled
+  | `String "allow" -> Ok `Allow
+  | _ -> Error "Invalid enum common_screenshot_options_animations"
 
 type frame_hide_highlight_args =
   {
@@ -2965,6 +3978,12 @@ type element_handle_text_content_returns =
     element_handle_text_content_returns_value: string option [@key "value"] [@default None];
   } [@@deriving yojson { strict = false }]
 
+type browser_new_context_for_reuse_args_screen =
+  {
+    browser_new_context_for_reuse_args_screen_width: int [@key "width"];
+    browser_new_context_for_reuse_args_screen_height: int [@key "height"];
+  } [@@deriving yojson { strict = false }]
+
 type api_request_context_storage_state_args =
   {
     api_request_context_storage_state_args_indexed_db: bool option [@key "indexedDB"] [@default None];
@@ -3107,6 +4126,27 @@ type element_handle_is_enabled_returns =
     element_handle_is_enabled_returns_value: bool [@key "value"];
   } [@@deriving yojson { strict = false }]
 
+type browser_new_context_for_reuse_args_color_scheme =
+  [
+  | `Dark
+  | `Light
+  | `No_preference
+  | `No_override
+  ]
+
+let browser_new_context_for_reuse_args_color_scheme_to_yojson = function
+  | `Dark -> `String "dark"
+  | `Light -> `String "light"
+  | `No_preference -> `String "no-preference"
+  | `No_override -> `String "no-override"
+
+let browser_new_context_for_reuse_args_color_scheme_of_yojson = function
+  | `String "dark" -> Ok `Dark
+  | `String "light" -> Ok `Light
+  | `String "no-preference" -> Ok `No_preference
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum browser_new_context_for_reuse_args_color_scheme"
+
 type page_pdf_returns =
   {
     page_pdf_returns_pdf: string [@key "pdf"];
@@ -3173,6 +4213,24 @@ type js_handle_json_value_returns =
     js_handle_json_value_returns_value: serialized_value [@key "value"];
   } [@@deriving yojson { strict = false }]
 
+type browser_new_context_args_reduced_motion =
+  [
+  | `Reduce
+  | `No_preference
+  | `No_override
+  ]
+
+let browser_new_context_args_reduced_motion_to_yojson = function
+  | `Reduce -> `String "reduce"
+  | `No_preference -> `String "no-preference"
+  | `No_override -> `String "no-override"
+
+let browser_new_context_args_reduced_motion_of_yojson = function
+  | `String "reduce" -> Ok `Reduce
+  | `String "no-preference" -> Ok `No_preference
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum browser_new_context_args_reduced_motion"
+
 type element_handle_fill_args =
   {
     element_handle_fill_args_value: string [@key "value"];
@@ -3214,6 +4272,21 @@ type page_page_errors_args =
     page_page_errors_args_filter: console_messages_filter option [@key "filter"] [@default None];
   } [@@deriving yojson { strict = false }]
 
+type browser_new_context_args_service_workers =
+  [
+  | `Allow
+  | `Block
+  ]
+
+let browser_new_context_args_service_workers_to_yojson = function
+  | `Allow -> `String "allow"
+  | `Block -> `String "block"
+
+let browser_new_context_args_service_workers_of_yojson = function
+  | `String "allow" -> Ok `Allow
+  | `String "block" -> Ok `Block
+  | _ -> Error "Invalid enum browser_new_context_args_service_workers"
+
 type request_initializer =
   {
     request_initializer_frame: channel option [@key "frame"] [@default None];
@@ -3240,9 +4313,102 @@ type js_handle_evaluate_expression_returns =
     js_handle_evaluate_expression_returns_value: serialized_value [@key "value"];
   } [@@deriving yojson { strict = false }]
 
+type browser_new_context_for_reuse_args_record_video_size =
+  {
+    browser_new_context_for_reuse_args_record_video_size_width: int [@key "width"];
+    browser_new_context_for_reuse_args_record_video_size_height: int [@key "height"];
+  } [@@deriving yojson { strict = false }]
+
+type browser_new_context_for_reuse_args_record_video =
+  {
+    browser_new_context_for_reuse_args_record_video_dir: string option [@key "dir"] [@default None];
+    browser_new_context_for_reuse_args_record_video_size: browser_new_context_for_reuse_args_record_video_size option [@key "size"] [@default None];
+    browser_new_context_for_reuse_args_record_video_show_actions: browser_new_context_for_reuse_args_record_video_show_actions option [@key "showActions"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type browser_new_context_for_reuse_args_contrast =
+  [
+  | `No_preference
+  | `More
+  | `No_override
+  ]
+
+let browser_new_context_for_reuse_args_contrast_to_yojson = function
+  | `No_preference -> `String "no-preference"
+  | `More -> `String "more"
+  | `No_override -> `String "no-override"
+
+let browser_new_context_for_reuse_args_contrast_of_yojson = function
+  | `String "no-preference" -> Ok `No_preference
+  | `String "more" -> Ok `More
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum browser_new_context_for_reuse_args_contrast"
+
+type browser_new_context_for_reuse_args_forced_colors =
+  [
+  | `Active
+  | `None
+  | `No_override
+  ]
+
+let browser_new_context_for_reuse_args_forced_colors_to_yojson = function
+  | `Active -> `String "active"
+  | `None -> `String "none"
+  | `No_override -> `String "no-override"
+
+let browser_new_context_for_reuse_args_forced_colors_of_yojson = function
+  | `String "active" -> Ok `Active
+  | `String "none" -> Ok `None
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum browser_new_context_for_reuse_args_forced_colors"
+
+type browser_new_context_for_reuse_args_geolocation =
+  {
+    browser_new_context_for_reuse_args_geolocation_longitude: float [@key "longitude"];
+    browser_new_context_for_reuse_args_geolocation_latitude: float [@key "latitude"];
+    browser_new_context_for_reuse_args_geolocation_accuracy: float option [@key "accuracy"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type browser_new_context_for_reuse_args_client_certificates_item =
+  {
+    browser_new_context_for_reuse_args_client_certificates_item_origin: string [@key "origin"];
+    browser_new_context_for_reuse_args_client_certificates_item_cert: string option [@key "cert"] [@default None];
+    browser_new_context_for_reuse_args_client_certificates_item_key: string option [@key "key"] [@default None];
+    browser_new_context_for_reuse_args_client_certificates_item_passphrase: string option [@key "passphrase"] [@default None];
+    browser_new_context_for_reuse_args_client_certificates_item_pfx: string option [@key "pfx"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
 type browser_new_context_for_reuse_args =
   {
-    browser_new_context_for_reuse_args_mixin: context_options [@key "$mixin"];
+    browser_new_context_for_reuse_args_no_default_viewport: bool option [@key "noDefaultViewport"] [@default None];
+    browser_new_context_for_reuse_args_viewport: browser_new_context_for_reuse_args_viewport option [@key "viewport"] [@default None];
+    browser_new_context_for_reuse_args_screen: browser_new_context_for_reuse_args_screen option [@key "screen"] [@default None];
+    browser_new_context_for_reuse_args_ignore_https_errors: bool option [@key "ignoreHTTPSErrors"] [@default None];
+    browser_new_context_for_reuse_args_client_certificates: browser_new_context_for_reuse_args_client_certificates_item list option [@key "clientCertificates"] [@default None];
+    browser_new_context_for_reuse_args_java_script_enabled: bool option [@key "javaScriptEnabled"] [@default None];
+    browser_new_context_for_reuse_args_bypass_csp: bool option [@key "bypassCSP"] [@default None];
+    browser_new_context_for_reuse_args_user_agent: string option [@key "userAgent"] [@default None];
+    browser_new_context_for_reuse_args_locale: string option [@key "locale"] [@default None];
+    browser_new_context_for_reuse_args_timezone_id: string option [@key "timezoneId"] [@default None];
+    browser_new_context_for_reuse_args_geolocation: browser_new_context_for_reuse_args_geolocation option [@key "geolocation"] [@default None];
+    browser_new_context_for_reuse_args_permissions: string list option [@key "permissions"] [@default None];
+    browser_new_context_for_reuse_args_extra_http_headers: name_value list option [@key "extraHTTPHeaders"] [@default None];
+    browser_new_context_for_reuse_args_offline: bool option [@key "offline"] [@default None];
+    browser_new_context_for_reuse_args_http_credentials: browser_new_context_for_reuse_args_http_credentials option [@key "httpCredentials"] [@default None];
+    browser_new_context_for_reuse_args_device_scale_factor: float option [@key "deviceScaleFactor"] [@default None];
+    browser_new_context_for_reuse_args_is_mobile: bool option [@key "isMobile"] [@default None];
+    browser_new_context_for_reuse_args_has_touch: bool option [@key "hasTouch"] [@default None];
+    browser_new_context_for_reuse_args_color_scheme: browser_new_context_for_reuse_args_color_scheme option [@key "colorScheme"] [@default None];
+    browser_new_context_for_reuse_args_reduced_motion: browser_new_context_for_reuse_args_reduced_motion option [@key "reducedMotion"] [@default None];
+    browser_new_context_for_reuse_args_forced_colors: browser_new_context_for_reuse_args_forced_colors option [@key "forcedColors"] [@default None];
+    browser_new_context_for_reuse_args_accept_downloads: browser_new_context_for_reuse_args_accept_downloads option [@key "acceptDownloads"] [@default None];
+    browser_new_context_for_reuse_args_contrast: browser_new_context_for_reuse_args_contrast option [@key "contrast"] [@default None];
+    browser_new_context_for_reuse_args_base_url: string option [@key "baseURL"] [@default None];
+    browser_new_context_for_reuse_args_record_video: browser_new_context_for_reuse_args_record_video option [@key "recordVideo"] [@default None];
+    browser_new_context_for_reuse_args_strict_selectors: bool option [@key "strictSelectors"] [@default None];
+    browser_new_context_for_reuse_args_service_workers: browser_new_context_for_reuse_args_service_workers option [@key "serviceWorkers"] [@default None];
+    browser_new_context_for_reuse_args_selector_engines: selector_engine list option [@key "selectorEngines"] [@default None];
+    browser_new_context_for_reuse_args_test_id_attribute_name: string option [@key "testIdAttributeName"] [@default None];
     browser_new_context_for_reuse_args_proxy: browser_new_context_for_reuse_args_proxy option [@key "proxy"] [@default None];
     browser_new_context_for_reuse_args_storage_state: browser_new_context_for_reuse_args_storage_state option [@key "storageState"] [@default None];
   } [@@deriving yojson { strict = false }]
@@ -3379,7 +4545,24 @@ type browser_type_connect_over_cd_p_args =
 
 type browser_type_launch_args =
   {
-    browser_type_launch_args_mixin: launch_options [@key "$mixin"];
+    browser_type_launch_args_channel: string option [@key "channel"] [@default None];
+    browser_type_launch_args_executable_path: string option [@key "executablePath"] [@default None];
+    browser_type_launch_args_args: string list option [@key "args"] [@default None];
+    browser_type_launch_args_ignore_all_default_args: bool option [@key "ignoreAllDefaultArgs"] [@default None];
+    browser_type_launch_args_ignore_default_args: string list option [@key "ignoreDefaultArgs"] [@default None];
+    browser_type_launch_args_handle_sigint: bool option [@key "handleSIGINT"] [@default None];
+    browser_type_launch_args_handle_sigterm: bool option [@key "handleSIGTERM"] [@default None];
+    browser_type_launch_args_handle_sighup: bool option [@key "handleSIGHUP"] [@default None];
+    browser_type_launch_args_timeout: float [@key "timeout"];
+    browser_type_launch_args_env: name_value list option [@key "env"] [@default None];
+    browser_type_launch_args_headless: bool option [@key "headless"] [@default None];
+    browser_type_launch_args_proxy: browser_type_launch_args_proxy option [@key "proxy"] [@default None];
+    browser_type_launch_args_downloads_path: string option [@key "downloadsPath"] [@default None];
+    browser_type_launch_args_traces_dir: string option [@key "tracesDir"] [@default None];
+    browser_type_launch_args_artifacts_dir: string option [@key "artifactsDir"] [@default None];
+    browser_type_launch_args_chromium_sandbox: bool option [@key "chromiumSandbox"] [@default None];
+    browser_type_launch_args_firefox_user_prefs: json option [@key "firefoxUserPrefs"] [@default None];
+    browser_type_launch_args_cdp_port: int option [@key "cdpPort"] [@default None];
     browser_type_launch_args_slow_mo: float option [@key "slowMo"] [@default None];
   } [@@deriving yojson { strict = false }]
 
@@ -3469,6 +4652,21 @@ type frame_query_selector_all_returns =
     frame_query_selector_all_returns_elements: channel list [@key "elements"];
   } [@@deriving yojson { strict = false }]
 
+type page_screenshot_args_animations =
+  [
+  | `Disabled
+  | `Allow
+  ]
+
+let page_screenshot_args_animations_to_yojson = function
+  | `Disabled -> `String "disabled"
+  | `Allow -> `String "allow"
+
+let page_screenshot_args_animations_of_yojson = function
+  | `String "disabled" -> Ok `Disabled
+  | `String "allow" -> Ok `Allow
+  | _ -> Error "Invalid enum page_screenshot_args_animations"
+
 type browser_type_initializer =
   {
     browser_type_initializer_executable_path: string [@key "executablePath"];
@@ -3510,6 +4708,61 @@ let record_har_options_content_of_yojson = function
   | `String "attach" -> Ok `Attach
   | `String "omit" -> Ok `Omit
   | _ -> Error "Invalid enum record_har_options_content"
+
+type browser_new_context_args_color_scheme =
+  [
+  | `Dark
+  | `Light
+  | `No_preference
+  | `No_override
+  ]
+
+let browser_new_context_args_color_scheme_to_yojson = function
+  | `Dark -> `String "dark"
+  | `Light -> `String "light"
+  | `No_preference -> `String "no-preference"
+  | `No_override -> `String "no-override"
+
+let browser_new_context_args_color_scheme_of_yojson = function
+  | `String "dark" -> Ok `Dark
+  | `String "light" -> Ok `Light
+  | `String "no-preference" -> Ok `No_preference
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum browser_new_context_args_color_scheme"
+
+type show_actions_options_position =
+  [
+  | `Top_left
+  | `Top
+  | `Top_right
+  | `Bottom_left
+  | `Bottom
+  | `Bottom_right
+  ]
+
+let show_actions_options_position_to_yojson = function
+  | `Top_left -> `String "top-left"
+  | `Top -> `String "top"
+  | `Top_right -> `String "top-right"
+  | `Bottom_left -> `String "bottom-left"
+  | `Bottom -> `String "bottom"
+  | `Bottom_right -> `String "bottom-right"
+
+let show_actions_options_position_of_yojson = function
+  | `String "top-left" -> Ok `Top_left
+  | `String "top" -> Ok `Top
+  | `String "top-right" -> Ok `Top_right
+  | `String "bottom-left" -> Ok `Bottom_left
+  | `String "bottom" -> Ok `Bottom
+  | `String "bottom-right" -> Ok `Bottom_right
+  | _ -> Error "Invalid enum show_actions_options_position"
+
+type show_actions_options =
+  {
+    show_actions_options_duration: float option [@key "duration"] [@default None];
+    show_actions_options_position: show_actions_options_position option [@key "position"] [@default None];
+    show_actions_options_font_size: int option [@key "fontSize"] [@default None];
+  } [@@deriving yojson { strict = false }]
 
 type frame_content_returns =
   {
@@ -3598,7 +4851,11 @@ type element_handle_eval_on_selector_args =
 
 type worker_console_event =
   {
-    worker_console_event_mixin: console_message [@key "$mixin"];
+    worker_console_event_type_: string [@key "type"];
+    worker_console_event_text: string [@key "text"];
+    worker_console_event_args: channel list [@key "args"];
+    worker_console_event_location: worker_console_event_location [@key "location"];
+    worker_console_event_timestamp: float [@key "timestamp"];
   } [@@deriving yojson { strict = false }]
 
 type page_screenshot_args_type =
@@ -3635,6 +4892,27 @@ type recorder_source_highlight_item =
     recorder_source_highlight_item_type_: string [@key "type"];
   } [@@deriving yojson { strict = false }]
 
+type page_screenshot_args_mask_item =
+  {
+    page_screenshot_args_mask_item_frame: channel [@key "frame"];
+    page_screenshot_args_mask_item_selector: string [@key "selector"];
+  } [@@deriving yojson { strict = false }]
+
+type page_screenshot_args_caret =
+  [
+  | `Hide
+  | `Initial
+  ]
+
+let page_screenshot_args_caret_to_yojson = function
+  | `Hide -> `String "hide"
+  | `Initial -> `String "initial"
+
+let page_screenshot_args_caret_of_yojson = function
+  | `String "hide" -> Ok `Hide
+  | `String "initial" -> Ok `Initial
+  | _ -> Error "Invalid enum page_screenshot_args_caret"
+
 type page_screenshot_args =
   {
     page_screenshot_args_timeout: float [@key "timeout"];
@@ -3642,7 +4920,13 @@ type page_screenshot_args =
     page_screenshot_args_quality: int option [@key "quality"] [@default None];
     page_screenshot_args_full_page: bool option [@key "fullPage"] [@default None];
     page_screenshot_args_clip: rect option [@key "clip"] [@default None];
-    page_screenshot_args_mixin: common_screenshot_options [@key "$mixin"];
+    page_screenshot_args_omit_background: bool option [@key "omitBackground"] [@default None];
+    page_screenshot_args_caret: page_screenshot_args_caret option [@key "caret"] [@default None];
+    page_screenshot_args_animations: page_screenshot_args_animations option [@key "animations"] [@default None];
+    page_screenshot_args_scale: page_screenshot_args_scale option [@key "scale"] [@default None];
+    page_screenshot_args_mask: page_screenshot_args_mask_item list option [@key "mask"] [@default None];
+    page_screenshot_args_mask_color: string option [@key "maskColor"] [@default None];
+    page_screenshot_args_style: string option [@key "style"] [@default None];
   } [@@deriving yojson { strict = false }]
 
 type artifact_stream_returns =
@@ -3683,6 +4967,26 @@ type frame_set_input_files_args =
 type browser_new_browser_cdp_session_returns =
   {
     browser_new_browser_cdp_session_returns_session: channel [@key "session"];
+  } [@@deriving yojson { strict = false }]
+
+type browser_new_context_args_geolocation =
+  {
+    browser_new_context_args_geolocation_longitude: float [@key "longitude"];
+    browser_new_context_args_geolocation_latitude: float [@key "latitude"];
+    browser_new_context_args_geolocation_accuracy: float option [@key "accuracy"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type android_device_launch_browser_args_record_video_size =
+  {
+    android_device_launch_browser_args_record_video_size_width: int [@key "width"];
+    android_device_launch_browser_args_record_video_size_height: int [@key "height"];
+  } [@@deriving yojson { strict = false }]
+
+type android_device_launch_browser_args_record_video =
+  {
+    android_device_launch_browser_args_record_video_dir: string option [@key "dir"] [@default None];
+    android_device_launch_browser_args_record_video_size: android_device_launch_browser_args_record_video_size option [@key "size"] [@default None];
+    android_device_launch_browser_args_record_video_show_actions: android_device_launch_browser_args_record_video_show_actions option [@key "showActions"] [@default None];
   } [@@deriving yojson { strict = false }]
 
 type browser_start_server_returns =
@@ -3798,9 +5102,89 @@ type playwright_new_request_args_storage_state =
     playwright_new_request_args_storage_state_origins: set_origin_storage list option [@key "origins"] [@default None];
   } [@@deriving yojson { strict = false }]
 
+type android_device_launch_browser_args_geolocation =
+  {
+    android_device_launch_browser_args_geolocation_longitude: float [@key "longitude"];
+    android_device_launch_browser_args_geolocation_latitude: float [@key "latitude"];
+    android_device_launch_browser_args_geolocation_accuracy: float option [@key "accuracy"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type android_device_launch_browser_args_accept_downloads =
+  [
+  | `Accept
+  | `Deny
+  | `Internal_browser_default
+  ]
+
+let android_device_launch_browser_args_accept_downloads_to_yojson = function
+  | `Accept -> `String "accept"
+  | `Deny -> `String "deny"
+  | `Internal_browser_default -> `String "internal-browser-default"
+
+let android_device_launch_browser_args_accept_downloads_of_yojson = function
+  | `String "accept" -> Ok `Accept
+  | `String "deny" -> Ok `Deny
+  | `String "internal-browser-default" -> Ok `Internal_browser_default
+  | _ -> Error "Invalid enum android_device_launch_browser_args_accept_downloads"
+
+type android_device_launch_browser_args_color_scheme =
+  [
+  | `Dark
+  | `Light
+  | `No_preference
+  | `No_override
+  ]
+
+let android_device_launch_browser_args_color_scheme_to_yojson = function
+  | `Dark -> `String "dark"
+  | `Light -> `String "light"
+  | `No_preference -> `String "no-preference"
+  | `No_override -> `String "no-override"
+
+let android_device_launch_browser_args_color_scheme_of_yojson = function
+  | `String "dark" -> Ok `Dark
+  | `String "light" -> Ok `Light
+  | `String "no-preference" -> Ok `No_preference
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum android_device_launch_browser_args_color_scheme"
+
+type android_device_launch_browser_args_viewport =
+  {
+    android_device_launch_browser_args_viewport_width: int [@key "width"];
+    android_device_launch_browser_args_viewport_height: int [@key "height"];
+  } [@@deriving yojson { strict = false }]
+
 type android_device_launch_browser_args =
   {
-    android_device_launch_browser_args_mixin: context_options [@key "$mixin"];
+    android_device_launch_browser_args_no_default_viewport: bool option [@key "noDefaultViewport"] [@default None];
+    android_device_launch_browser_args_viewport: android_device_launch_browser_args_viewport option [@key "viewport"] [@default None];
+    android_device_launch_browser_args_screen: android_device_launch_browser_args_screen option [@key "screen"] [@default None];
+    android_device_launch_browser_args_ignore_https_errors: bool option [@key "ignoreHTTPSErrors"] [@default None];
+    android_device_launch_browser_args_client_certificates: android_device_launch_browser_args_client_certificates_item list option [@key "clientCertificates"] [@default None];
+    android_device_launch_browser_args_java_script_enabled: bool option [@key "javaScriptEnabled"] [@default None];
+    android_device_launch_browser_args_bypass_csp: bool option [@key "bypassCSP"] [@default None];
+    android_device_launch_browser_args_user_agent: string option [@key "userAgent"] [@default None];
+    android_device_launch_browser_args_locale: string option [@key "locale"] [@default None];
+    android_device_launch_browser_args_timezone_id: string option [@key "timezoneId"] [@default None];
+    android_device_launch_browser_args_geolocation: android_device_launch_browser_args_geolocation option [@key "geolocation"] [@default None];
+    android_device_launch_browser_args_permissions: string list option [@key "permissions"] [@default None];
+    android_device_launch_browser_args_extra_http_headers: name_value list option [@key "extraHTTPHeaders"] [@default None];
+    android_device_launch_browser_args_offline: bool option [@key "offline"] [@default None];
+    android_device_launch_browser_args_http_credentials: android_device_launch_browser_args_http_credentials option [@key "httpCredentials"] [@default None];
+    android_device_launch_browser_args_device_scale_factor: float option [@key "deviceScaleFactor"] [@default None];
+    android_device_launch_browser_args_is_mobile: bool option [@key "isMobile"] [@default None];
+    android_device_launch_browser_args_has_touch: bool option [@key "hasTouch"] [@default None];
+    android_device_launch_browser_args_color_scheme: android_device_launch_browser_args_color_scheme option [@key "colorScheme"] [@default None];
+    android_device_launch_browser_args_reduced_motion: android_device_launch_browser_args_reduced_motion option [@key "reducedMotion"] [@default None];
+    android_device_launch_browser_args_forced_colors: android_device_launch_browser_args_forced_colors option [@key "forcedColors"] [@default None];
+    android_device_launch_browser_args_accept_downloads: android_device_launch_browser_args_accept_downloads option [@key "acceptDownloads"] [@default None];
+    android_device_launch_browser_args_contrast: android_device_launch_browser_args_contrast option [@key "contrast"] [@default None];
+    android_device_launch_browser_args_base_url: string option [@key "baseURL"] [@default None];
+    android_device_launch_browser_args_record_video: android_device_launch_browser_args_record_video option [@key "recordVideo"] [@default None];
+    android_device_launch_browser_args_strict_selectors: bool option [@key "strictSelectors"] [@default None];
+    android_device_launch_browser_args_service_workers: android_device_launch_browser_args_service_workers option [@key "serviceWorkers"] [@default None];
+    android_device_launch_browser_args_selector_engines: selector_engine list option [@key "selectorEngines"] [@default None];
+    android_device_launch_browser_args_test_id_attribute_name: string option [@key "testIdAttributeName"] [@default None];
     android_device_launch_browser_args_pkg: string option [@key "pkg"] [@default None];
     android_device_launch_browser_args_args: string list option [@key "args"] [@default None];
     android_device_launch_browser_args_proxy: android_device_launch_browser_args_proxy option [@key "proxy"] [@default None];
@@ -3905,6 +5289,12 @@ type element_handle_click_args =
     element_handle_click_args_steps: int option [@key "steps"] [@default None];
   } [@@deriving yojson { strict = false }]
 
+type browser_new_context_args_record_video_size =
+  {
+    browser_new_context_args_record_video_size_width: int [@key "width"];
+    browser_new_context_args_record_video_size_height: int [@key "height"];
+  } [@@deriving yojson { strict = false }]
+
 type android_device_input_tap_args =
   {
     android_device_input_tap_args_point: point [@key "point"];
@@ -3995,6 +5385,21 @@ type browser_context_binding_call_event =
   {
     browser_context_binding_call_event_binding: channel [@key "binding"];
   } [@@deriving yojson { strict = false }]
+
+type common_screenshot_options_scale =
+  [
+  | `Css
+  | `Device
+  ]
+
+let common_screenshot_options_scale_to_yojson = function
+  | `Css -> `String "css"
+  | `Device -> `String "device"
+
+let common_screenshot_options_scale_of_yojson = function
+  | `String "css" -> Ok `Css
+  | `String "device" -> Ok `Device
+  | _ -> Error "Invalid enum common_screenshot_options_scale"
 
 type api_request_context_fetch_returns =
   {
@@ -4101,6 +5506,13 @@ type android_device_initializer =
   {
     android_device_initializer_model: string [@key "model"];
     android_device_initializer_serial: string [@key "serial"];
+  } [@@deriving yojson { strict = false }]
+
+type browser_new_context_args_record_video_show_actions =
+  {
+    browser_new_context_args_record_video_show_actions_duration: float option [@key "duration"] [@default None];
+    browser_new_context_args_record_video_show_actions_position: browser_new_context_args_record_video_show_actions_position option [@key "position"] [@default None];
+    browser_new_context_args_record_video_show_actions_font_size: int option [@key "fontSize"] [@default None];
   } [@@deriving yojson { strict = false }]
 
 type web_socket_frame_sent_event =
@@ -4360,6 +5772,24 @@ type page_screencast_start_returns =
     page_screencast_start_returns_artifact: channel option [@key "artifact"] [@default None];
   } [@@deriving yojson { strict = false }]
 
+type browser_new_context_args_contrast =
+  [
+  | `No_preference
+  | `More
+  | `No_override
+  ]
+
+let browser_new_context_args_contrast_to_yojson = function
+  | `No_preference -> `String "no-preference"
+  | `More -> `String "more"
+  | `No_override -> `String "no-override"
+
+let browser_new_context_args_contrast_of_yojson = function
+  | `String "no-preference" -> Ok `No_preference
+  | `String "more" -> Ok `More
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum browser_new_context_args_contrast"
+
 type frame_drop_args_data_item =
   {
     frame_drop_args_data_item_mime_type: string [@key "mimeType"];
@@ -4413,6 +5843,12 @@ type worker_disconnect_args =
 type frame_wait_for_selector_returns =
   {
     frame_wait_for_selector_returns_element: channel option [@key "element"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
+type common_screenshot_options_mask_item =
+  {
+    common_screenshot_options_mask_item_frame: channel [@key "frame"];
+    common_screenshot_options_mask_item_selector: string [@key "selector"];
   } [@@deriving yojson { strict = false }]
 
 type web_socket_route_send_to_server_args =
@@ -4543,9 +5979,44 @@ type android_device_connect_to_web_view_returns =
     android_device_connect_to_web_view_returns_context: channel [@key "context"];
   } [@@deriving yojson { strict = false }]
 
+type browser_new_context_args_record_video =
+  {
+    browser_new_context_args_record_video_dir: string option [@key "dir"] [@default None];
+    browser_new_context_args_record_video_size: browser_new_context_args_record_video_size option [@key "size"] [@default None];
+    browser_new_context_args_record_video_show_actions: browser_new_context_args_record_video_show_actions option [@key "showActions"] [@default None];
+  } [@@deriving yojson { strict = false }]
+
 type browser_new_context_args =
   {
-    browser_new_context_args_mixin: context_options [@key "$mixin"];
+    browser_new_context_args_no_default_viewport: bool option [@key "noDefaultViewport"] [@default None];
+    browser_new_context_args_viewport: browser_new_context_args_viewport option [@key "viewport"] [@default None];
+    browser_new_context_args_screen: browser_new_context_args_screen option [@key "screen"] [@default None];
+    browser_new_context_args_ignore_https_errors: bool option [@key "ignoreHTTPSErrors"] [@default None];
+    browser_new_context_args_client_certificates: browser_new_context_args_client_certificates_item list option [@key "clientCertificates"] [@default None];
+    browser_new_context_args_java_script_enabled: bool option [@key "javaScriptEnabled"] [@default None];
+    browser_new_context_args_bypass_csp: bool option [@key "bypassCSP"] [@default None];
+    browser_new_context_args_user_agent: string option [@key "userAgent"] [@default None];
+    browser_new_context_args_locale: string option [@key "locale"] [@default None];
+    browser_new_context_args_timezone_id: string option [@key "timezoneId"] [@default None];
+    browser_new_context_args_geolocation: browser_new_context_args_geolocation option [@key "geolocation"] [@default None];
+    browser_new_context_args_permissions: string list option [@key "permissions"] [@default None];
+    browser_new_context_args_extra_http_headers: name_value list option [@key "extraHTTPHeaders"] [@default None];
+    browser_new_context_args_offline: bool option [@key "offline"] [@default None];
+    browser_new_context_args_http_credentials: browser_new_context_args_http_credentials option [@key "httpCredentials"] [@default None];
+    browser_new_context_args_device_scale_factor: float option [@key "deviceScaleFactor"] [@default None];
+    browser_new_context_args_is_mobile: bool option [@key "isMobile"] [@default None];
+    browser_new_context_args_has_touch: bool option [@key "hasTouch"] [@default None];
+    browser_new_context_args_color_scheme: browser_new_context_args_color_scheme option [@key "colorScheme"] [@default None];
+    browser_new_context_args_reduced_motion: browser_new_context_args_reduced_motion option [@key "reducedMotion"] [@default None];
+    browser_new_context_args_forced_colors: browser_new_context_args_forced_colors option [@key "forcedColors"] [@default None];
+    browser_new_context_args_accept_downloads: browser_new_context_args_accept_downloads option [@key "acceptDownloads"] [@default None];
+    browser_new_context_args_contrast: browser_new_context_args_contrast option [@key "contrast"] [@default None];
+    browser_new_context_args_base_url: string option [@key "baseURL"] [@default None];
+    browser_new_context_args_record_video: browser_new_context_args_record_video option [@key "recordVideo"] [@default None];
+    browser_new_context_args_strict_selectors: bool option [@key "strictSelectors"] [@default None];
+    browser_new_context_args_service_workers: browser_new_context_args_service_workers option [@key "serviceWorkers"] [@default None];
+    browser_new_context_args_selector_engines: selector_engine list option [@key "selectorEngines"] [@default None];
+    browser_new_context_args_test_id_attribute_name: string option [@key "testIdAttributeName"] [@default None];
     browser_new_context_args_proxy: browser_new_context_args_proxy option [@key "proxy"] [@default None];
     browser_new_context_args_storage_state: browser_new_context_args_storage_state option [@key "storageState"] [@default None];
   } [@@deriving yojson { strict = false }]
@@ -4794,6 +6265,17 @@ type browser_type_launch_persistent_context_returns =
   {
     browser_type_launch_persistent_context_returns_browser: channel [@key "browser"];
     browser_type_launch_persistent_context_returns_context: channel [@key "context"];
+  } [@@deriving yojson { strict = false }]
+
+type common_screenshot_options =
+  {
+    common_screenshot_options_omit_background: bool option [@key "omitBackground"] [@default None];
+    common_screenshot_options_caret: common_screenshot_options_caret option [@key "caret"] [@default None];
+    common_screenshot_options_animations: common_screenshot_options_animations option [@key "animations"] [@default None];
+    common_screenshot_options_scale: common_screenshot_options_scale option [@key "scale"] [@default None];
+    common_screenshot_options_mask: common_screenshot_options_mask_item list option [@key "mask"] [@default None];
+    common_screenshot_options_mask_color: string option [@key "maskColor"] [@default None];
+    common_screenshot_options_style: string option [@key "style"] [@default None];
   } [@@deriving yojson { strict = false }]
 
 type android_device_info_returns =
