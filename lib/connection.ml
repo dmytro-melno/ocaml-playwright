@@ -37,6 +37,7 @@ let send_message (t : t) ~(guid: string) ~(method_: string) ~(params: Yojson.Saf
     ("guid", `String guid);
     ("method", `String method_);
     ("params", params);
+    ("metadata", `Assoc []);
   ] in
   Transport.write_message t.transport_w (Yojson.Safe.to_string msg);
   Promise.await promise

@@ -32,7 +32,34 @@ type serialized_value_ta_k =
   | `F64
   | `Bi64
   | `Bui64
-  ] [@@deriving yojson]
+  ]
+
+let serialized_value_ta_k_to_yojson = function
+  | `I8 -> `String "i8"
+  | `Ui8 -> `String "ui8"
+  | `Ui8c -> `String "ui8c"
+  | `I16 -> `String "i16"
+  | `Ui16 -> `String "ui16"
+  | `I32 -> `String "i32"
+  | `Ui32 -> `String "ui32"
+  | `F32 -> `String "f32"
+  | `F64 -> `String "f64"
+  | `Bi64 -> `String "bi64"
+  | `Bui64 -> `String "bui64"
+
+let serialized_value_ta_k_of_yojson = function
+  | `String "i8" -> Ok `I8
+  | `String "ui8" -> Ok `Ui8
+  | `String "ui8c" -> Ok `Ui8c
+  | `String "i16" -> Ok `I16
+  | `String "ui16" -> Ok `Ui16
+  | `String "i32" -> Ok `I32
+  | `String "ui32" -> Ok `Ui32
+  | `String "f32" -> Ok `F32
+  | `String "f64" -> Ok `F64
+  | `String "bi64" -> Ok `Bi64
+  | `String "bui64" -> Ok `Bui64
+  | _ -> Error "Invalid enum serialized_value_ta_k"
 
 type serialized_value_ta =
   {
@@ -46,9 +73,26 @@ type serialized_value_v =
   | `Undefined
   | `Nan
   | `Inf
-  | `Inf
-  | `V_0
-  ] [@@deriving yojson]
+  | `Minus_inf
+  | `Minus_zero
+  ]
+
+let serialized_value_v_to_yojson = function
+  | `Null -> `String "null"
+  | `Undefined -> `String "undefined"
+  | `Nan -> `String "nan"
+  | `Inf -> `String "inf"
+  | `Minus_inf -> `String "-inf"
+  | `Minus_zero -> `String "-0"
+
+let serialized_value_v_of_yojson = function
+  | `String "null" -> Ok `Null
+  | `String "undefined" -> Ok `Undefined
+  | `String "nan" -> Ok `Nan
+  | `String "inf" -> Ok `Inf
+  | `String "-inf" -> Ok `Minus_inf
+  | `String "-0" -> Ok `Minus_zero
+  | _ -> Error "Invalid enum serialized_value_v"
 
 type serialized_value =
   {
@@ -95,7 +139,18 @@ type page_mouse_down_args_button =
   | `Left
   | `Right
   | `Middle
-  ] [@@deriving yojson]
+  ]
+
+let page_mouse_down_args_button_to_yojson = function
+  | `Left -> `String "left"
+  | `Right -> `String "right"
+  | `Middle -> `String "middle"
+
+let page_mouse_down_args_button_of_yojson = function
+  | `String "left" -> Ok `Left
+  | `String "right" -> Ok `Right
+  | `String "middle" -> Ok `Middle
+  | _ -> Error "Invalid enum page_mouse_down_args_button"
 
 type page_stop_js_coverage_returns_entries_item_functions_item_ranges_item =
   {
@@ -115,7 +170,16 @@ type playwright_new_request_args_http_credentials_send =
   [
   | `Always
   | `Unauthorized
-  ] [@@deriving yojson]
+  ]
+
+let playwright_new_request_args_http_credentials_send_to_yojson = function
+  | `Always -> `String "always"
+  | `Unauthorized -> `String "unauthorized"
+
+let playwright_new_request_args_http_credentials_send_of_yojson = function
+  | `String "always" -> Ok `Always
+  | `String "unauthorized" -> Ok `Unauthorized
+  | _ -> Error "Invalid enum playwright_new_request_args_http_credentials_send"
 
 type playwright_new_request_args_http_credentials =
   {
@@ -177,7 +241,18 @@ type set_network_cookie_same_site =
   | `Strict
   | `Lax
   | `None
-  ] [@@deriving yojson]
+  ]
+
+let set_network_cookie_same_site_to_yojson = function
+  | `Strict -> `String "Strict"
+  | `Lax -> `String "Lax"
+  | `None -> `String "None"
+
+let set_network_cookie_same_site_of_yojson = function
+  | `String "Strict" -> Ok `Strict
+  | `String "Lax" -> Ok `Lax
+  | `String "None" -> Ok `None
+  | _ -> Error "Invalid enum set_network_cookie_same_site"
 
 type set_network_cookie =
   {
@@ -210,7 +285,18 @@ type tracing_tracing_stop_chunk_args_mode =
   | `Archive
   | `Discard
   | `Entries
-  ] [@@deriving yojson]
+  ]
+
+let tracing_tracing_stop_chunk_args_mode_to_yojson = function
+  | `Archive -> `String "archive"
+  | `Discard -> `String "discard"
+  | `Entries -> `String "entries"
+
+let tracing_tracing_stop_chunk_args_mode_of_yojson = function
+  | `String "archive" -> Ok `Archive
+  | `String "discard" -> Ok `Discard
+  | `String "entries" -> Ok `Entries
+  | _ -> Error "Invalid enum tracing_tracing_stop_chunk_args_mode"
 
 type tracing_tracing_stop_chunk_args =
   {
@@ -228,13 +314,33 @@ type context_options_reduced_motion =
   | `Reduce
   | `No_preference
   | `No_override
-  ] [@@deriving yojson]
+  ]
+
+let context_options_reduced_motion_to_yojson = function
+  | `Reduce -> `String "reduce"
+  | `No_preference -> `String "no-preference"
+  | `No_override -> `String "no-override"
+
+let context_options_reduced_motion_of_yojson = function
+  | `String "reduce" -> Ok `Reduce
+  | `String "no-preference" -> Ok `No_preference
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum context_options_reduced_motion"
 
 type common_screenshot_options_caret =
   [
   | `Hide
   | `Initial
-  ] [@@deriving yojson]
+  ]
+
+let common_screenshot_options_caret_to_yojson = function
+  | `Hide -> `String "hide"
+  | `Initial -> `String "initial"
+
+let common_screenshot_options_caret_of_yojson = function
+  | `String "hide" -> Ok `Hide
+  | `String "initial" -> Ok `Initial
+  | _ -> Error "Invalid enum common_screenshot_options_caret"
 
 type lifecycle_event =
   [
@@ -242,7 +348,20 @@ type lifecycle_event =
   | `Domcontentloaded
   | `Networkidle
   | `Commit
-  ] [@@deriving yojson]
+  ]
+
+let lifecycle_event_to_yojson = function
+  | `Load -> `String "load"
+  | `Domcontentloaded -> `String "domcontentloaded"
+  | `Networkidle -> `String "networkidle"
+  | `Commit -> `String "commit"
+
+let lifecycle_event_of_yojson = function
+  | `String "load" -> Ok `Load
+  | `String "domcontentloaded" -> Ok `Domcontentloaded
+  | `String "networkidle" -> Ok `Networkidle
+  | `String "commit" -> Ok `Commit
+  | _ -> Error "Invalid enum lifecycle_event"
 
 type page_go_forward_args =
   {
@@ -313,7 +432,18 @@ type page_mouse_up_args_button =
   | `Left
   | `Right
   | `Middle
-  ] [@@deriving yojson]
+  ]
+
+let page_mouse_up_args_button_to_yojson = function
+  | `Left -> `String "left"
+  | `Right -> `String "right"
+  | `Middle -> `String "middle"
+
+let page_mouse_up_args_button_of_yojson = function
+  | `String "left" -> Ok `Left
+  | `String "right" -> Ok `Right
+  | `String "middle" -> Ok `Middle
+  | _ -> Error "Invalid enum page_mouse_up_args_button"
 
 type page_mouse_up_args =
   {
@@ -327,7 +457,20 @@ type local_utils_har_lookup_returns_action =
   | `Redirect
   | `Fulfill
   | `Noentry
-  ] [@@deriving yojson]
+  ]
+
+let local_utils_har_lookup_returns_action_to_yojson = function
+  | `Error -> `String "error"
+  | `Redirect -> `String "redirect"
+  | `Fulfill -> `String "fulfill"
+  | `Noentry -> `String "noentry"
+
+let local_utils_har_lookup_returns_action_of_yojson = function
+  | `String "error" -> Ok `Error
+  | `String "redirect" -> Ok `Redirect
+  | `String "fulfill" -> Ok `Fulfill
+  | `String "noentry" -> Ok `Noentry
+  | _ -> Error "Invalid enum local_utils_har_lookup_returns_action"
 
 type local_utils_har_lookup_returns =
   {
@@ -355,7 +498,20 @@ type frame_wait_for_selector_args_state =
   | `Detached
   | `Visible
   | `Hidden
-  ] [@@deriving yojson]
+  ]
+
+let frame_wait_for_selector_args_state_to_yojson = function
+  | `Attached -> `String "attached"
+  | `Detached -> `String "detached"
+  | `Visible -> `String "visible"
+  | `Hidden -> `String "hidden"
+
+let frame_wait_for_selector_args_state_of_yojson = function
+  | `String "attached" -> Ok `Attached
+  | `String "detached" -> Ok `Detached
+  | `String "visible" -> Ok `Visible
+  | `String "hidden" -> Ok `Hidden
+  | _ -> Error "Invalid enum frame_wait_for_selector_args_state"
 
 type frame_wait_for_selector_args =
   {
@@ -408,7 +564,18 @@ type element_handle_dblclick_args_button =
   | `Left
   | `Right
   | `Middle
-  ] [@@deriving yojson]
+  ]
+
+let element_handle_dblclick_args_button_to_yojson = function
+  | `Left -> `String "left"
+  | `Right -> `String "right"
+  | `Middle -> `String "middle"
+
+let element_handle_dblclick_args_button_of_yojson = function
+  | `String "left" -> Ok `Left
+  | `String "right" -> Ok `Right
+  | `String "middle" -> Ok `Middle
+  | _ -> Error "Invalid enum element_handle_dblclick_args_button"
 
 type point =
   {
@@ -423,7 +590,22 @@ type element_handle_dblclick_args_modifiers_item =
   | `Control_or_meta
   | `Meta
   | `Shift
-  ] [@@deriving yojson]
+  ]
+
+let element_handle_dblclick_args_modifiers_item_to_yojson = function
+  | `Alt -> `String "Alt"
+  | `Control -> `String "Control"
+  | `Control_or_meta -> `String "ControlOrMeta"
+  | `Meta -> `String "Meta"
+  | `Shift -> `String "Shift"
+
+let element_handle_dblclick_args_modifiers_item_of_yojson = function
+  | `String "Alt" -> Ok `Alt
+  | `String "Control" -> Ok `Control
+  | `String "ControlOrMeta" -> Ok `Control_or_meta
+  | `String "Meta" -> Ok `Meta
+  | `String "Shift" -> Ok `Shift
+  | _ -> Error "Invalid enum element_handle_dblclick_args_modifiers_item"
 
 type element_handle_dblclick_args =
   {
@@ -443,7 +625,20 @@ type android_device_swipe_args_direction =
   | `Down
   | `Left
   | `Right
-  ] [@@deriving yojson]
+  ]
+
+let android_device_swipe_args_direction_to_yojson = function
+  | `Up -> `String "up"
+  | `Down -> `String "down"
+  | `Left -> `String "left"
+  | `Right -> `String "right"
+
+let android_device_swipe_args_direction_of_yojson = function
+  | `String "up" -> Ok `Up
+  | `String "down" -> Ok `Down
+  | `String "left" -> Ok `Left
+  | `String "right" -> Ok `Right
+  | _ -> Error "Invalid enum android_device_swipe_args_direction"
 
 type android_selector =
   {
@@ -511,7 +706,20 @@ type context_options_color_scheme =
   | `Light
   | `No_preference
   | `No_override
-  ] [@@deriving yojson]
+  ]
+
+let context_options_color_scheme_to_yojson = function
+  | `Dark -> `String "dark"
+  | `Light -> `String "light"
+  | `No_preference -> `String "no-preference"
+  | `No_override -> `String "no-override"
+
+let context_options_color_scheme_of_yojson = function
+  | `String "dark" -> Ok `Dark
+  | `String "light" -> Ok `Light
+  | `String "no-preference" -> Ok `No_preference
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum context_options_color_scheme"
 
 type context_options_client_certificates_item =
   {
@@ -550,7 +758,18 @@ type local_utils_initializer_device_descriptors_item_descriptor_default_browser_
   | `Chromium
   | `Firefox
   | `Webkit
-  ] [@@deriving yojson]
+  ]
+
+let local_utils_initializer_device_descriptors_item_descriptor_default_browser_type_to_yojson = function
+  | `Chromium -> `String "chromium"
+  | `Firefox -> `String "firefox"
+  | `Webkit -> `String "webkit"
+
+let local_utils_initializer_device_descriptors_item_descriptor_default_browser_type_of_yojson = function
+  | `String "chromium" -> Ok `Chromium
+  | `String "firefox" -> Ok `Firefox
+  | `String "webkit" -> Ok `Webkit
+  | _ -> Error "Invalid enum local_utils_initializer_device_descriptors_item_descriptor_default_browser_type"
 
 type local_utils_initializer_device_descriptors_item_descriptor_screen =
   {
@@ -667,7 +886,16 @@ type context_options_service_workers =
   [
   | `Allow
   | `Block
-  ] [@@deriving yojson]
+  ]
+
+let context_options_service_workers_to_yojson = function
+  | `Allow -> `String "allow"
+  | `Block -> `String "block"
+
+let context_options_service_workers_of_yojson = function
+  | `String "allow" -> Ok `Allow
+  | `String "block" -> Ok `Block
+  | _ -> Error "Invalid enum context_options_service_workers"
 
 type show_actions_options_position =
   [
@@ -677,7 +905,24 @@ type show_actions_options_position =
   | `Bottom_left
   | `Bottom
   | `Bottom_right
-  ] [@@deriving yojson]
+  ]
+
+let show_actions_options_position_to_yojson = function
+  | `Top_left -> `String "top-left"
+  | `Top -> `String "top"
+  | `Top_right -> `String "top-right"
+  | `Bottom_left -> `String "bottom-left"
+  | `Bottom -> `String "bottom"
+  | `Bottom_right -> `String "bottom-right"
+
+let show_actions_options_position_of_yojson = function
+  | `String "top-left" -> Ok `Top_left
+  | `String "top" -> Ok `Top
+  | `String "top-right" -> Ok `Top_right
+  | `String "bottom-left" -> Ok `Bottom_left
+  | `String "bottom" -> Ok `Bottom
+  | `String "bottom-right" -> Ok `Bottom_right
+  | _ -> Error "Invalid enum show_actions_options_position"
 
 type show_actions_options =
   {
@@ -709,27 +954,69 @@ type context_options_contrast =
   | `No_preference
   | `More
   | `No_override
-  ] [@@deriving yojson]
+  ]
+
+let context_options_contrast_to_yojson = function
+  | `No_preference -> `String "no-preference"
+  | `More -> `String "more"
+  | `No_override -> `String "no-override"
+
+let context_options_contrast_of_yojson = function
+  | `String "no-preference" -> Ok `No_preference
+  | `String "more" -> Ok `More
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum context_options_contrast"
 
 type context_options_accept_downloads =
   [
   | `Accept
   | `Deny
   | `Internal_browser_default
-  ] [@@deriving yojson]
+  ]
+
+let context_options_accept_downloads_to_yojson = function
+  | `Accept -> `String "accept"
+  | `Deny -> `String "deny"
+  | `Internal_browser_default -> `String "internal-browser-default"
+
+let context_options_accept_downloads_of_yojson = function
+  | `String "accept" -> Ok `Accept
+  | `String "deny" -> Ok `Deny
+  | `String "internal-browser-default" -> Ok `Internal_browser_default
+  | _ -> Error "Invalid enum context_options_accept_downloads"
 
 type context_options_forced_colors =
   [
   | `Active
   | `None
   | `No_override
-  ] [@@deriving yojson]
+  ]
+
+let context_options_forced_colors_to_yojson = function
+  | `Active -> `String "active"
+  | `None -> `String "none"
+  | `No_override -> `String "no-override"
+
+let context_options_forced_colors_of_yojson = function
+  | `String "active" -> Ok `Active
+  | `String "none" -> Ok `None
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum context_options_forced_colors"
 
 type context_options_http_credentials_send =
   [
   | `Always
   | `Unauthorized
-  ] [@@deriving yojson]
+  ]
+
+let context_options_http_credentials_send_to_yojson = function
+  | `Always -> `String "always"
+  | `Unauthorized -> `String "unauthorized"
+
+let context_options_http_credentials_send_of_yojson = function
+  | `String "always" -> Ok `Always
+  | `String "unauthorized" -> Ok `Unauthorized
+  | _ -> Error "Invalid enum context_options_http_credentials_send"
 
 type context_options_http_credentials =
   {
@@ -826,7 +1113,16 @@ type frame_expect_args_pseudo =
   [
   | `Before
   | `After
-  ] [@@deriving yojson]
+  ]
+
+let frame_expect_args_pseudo_to_yojson = function
+  | `Before -> `String "before"
+  | `After -> `String "after"
+
+let frame_expect_args_pseudo_of_yojson = function
+  | `String "before" -> Ok `Before
+  | `String "after" -> Ok `After
+  | _ -> Error "Invalid enum frame_expect_args_pseudo"
 
 type frame_uncheck_args =
   {
@@ -841,7 +1137,14 @@ type frame_uncheck_args =
 type android_device_wait_args_state =
   [
   | `Gone
-  ] [@@deriving yojson]
+  ]
+
+let android_device_wait_args_state_to_yojson = function
+  | `Gone -> `String "gone"
+
+let android_device_wait_args_state_of_yojson = function
+  | `String "gone" -> Ok `Gone
+  | _ -> Error "Invalid enum android_device_wait_args_state"
 
 type android_device_wait_args =
   {
@@ -871,7 +1174,24 @@ type element_handle_wait_for_element_state_args_state =
   | `Enabled
   | `Disabled
   | `Editable
-  ] [@@deriving yojson]
+  ]
+
+let element_handle_wait_for_element_state_args_state_to_yojson = function
+  | `Visible -> `String "visible"
+  | `Hidden -> `String "hidden"
+  | `Stable -> `String "stable"
+  | `Enabled -> `String "enabled"
+  | `Disabled -> `String "disabled"
+  | `Editable -> `String "editable"
+
+let element_handle_wait_for_element_state_args_state_of_yojson = function
+  | `String "visible" -> Ok `Visible
+  | `String "hidden" -> Ok `Hidden
+  | `String "stable" -> Ok `Stable
+  | `String "enabled" -> Ok `Enabled
+  | `String "disabled" -> Ok `Disabled
+  | `String "editable" -> Ok `Editable
+  | _ -> Error "Invalid enum element_handle_wait_for_element_state_args_state"
 
 type tracing_tracing_start_chunk_returns =
   {
@@ -1023,7 +1343,22 @@ type frame_hover_args_modifiers_item =
   | `Control_or_meta
   | `Meta
   | `Shift
-  ] [@@deriving yojson]
+  ]
+
+let frame_hover_args_modifiers_item_to_yojson = function
+  | `Alt -> `String "Alt"
+  | `Control -> `String "Control"
+  | `Control_or_meta -> `String "ControlOrMeta"
+  | `Meta -> `String "Meta"
+  | `Shift -> `String "Shift"
+
+let frame_hover_args_modifiers_item_of_yojson = function
+  | `String "Alt" -> Ok `Alt
+  | `String "Control" -> Ok `Control
+  | `String "ControlOrMeta" -> Ok `Control_or_meta
+  | `String "Meta" -> Ok `Meta
+  | `String "Shift" -> Ok `Shift
+  | _ -> Error "Invalid enum frame_hover_args_modifiers_item"
 
 type page_download_event =
   {
@@ -1058,7 +1393,18 @@ type network_cookie_same_site =
   | `Strict
   | `Lax
   | `None
-  ] [@@deriving yojson]
+  ]
+
+let network_cookie_same_site_to_yojson = function
+  | `Strict -> `String "Strict"
+  | `Lax -> `String "Lax"
+  | `None -> `String "None"
+
+let network_cookie_same_site_of_yojson = function
+  | `String "Strict" -> Ok `Strict
+  | `String "Lax" -> Ok `Lax
+  | `String "None" -> Ok `None
+  | _ -> Error "Invalid enum network_cookie_same_site"
 
 type network_cookie =
   {
@@ -1154,21 +1500,54 @@ type page_emulate_media_args_contrast =
   | `No_preference
   | `More
   | `No_override
-  ] [@@deriving yojson]
+  ]
+
+let page_emulate_media_args_contrast_to_yojson = function
+  | `No_preference -> `String "no-preference"
+  | `More -> `String "more"
+  | `No_override -> `String "no-override"
+
+let page_emulate_media_args_contrast_of_yojson = function
+  | `String "no-preference" -> Ok `No_preference
+  | `String "more" -> Ok `More
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum page_emulate_media_args_contrast"
 
 type page_emulate_media_args_forced_colors =
   [
   | `Active
   | `None
   | `No_override
-  ] [@@deriving yojson]
+  ]
+
+let page_emulate_media_args_forced_colors_to_yojson = function
+  | `Active -> `String "active"
+  | `None -> `String "none"
+  | `No_override -> `String "no-override"
+
+let page_emulate_media_args_forced_colors_of_yojson = function
+  | `String "active" -> Ok `Active
+  | `String "none" -> Ok `None
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum page_emulate_media_args_forced_colors"
 
 type page_emulate_media_args_reduced_motion =
   [
   | `Reduce
   | `No_preference
   | `No_override
-  ] [@@deriving yojson]
+  ]
+
+let page_emulate_media_args_reduced_motion_to_yojson = function
+  | `Reduce -> `String "reduce"
+  | `No_preference -> `String "no-preference"
+  | `No_override -> `String "no-override"
+
+let page_emulate_media_args_reduced_motion_of_yojson = function
+  | `String "reduce" -> Ok `Reduce
+  | `String "no-preference" -> Ok `No_preference
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum page_emulate_media_args_reduced_motion"
 
 type page_emulate_media_args_color_scheme =
   [
@@ -1176,14 +1555,38 @@ type page_emulate_media_args_color_scheme =
   | `Light
   | `No_preference
   | `No_override
-  ] [@@deriving yojson]
+  ]
+
+let page_emulate_media_args_color_scheme_to_yojson = function
+  | `Dark -> `String "dark"
+  | `Light -> `String "light"
+  | `No_preference -> `String "no-preference"
+  | `No_override -> `String "no-override"
+
+let page_emulate_media_args_color_scheme_of_yojson = function
+  | `String "dark" -> Ok `Dark
+  | `String "light" -> Ok `Light
+  | `String "no-preference" -> Ok `No_preference
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum page_emulate_media_args_color_scheme"
 
 type page_emulate_media_args_media =
   [
   | `Screen
   | `Print
   | `No_override
-  ] [@@deriving yojson]
+  ]
+
+let page_emulate_media_args_media_to_yojson = function
+  | `Screen -> `String "screen"
+  | `Print -> `String "print"
+  | `No_override -> `String "no-override"
+
+let page_emulate_media_args_media_of_yojson = function
+  | `String "screen" -> Ok `Screen
+  | `String "print" -> Ok `Print
+  | `String "no-override" -> Ok `No_override
+  | _ -> Error "Invalid enum page_emulate_media_args_media"
 
 type page_emulate_media_args =
   {
@@ -1211,7 +1614,18 @@ type browser_context_recorder_event_event_event =
   | `Action_added
   | `Action_updated
   | `Signal_added
-  ] [@@deriving yojson]
+  ]
+
+let browser_context_recorder_event_event_event_to_yojson = function
+  | `Action_added -> `String "actionAdded"
+  | `Action_updated -> `String "actionUpdated"
+  | `Signal_added -> `String "signalAdded"
+
+let browser_context_recorder_event_event_event_of_yojson = function
+  | `String "actionAdded" -> Ok `Action_added
+  | `String "actionUpdated" -> Ok `Action_updated
+  | `String "signalAdded" -> Ok `Signal_added
+  | _ -> Error "Invalid enum browser_context_recorder_event_event_event"
 
 type browser_context_recorder_event_event =
   {
@@ -1291,13 +1705,31 @@ type browser_context_enable_recorder_args_recorder_mode =
   [
   | `Default
   | `Api
-  ] [@@deriving yojson]
+  ]
+
+let browser_context_enable_recorder_args_recorder_mode_to_yojson = function
+  | `Default -> `String "default"
+  | `Api -> `String "api"
+
+let browser_context_enable_recorder_args_recorder_mode_of_yojson = function
+  | `String "default" -> Ok `Default
+  | `String "api" -> Ok `Api
+  | _ -> Error "Invalid enum browser_context_enable_recorder_args_recorder_mode"
 
 type browser_context_enable_recorder_args_mode =
   [
   | `Inspecting
   | `Recording
-  ] [@@deriving yojson]
+  ]
+
+let browser_context_enable_recorder_args_mode_to_yojson = function
+  | `Inspecting -> `String "inspecting"
+  | `Recording -> `String "recording"
+
+let browser_context_enable_recorder_args_mode_of_yojson = function
+  | `String "inspecting" -> Ok `Inspecting
+  | `String "recording" -> Ok `Recording
+  | _ -> Error "Invalid enum browser_context_enable_recorder_args_mode"
 
 type browser_context_enable_recorder_args =
   {
@@ -1325,7 +1757,18 @@ type page_mouse_click_args_button =
   | `Left
   | `Right
   | `Middle
-  ] [@@deriving yojson]
+  ]
+
+let page_mouse_click_args_button_to_yojson = function
+  | `Left -> `String "left"
+  | `Right -> `String "right"
+  | `Middle -> `String "middle"
+
+let page_mouse_click_args_button_of_yojson = function
+  | `String "left" -> Ok `Left
+  | `String "right" -> Ok `Right
+  | `String "middle" -> Ok `Middle
+  | _ -> Error "Invalid enum page_mouse_click_args_button"
 
 type artifact_save_as_stream_returns =
   {
@@ -1371,7 +1814,20 @@ type sdk_language =
   | `Python
   | `Java
   | `Csharp
-  ] [@@deriving yojson]
+  ]
+
+let sdk_language_to_yojson = function
+  | `Javascript -> `String "javascript"
+  | `Python -> `String "python"
+  | `Java -> `String "java"
+  | `Csharp -> `String "csharp"
+
+let sdk_language_of_yojson = function
+  | `String "javascript" -> Ok `Javascript
+  | `String "python" -> Ok `Python
+  | `String "java" -> Ok `Java
+  | `String "csharp" -> Ok `Csharp
+  | _ -> Error "Invalid enum sdk_language"
 
 type debug_controller_initialize_args =
   {
@@ -1408,7 +1864,22 @@ type element_handle_click_args_modifiers_item =
   | `Control_or_meta
   | `Meta
   | `Shift
-  ] [@@deriving yojson]
+  ]
+
+let element_handle_click_args_modifiers_item_to_yojson = function
+  | `Alt -> `String "Alt"
+  | `Control -> `String "Control"
+  | `Control_or_meta -> `String "ControlOrMeta"
+  | `Meta -> `String "Meta"
+  | `Shift -> `String "Shift"
+
+let element_handle_click_args_modifiers_item_of_yojson = function
+  | `String "Alt" -> Ok `Alt
+  | `String "Control" -> Ok `Control
+  | `String "ControlOrMeta" -> Ok `Control_or_meta
+  | `String "Meta" -> Ok `Meta
+  | `String "Shift" -> Ok `Shift
+  | _ -> Error "Invalid enum element_handle_click_args_modifiers_item"
 
 type browser_new_context_for_reuse_args_storage_state =
   {
@@ -1582,13 +2053,31 @@ type common_screenshot_options_scale =
   [
   | `Css
   | `Device
-  ] [@@deriving yojson]
+  ]
+
+let common_screenshot_options_scale_to_yojson = function
+  | `Css -> `String "css"
+  | `Device -> `String "device"
+
+let common_screenshot_options_scale_of_yojson = function
+  | `String "css" -> Ok `Css
+  | `String "device" -> Ok `Device
+  | _ -> Error "Invalid enum common_screenshot_options_scale"
 
 type common_screenshot_options_animations =
   [
   | `Disabled
   | `Allow
-  ] [@@deriving yojson]
+  ]
+
+let common_screenshot_options_animations_to_yojson = function
+  | `Disabled -> `String "disabled"
+  | `Allow -> `String "allow"
+
+let common_screenshot_options_animations_of_yojson = function
+  | `String "disabled" -> Ok `Disabled
+  | `String "allow" -> Ok `Allow
+  | _ -> Error "Invalid enum common_screenshot_options_animations"
 
 type common_screenshot_options =
   {
@@ -1605,7 +2094,16 @@ type element_handle_screenshot_args_type =
   [
   | `Png
   | `Jpeg
-  ] [@@deriving yojson]
+  ]
+
+let element_handle_screenshot_args_type_to_yojson = function
+  | `Png -> `String "png"
+  | `Jpeg -> `String "jpeg"
+
+let element_handle_screenshot_args_type_of_yojson = function
+  | `String "png" -> Ok `Png
+  | `String "jpeg" -> Ok `Jpeg
+  | _ -> Error "Invalid enum element_handle_screenshot_args_type"
 
 type element_handle_screenshot_args =
   {
@@ -1794,7 +2292,14 @@ type browser_context_request_failed_event =
 type worker_update_subscription_args_event =
   [
   | `Console
-  ] [@@deriving yojson]
+  ]
+
+let worker_update_subscription_args_event_to_yojson = function
+  | `Console -> `String "console"
+
+let worker_update_subscription_args_event_of_yojson = function
+  | `String "console" -> Ok `Console
+  | _ -> Error "Invalid enum worker_update_subscription_args_event"
 
 type worker_update_subscription_args =
   {
@@ -1811,7 +2316,16 @@ type record_har_options_mode =
   [
   | `Full
   | `Minimal
-  ] [@@deriving yojson]
+  ]
+
+let record_har_options_mode_to_yojson = function
+  | `Full -> `String "full"
+  | `Minimal -> `String "minimal"
+
+let record_har_options_mode_of_yojson = function
+  | `String "full" -> Ok `Full
+  | `String "minimal" -> Ok `Minimal
+  | _ -> Error "Invalid enum record_har_options_mode"
 
 type element_handle_is_checked_returns =
   {
@@ -1831,7 +2345,22 @@ type element_handle_hover_args_modifiers_item =
   | `Control_or_meta
   | `Meta
   | `Shift
-  ] [@@deriving yojson]
+  ]
+
+let element_handle_hover_args_modifiers_item_to_yojson = function
+  | `Alt -> `String "Alt"
+  | `Control -> `String "Control"
+  | `Control_or_meta -> `String "ControlOrMeta"
+  | `Meta -> `String "Meta"
+  | `Shift -> `String "Shift"
+
+let element_handle_hover_args_modifiers_item_of_yojson = function
+  | `String "Alt" -> Ok `Alt
+  | `String "Control" -> Ok `Control
+  | `String "ControlOrMeta" -> Ok `Control_or_meta
+  | `String "Meta" -> Ok `Meta
+  | `String "Shift" -> Ok `Shift
+  | _ -> Error "Invalid enum element_handle_hover_args_modifiers_item"
 
 type element_handle_tap_args_modifiers_item =
   [
@@ -1840,7 +2369,22 @@ type element_handle_tap_args_modifiers_item =
   | `Control_or_meta
   | `Meta
   | `Shift
-  ] [@@deriving yojson]
+  ]
+
+let element_handle_tap_args_modifiers_item_to_yojson = function
+  | `Alt -> `String "Alt"
+  | `Control -> `String "Control"
+  | `Control_or_meta -> `String "ControlOrMeta"
+  | `Meta -> `String "Meta"
+  | `Shift -> `String "Shift"
+
+let element_handle_tap_args_modifiers_item_of_yojson = function
+  | `String "Alt" -> Ok `Alt
+  | `String "Control" -> Ok `Control
+  | `String "ControlOrMeta" -> Ok `Control_or_meta
+  | `String "Meta" -> Ok `Meta
+  | `String "Shift" -> Ok `Shift
+  | _ -> Error "Invalid enum element_handle_tap_args_modifiers_item"
 
 type element_handle_tap_args =
   {
@@ -1875,7 +2419,16 @@ type console_messages_filter =
   [
   | `All
   | `Since_navigation
-  ] [@@deriving yojson]
+  ]
+
+let console_messages_filter_to_yojson = function
+  | `All -> `String "all"
+  | `Since_navigation -> `String "since-navigation"
+
+let console_messages_filter_of_yojson = function
+  | `String "all" -> Ok `All
+  | `String "since-navigation" -> Ok `Since_navigation
+  | _ -> Error "Invalid enum console_messages_filter"
 
 type page_console_messages_args =
   {
@@ -2095,7 +2648,22 @@ type frame_click_args_modifiers_item =
   | `Control_or_meta
   | `Meta
   | `Shift
-  ] [@@deriving yojson]
+  ]
+
+let frame_click_args_modifiers_item_to_yojson = function
+  | `Alt -> `String "Alt"
+  | `Control -> `String "Control"
+  | `Control_or_meta -> `String "ControlOrMeta"
+  | `Meta -> `String "Meta"
+  | `Shift -> `String "Shift"
+
+let frame_click_args_modifiers_item_of_yojson = function
+  | `String "Alt" -> Ok `Alt
+  | `String "Control" -> Ok `Control
+  | `String "ControlOrMeta" -> Ok `Control_or_meta
+  | `String "Meta" -> Ok `Meta
+  | `String "Shift" -> Ok `Shift
+  | _ -> Error "Invalid enum frame_click_args_modifiers_item"
 
 type socks_support_socks_data_args =
   {
@@ -2117,7 +2685,18 @@ type frame_dblclick_args_button =
   | `Left
   | `Right
   | `Middle
-  ] [@@deriving yojson]
+  ]
+
+let frame_dblclick_args_button_to_yojson = function
+  | `Left -> `String "left"
+  | `Right -> `String "right"
+  | `Middle -> `String "middle"
+
+let frame_dblclick_args_button_of_yojson = function
+  | `String "left" -> Ok `Left
+  | `String "right" -> Ok `Right
+  | `String "middle" -> Ok `Middle
+  | _ -> Error "Invalid enum frame_dblclick_args_button"
 
 type element_handle_check_args =
   {
@@ -2179,7 +2758,20 @@ type android_device_scroll_args_direction =
   | `Down
   | `Left
   | `Right
-  ] [@@deriving yojson]
+  ]
+
+let android_device_scroll_args_direction_to_yojson = function
+  | `Up -> `String "up"
+  | `Down -> `String "down"
+  | `Left -> `String "left"
+  | `Right -> `String "right"
+
+let android_device_scroll_args_direction_of_yojson = function
+  | `String "up" -> Ok `Up
+  | `String "down" -> Ok `Down
+  | `String "left" -> Ok `Left
+  | `String "right" -> Ok `Right
+  | _ -> Error "Invalid enum android_device_scroll_args_direction"
 
 type android_device_scroll_args =
   {
@@ -2303,7 +2895,26 @@ type page_update_subscription_args_event =
   | `Response
   | `Request_finished
   | `Request_failed
-  ] [@@deriving yojson]
+  ]
+
+let page_update_subscription_args_event_to_yojson = function
+  | `Console -> `String "console"
+  | `Dialog -> `String "dialog"
+  | `File_chooser -> `String "fileChooser"
+  | `Request -> `String "request"
+  | `Response -> `String "response"
+  | `Request_finished -> `String "requestFinished"
+  | `Request_failed -> `String "requestFailed"
+
+let page_update_subscription_args_event_of_yojson = function
+  | `String "console" -> Ok `Console
+  | `String "dialog" -> Ok `Dialog
+  | `String "fileChooser" -> Ok `File_chooser
+  | `String "request" -> Ok `Request
+  | `String "response" -> Ok `Response
+  | `String "requestFinished" -> Ok `Request_finished
+  | `String "requestFailed" -> Ok `Request_failed
+  | _ -> Error "Invalid enum page_update_subscription_args_event"
 
 type page_update_subscription_args =
   {
@@ -2372,7 +2983,18 @@ type event_target_wait_for_event_info_args_info_phase =
   | `Before
   | `After
   | `Log
-  ] [@@deriving yojson]
+  ]
+
+let event_target_wait_for_event_info_args_info_phase_to_yojson = function
+  | `Before -> `String "before"
+  | `After -> `String "after"
+  | `Log -> `String "log"
+
+let event_target_wait_for_event_info_args_info_phase_of_yojson = function
+  | `String "before" -> Ok `Before
+  | `String "after" -> Ok `After
+  | `String "log" -> Ok `Log
+  | _ -> Error "Invalid enum event_target_wait_for_event_info_args_info_phase"
 
 type response_body_returns =
   {
@@ -2439,7 +3061,18 @@ type debug_controller_set_recorder_mode_args_mode =
   | `Inspecting
   | `Recording
   | `None
-  ] [@@deriving yojson]
+  ]
+
+let debug_controller_set_recorder_mode_args_mode_to_yojson = function
+  | `Inspecting -> `String "inspecting"
+  | `Recording -> `String "recording"
+  | `None -> `String "none"
+
+let debug_controller_set_recorder_mode_args_mode_of_yojson = function
+  | `String "inspecting" -> Ok `Inspecting
+  | `String "recording" -> Ok `Recording
+  | `String "none" -> Ok `None
+  | _ -> Error "Invalid enum debug_controller_set_recorder_mode_args_mode"
 
 type debug_controller_set_recorder_mode_args =
   {
@@ -2620,7 +3253,20 @@ type element_handle_wait_for_selector_args_state =
   | `Detached
   | `Visible
   | `Hidden
-  ] [@@deriving yojson]
+  ]
+
+let element_handle_wait_for_selector_args_state_to_yojson = function
+  | `Attached -> `String "attached"
+  | `Detached -> `String "detached"
+  | `Visible -> `String "visible"
+  | `Hidden -> `String "hidden"
+
+let element_handle_wait_for_selector_args_state_of_yojson = function
+  | `String "attached" -> Ok `Attached
+  | `String "detached" -> Ok `Detached
+  | `String "visible" -> Ok `Visible
+  | `String "hidden" -> Ok `Hidden
+  | _ -> Error "Invalid enum element_handle_wait_for_selector_args_state"
 
 type api_request_context_fetch_response_body_returns =
   {
@@ -2651,7 +3297,24 @@ type browser_context_update_subscription_args_event =
   | `Response
   | `Request_finished
   | `Request_failed
-  ] [@@deriving yojson]
+  ]
+
+let browser_context_update_subscription_args_event_to_yojson = function
+  | `Console -> `String "console"
+  | `Dialog -> `String "dialog"
+  | `Request -> `String "request"
+  | `Response -> `String "response"
+  | `Request_finished -> `String "requestFinished"
+  | `Request_failed -> `String "requestFailed"
+
+let browser_context_update_subscription_args_event_of_yojson = function
+  | `String "console" -> Ok `Console
+  | `String "dialog" -> Ok `Dialog
+  | `String "request" -> Ok `Request
+  | `String "response" -> Ok `Response
+  | `String "requestFinished" -> Ok `Request_finished
+  | `String "requestFailed" -> Ok `Request_failed
+  | _ -> Error "Invalid enum browser_context_update_subscription_args_event"
 
 type browser_context_update_subscription_args =
   {
@@ -2687,7 +3350,16 @@ type frame_aria_snapshot_args_mode =
   [
   | `Ai
   | `Default
-  ] [@@deriving yojson]
+  ]
+
+let frame_aria_snapshot_args_mode_to_yojson = function
+  | `Ai -> `String "ai"
+  | `Default -> `String "default"
+
+let frame_aria_snapshot_args_mode_of_yojson = function
+  | `String "ai" -> Ok `Ai
+  | `String "default" -> Ok `Default
+  | _ -> Error "Invalid enum frame_aria_snapshot_args_mode"
 
 type browser_type_connect_to_worker_args =
   {
@@ -2826,7 +3498,18 @@ type record_har_options_content =
   | `Embed
   | `Attach
   | `Omit
-  ] [@@deriving yojson]
+  ]
+
+let record_har_options_content_to_yojson = function
+  | `Embed -> `String "embed"
+  | `Attach -> `String "attach"
+  | `Omit -> `String "omit"
+
+let record_har_options_content_of_yojson = function
+  | `String "embed" -> Ok `Embed
+  | `String "attach" -> Ok `Attach
+  | `String "omit" -> Ok `Omit
+  | _ -> Error "Invalid enum record_har_options_content"
 
 type frame_content_returns =
   {
@@ -2871,7 +3554,22 @@ type frame_tap_args_modifiers_item =
   | `Control_or_meta
   | `Meta
   | `Shift
-  ] [@@deriving yojson]
+  ]
+
+let frame_tap_args_modifiers_item_to_yojson = function
+  | `Alt -> `String "Alt"
+  | `Control -> `String "Control"
+  | `Control_or_meta -> `String "ControlOrMeta"
+  | `Meta -> `String "Meta"
+  | `Shift -> `String "Shift"
+
+let frame_tap_args_modifiers_item_of_yojson = function
+  | `String "Alt" -> Ok `Alt
+  | `String "Control" -> Ok `Control
+  | `String "ControlOrMeta" -> Ok `Control_or_meta
+  | `String "Meta" -> Ok `Meta
+  | `String "Shift" -> Ok `Shift
+  | _ -> Error "Invalid enum frame_tap_args_modifiers_item"
 
 type page_keyboard_press_args =
   {
@@ -2907,7 +3605,16 @@ type page_screenshot_args_type =
   [
   | `Png
   | `Jpeg
-  ] [@@deriving yojson]
+  ]
+
+let page_screenshot_args_type_to_yojson = function
+  | `Png -> `String "png"
+  | `Jpeg -> `String "jpeg"
+
+let page_screenshot_args_type_of_yojson = function
+  | `String "png" -> Ok `Png
+  | `String "jpeg" -> Ok `Jpeg
+  | _ -> Error "Invalid enum page_screenshot_args_type"
 
 type browser_context_clear_cookies_args =
   {
@@ -2988,7 +3695,18 @@ type frame_click_args_button =
   | `Left
   | `Right
   | `Middle
-  ] [@@deriving yojson]
+  ]
+
+let frame_click_args_button_to_yojson = function
+  | `Left -> `String "left"
+  | `Right -> `String "right"
+  | `Middle -> `String "middle"
+
+let frame_click_args_button_of_yojson = function
+  | `String "left" -> Ok `Left
+  | `String "right" -> Ok `Right
+  | `String "middle" -> Ok `Middle
+  | _ -> Error "Invalid enum frame_click_args_button"
 
 type page_unregister_locator_handler_args =
   {
@@ -3004,7 +3722,16 @@ type local_utils_zip_args_mode =
   [
   | `Write
   | `Append
-  ] [@@deriving yojson]
+  ]
+
+let local_utils_zip_args_mode_to_yojson = function
+  | `Write -> `String "write"
+  | `Append -> `String "append"
+
+let local_utils_zip_args_mode_of_yojson = function
+  | `String "write" -> Ok `Write
+  | `String "append" -> Ok `Append
+  | _ -> Error "Invalid enum local_utils_zip_args_mode"
 
 type local_utils_zip_args =
   {
@@ -3126,7 +3853,18 @@ type browser_initializer_browser_name =
   | `Chromium
   | `Firefox
   | `Webkit
-  ] [@@deriving yojson]
+  ]
+
+let browser_initializer_browser_name_to_yojson = function
+  | `Chromium -> `String "chromium"
+  | `Firefox -> `String "firefox"
+  | `Webkit -> `String "webkit"
+
+let browser_initializer_browser_name_of_yojson = function
+  | `String "chromium" -> Ok `Chromium
+  | `String "firefox" -> Ok `Firefox
+  | `String "webkit" -> Ok `Webkit
+  | _ -> Error "Invalid enum browser_initializer_browser_name"
 
 type browser_initializer =
   {
@@ -3140,7 +3878,18 @@ type element_handle_click_args_button =
   | `Left
   | `Right
   | `Middle
-  ] [@@deriving yojson]
+  ]
+
+let element_handle_click_args_button_to_yojson = function
+  | `Left -> `String "left"
+  | `Right -> `String "right"
+  | `Middle -> `String "middle"
+
+let element_handle_click_args_button_of_yojson = function
+  | `String "left" -> Ok `Left
+  | `String "right" -> Ok `Right
+  | `String "middle" -> Ok `Middle
+  | _ -> Error "Invalid enum element_handle_click_args_button"
 
 type element_handle_click_args =
   {
@@ -3299,7 +4048,22 @@ type frame_dblclick_args_modifiers_item =
   | `Control_or_meta
   | `Meta
   | `Shift
-  ] [@@deriving yojson]
+  ]
+
+let frame_dblclick_args_modifiers_item_to_yojson = function
+  | `Alt -> `String "Alt"
+  | `Control -> `String "Control"
+  | `Control_or_meta -> `String "ControlOrMeta"
+  | `Meta -> `String "Meta"
+  | `Shift -> `String "Shift"
+
+let frame_dblclick_args_modifiers_item_of_yojson = function
+  | `String "Alt" -> Ok `Alt
+  | `String "Control" -> Ok `Control
+  | `String "ControlOrMeta" -> Ok `Control_or_meta
+  | `String "Meta" -> Ok `Meta
+  | `String "Shift" -> Ok `Shift
+  | _ -> Error "Invalid enum frame_dblclick_args_modifiers_item"
 
 type frame_dblclick_args =
   {
@@ -3542,7 +4306,20 @@ type android_device_fling_args_direction =
   | `Down
   | `Left
   | `Right
-  ] [@@deriving yojson]
+  ]
+
+let android_device_fling_args_direction_to_yojson = function
+  | `Up -> `String "up"
+  | `Down -> `String "down"
+  | `Left -> `String "left"
+  | `Right -> `String "right"
+
+let android_device_fling_args_direction_of_yojson = function
+  | `String "up" -> Ok `Up
+  | `String "down" -> Ok `Down
+  | `String "left" -> Ok `Left
+  | `String "right" -> Ok `Right
+  | _ -> Error "Invalid enum android_device_fling_args_direction"
 
 type android_device_fling_args =
   {

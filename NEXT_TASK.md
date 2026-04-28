@@ -1,25 +1,36 @@
 # Next Tasks for OCaml Playwright Bindings
 
-The OCaml types corresponding to the objects, enums, mixins, commands, and events from Playwright's `protocol.yml` have been generated into `lib/protocol.ml` using a topological sort to handle mutually recursive types.
+Great progress was made in the previous session:
+1. **Driver Management (`lib/driver.ml`)**: Downloading and running the pre-compiled Playwright driver binary works successfully via `Eio.Process.spawn`.
+2. **Transport Layer (`lib/transport.ml`)**: `stdin`/`stdout` transport layer using `Eio` works.
+3. **Connection & Object Registry (`lib/connection.ml`)**: Basic `Connection` logic, handling auto-incrementing IDs and object creation/disposal via `__create__` and `__dispose__` events, works!
+4. **Client API Generation (`tools/generate_api.ml` and `tools/generate_protocol.ml`)**:
+   - `lib/protocol.ml` now correctly generates variants for enums with manual `to_yojson` and `of_yojson` handlers (to handle dashed strings like `"-inf"` or `"mac-arm64"`).
+   - `lib/api.ml` generated functions are fully typed. We successfully called `Api.Root.initialize` and received the resulting `Playwright` object.
 
-The next steps are:
+### Next Steps:
 
-1. **Driver Management (`lib/driver.ml`)**:
-   - Implement downloading of the pre-compiled Playwright driver binary (which bundles Node.js and Playwright Core). The URL structure is typically:
-     `https://playwright.azureedge.net/builds/driver/playwright-<version>-<platform>-<arch>.zip` (or similar, needs to be researched for the exact URL format used by Python/Java).
-   - Alternatively, for local development, we can spawn `node packages/playwright-core/cli.js run-driver` inside the Playwright source directory if available, but downloading the binary is the standard approach for language bindings.
+1. **Connection Lifecycle & Background Loop**:
+   - Currently, `Playwright.Connection.run_loop` runs indefinitely, so `test_connection.exe` never exits. We need a way to cleanly shutdown the connection and kill the Playwright driver process.
+   - The driver is spawned using `Eio.Process.spawn`. We should probably store the process handle and send it a termination signal (or close the stdin pipe) when the connection is closed.
 
-2. **Transport Layer (`lib/transport.ml`)**:
-   - Implement the `stdin`/`stdout` transport layer using `Eio`.
-   - The protocol uses a 32-bit Little-Endian Unsigned Integer representing the length (in bytes) of the JSON payload, followed by the UTF-8 encoded JSON string itself.
-   - We need an `Eio` loop reading these messages and parsing them with `Yojson`.
-   - We also need a function to send messages using the same framing.
+2. **Wait for Events (Concurrency/Synchronization)**:
+   - When Playwright events occur (e.g., `Page.route`), they are sent as asynchronous JSON RPC events (without an `id`).
+   - We need an event listener system in `Connection` (or `ChannelOwner`) so users can register callbacks (e.g., `page |> Page.on_route (fun route -> ...)`).
 
-3. **Connection & Object Registry (`lib/connection.ml`)**:
-   - Implement the `Connection` registry.
-   - Keep track of objects by `guid`.
-   - Handle the `__create__`, `__adopt__`, and `__dispose__` messages to manage the object lifecycle.
-   - Maintain a map of auto-incrementing request IDs to `Eio.Promise.u` so that RPC responses can resolve the pending promises.
+3. **High-Level API Wrappers**:
+   - Right now, `Api.ml` exposes raw functions like `Api.Page.goto conn guid args`.
+   - We need to wrap these in higher-level OCaml classes or modules that encapsulate the `conn` and `guid` (similar to the Python `Page` class).
+   - For example:
+     ```ocaml
+     let browser = BrowserType.launch playwright.chromium ~headless:true () in
+     let page = Browser.new_page browser () in
+     Page.goto page "https://example.com" ()
+     ```
+   - This might require adjusting the generator scripts to generate these wrappers instead of or in addition to the raw API.
 
-4. **Client API Generation / Wrapping**:
-   - Expand the `tools/generate_protocol.ml` script (or write a new one) to generate the actual OCaml functions/classes for the Playwright methods (e.g., `Browser.new_context`, `Page.goto`), which construct the request JSON and await the response from the `Connection`.
+4. **Testing**:
+   - Write a proper end-to-end test (e.g., opening a browser, navigating to a page, taking a screenshot) to validate the end-to-end flow.
+   - Use locally installed browser executable `/usr/bin/chromium`, not a one shipped with bundled Playwright. The bundled browsers work only on Ubuntu, they wont work in Arch Linux.
+
+See `test/test_connection.ml` for a working example of spinning up the driver and sending the `initialize` command.

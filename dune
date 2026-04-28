@@ -1,0 +1,5 @@
+
+(executable
+ (name test_ppx_custom)
+ (libraries yojson)
+ (preprocess (pps ppx_deriving_yojson)))

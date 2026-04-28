@@ -14,7 +14,10 @@ let () =
   Eio.Fiber.fork ~sw (fun () -> Playwright.Connection.run_loop conn);
   
   Printf.printf "Sending initialize...\n%!";
-  let result = Playwright.Connection.send_message conn ~guid:"" ~method_:"initialize" ~params:(`Assoc ["sdkLanguage", `String "javascript"]) in
+  let result = Playwright.Api.Root.initialize conn "" { 
+    Playwright.Protocol.root_initialize_args_sdk_language = `Javascript 
+  } in
   match result with
-  | Ok res -> Printf.printf "Initialized: %s\n%!" (Yojson.Safe.to_string res)
+  | Ok res -> 
+      Printf.printf "Initialized Playwright channel: %s\n%!" res.Playwright.Protocol.root_initialize_returns_playwright.guid
   | Error err -> Printf.printf "Error: %s\n%!" err

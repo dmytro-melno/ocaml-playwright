@@ -92,7 +92,7 @@ let ocaml_type_name s =
   let s = ocaml_name ~is_type:true s in
   if s = "" then "t" else s
 
-let ocaml_field_name parent_t k = 
+let ocaml_field_name _parent_t k = 
   let s = ocaml_name ~is_type:false k in
   let s = if s = "" then "field" else s in
   (* Prevent record field conflicts by prefixing with type name if needed *)
@@ -100,6 +100,8 @@ let ocaml_field_name parent_t k =
   s
 
 let ocaml_variant_name s = 
+  if s = "-inf" then "Minus_inf" else
+  if s = "-0" then "Minus_zero" else
   let s = ocaml_name ~is_type:false s in
   if s = "" then "Empty" else
   if s.[0] >= '0' && s.[0] <= '9' then "V_" ^ s else
@@ -279,7 +281,24 @@ let () =
             let variant = ocaml_variant_name lit in
             pf "  | `%s\n" variant
           ) literals;
-          pf "  ] [@@deriving yojson]\n\n"
+          pf "  ]\n\n";
+          
+          let to_yojson = sprintf "%s_to_yojson" name in
+          let of_yojson = sprintf "%s_of_yojson" name in
+          
+          pf "let %s = function\n" to_yojson;
+          List.iter (fun lit ->
+            let variant = ocaml_variant_name lit in
+            pf "  | `%s -> `String \"%s\"\n" variant lit
+          ) literals;
+          pf "\n";
+          
+          pf "let %s = function\n" of_yojson;
+          List.iter (fun lit ->
+            let variant = ocaml_variant_name lit in
+            pf "  | `String \"%s\" -> Ok `%s\n" lit variant
+          ) literals;
+          pf "  | _ -> Error \"Invalid enum %s\"\n\n" name;
       | TObject props ->
           pf "%s %s =\n" prefix name;
           if props = [] then

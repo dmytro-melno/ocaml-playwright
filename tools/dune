@@ -1,10 +1,4 @@
 
-(executable
- (name generate_protocol)
- (libraries yaml str)
- (flags :standard -w -26-27-32-33-37-39))
-
-(executable
- (name analyze)
- (libraries yaml str)
- (flags :standard -w -26-27-32-33-37-39))
+(executables
+ (names generate_protocol analyze generate_api)
+ (libraries yaml str yojson))
