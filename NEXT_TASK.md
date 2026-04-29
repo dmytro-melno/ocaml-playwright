@@ -1,28 +1,30 @@
 # Next Tasks for OCaml Playwright Bindings
 
-Tremendous progress was made in the previous session:
-1. **High-Level API Wrappers**: We implemented the `tools/generate_hl.ml` script which correctly generated `lib/hl.ml`. This encapsulates the low-level `Api` and `Protocol` modules.
-   - Requires minimal syntax from the end-user (labeled arguments instead of `Protocol` records).
-   - Generates getters for object initializer properties (e.g., `Page.main_frame page`).
-   - Exceptions are raised via `Playwright.Hl.Error of string` instead of messy `Result` unwrapping for RPC replies.
-2. **Typed Event Listeners**: Events are now generated with typed callback signatures (`on_<event_name> t cb`). The `Connection.on` function has been refined to append typed listeners to objects.
-3. **End-to-End Success**: Tested using `test/test_hl2.ml`. We successfully used the high-level wrappers to start the driver, launch Chromium, create a context, create a page, extract the `mainFrame` getter, and `goto` `example.com` cleanly.
+Good progress was made in the current session:
+1. **Wait for Events / Promisification**: Added auto-generated `wait_for_<event> ?predicate` functions to all interfaces. It creates an `Eio.Promise`, registers a temporary listener, evaluates the optional predicate, and cleans up the listener upon success.
+2. **Refine Error Handling**: We parsed the JSON payload of `SerializedError` inside `Connection.ml`. If an RPC call returns a serialized Playwright error (like `net::ERR_NAME_NOT_RESOLVED`), it is reconstructed into a readable OCaml string/backtrace, and thrown as an Exception (`Playwright.Hl.Error`).
+3. **Integration Tests**: Wrote `test_e2e.ml`, testing TodoMVC with `goto`, `fill`, `press`, and `expect`. Everything passes beautifully.
 
 ### Next Steps:
 
-1. **Top-Level Orchestration API (`playwright.ml`)**:
-   - Currently, starting the driver and spinning up the connection loop requires 20 lines of boilerplate (`Eio.Process.pipe`, `Driver.run`, `Connection.create`, `Root.initialize`, etc.).
-   - Create a `Playwright.create ~sw ~env ()` function that handles the driver run loop and root initialization in the background, returning a user-friendly high-level `Playwright` object (the one with the `chromium`, `firefox`, and `webkit` getters).
-   - Add a `Playwright.close` or `stop` to cleanly kill the Eio pipes and driver process.
+Currently, end-users interact with the `Playwright.Hl` module, which maps 1:1 to the internal Playwright protocol (e.g., calling `Playwright.Hl.Frame.fill ~selector:"..." main_frame`).
+However, standard Playwright code (in TS/Python) uses a higher-level client abstraction: `Page`, `Locator`, and `Expect`.
 
-2. **Wait for Events / Promisification**:
-   - Currently, `on_event` just registers a callback. We need a way to block the current fiber until a specific event fires (like `page.wait_for_request()` in Python).
-   - Eio's `Promise` can be used to wrap events. Write a generalized `wait_for_event` utility.
+**Task 1: Idiomatic Client-Side Abstractions**
+- Create a `Client` (or similar) layer in `lib/` to wrap `Hl`.
+- **Page Wrapper**: `Page.goto`, `Page.click`, `Page.fill` should automatically forward to the `mainFrame` of the page.
+- **Locator API**: Playwright shifted to a strict Locator-based API. Implement a `Locator` module that holds a `Frame` and a `selector` string.
+  - Provide `Page.locator "selector"` which returns a Locator.
+  - Implement `Locator.click`, `Locator.fill`, `Locator.press`, etc., which call the corresponding `Frame` protocol functions with `~strict:true` and the captured selector.
+  - Support locator chaining (e.g., `Locator.locator "child" loc` -> appends ` >> child`).
 
-3. **Refine Error Handling**:
-   - Enhance the exception thrown in `Hl.ml`. If `dispatch` receives a full error stack trace via `SerializedError`, we should parse it and present it as a native OCaml backtrace or detailed string, using the `Error.ml` template drafted previously.
+**Task 2: Expect Module (Assertions)**
+- The protocol provides a `Frame.expect` command. Expose this cleanly in the client API.
+- e.g., `Expect.to_have_text "foo" locator`, `Expect.to_have_count 3 locator`. These should map to `Frame.expect ~selector ~expression:"to.have.text" ~expected_text:"foo"`.
 
-4. **Integration Tests**:
-   - Translate standard Playwright end-to-end tests into our OCaml bindings to test locators, clicks, typing, and expect checks.
+**Task 3: Browser Install CLI**
+- OCaml Playwright currently requires Chromium to be already installed (or passed via `/usr/bin/chromium`).
+- The Node driver supports installing browsers: `node cli.js install`.
+- Expose a simple `Playwright.install_browsers ()` or a dune executable that developers can run to download the Playwright browsers.
 
-Start by examining `test/test_hl2.ml` and `lib/connection.ml` to see the current working boilerplate, then write the high-level `Playwright.create` orchestrator inside `lib/playwright.ml`.
+Start by reviewing `test_e2e.ml` to see the current raw `Hl` usage, and design the `Locator` module to simplify it.

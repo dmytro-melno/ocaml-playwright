@@ -17,7 +17,7 @@ and channel_owner = {
   obj_type : string;
   mutable parent : channel_owner option;
   initializer_ : Yojson.Safe.t;
-  events : (string, (Yojson.Safe.t -> unit) list) Hashtbl.t;
+  events : (string, (int * (Yojson.Safe.t -> unit)) list) Hashtbl.t;
 }
 
 let create transport_r transport_w =
@@ -54,7 +54,15 @@ let dispatch (t : t) (msg : Yojson.Safe.t) =
        Hashtbl.remove t.callbacks id;
        let error = member "error" msg in
        if error <> `Null then
-         let error_msg = member "message" (member "error" error) |> to_string_option |> Option.value ~default:"Unknown error" in
+         let error_msg = 
+           match Protocol.serialized_error_of_yojson error with
+           | Ok se -> 
+               (match se.Protocol.serialized_error_error with
+                | Some e -> 
+                    Printf.sprintf "%s: %s\n%s" e.Protocol.serialized_error_error_name e.Protocol.serialized_error_error_message (Option.value ~default:"" e.Protocol.serialized_error_error_stack)
+                | None -> Yojson.Safe.to_string error)
+           | Error _ -> Yojson.Safe.to_string error
+         in
          Promise.resolve resolver (Error error_msg)
        else
          let result = member "result" msg in
@@ -66,8 +74,7 @@ let dispatch (t : t) (msg : Yojson.Safe.t) =
     match method_, guid with
     | Some "__create__", Some _guid ->
       let params = member "params" msg in
-      let type_ = member "type" params |> to_string in
-      let guid_new = member "guid" params |> to_string in
+      let type_ = member "type" params |> to_string in      let guid_new = member "guid" params |> to_string in
       let initializer_ = member "initializer" params in
       let obj = { guid = guid_new; connection = t; obj_type = type_; parent = None; initializer_; events = Hashtbl.create 5 } in
       Hashtbl.add t.objects guid_new obj
@@ -79,7 +86,7 @@ let dispatch (t : t) (msg : Yojson.Safe.t) =
          (match Hashtbl.find_opt obj.events method_ with
           | Some cbs ->
             let params = member "params" msg in
-            List.iter (fun cb -> try cb params with _ -> ()) cbs
+            List.iter (fun (_, cb) -> try cb params with _ -> ()) cbs
           | None -> ())
        | None -> ())
     | _ -> ()
@@ -98,12 +105,28 @@ let run_loop (t : t) =
     done
   with Exit -> ()
 
-let on (conn : t) guid event_name cb =
+let add_listener (conn : t) guid event_name cb =
+  conn.last_id <- conn.last_id + 1;
+  let id = conn.last_id in
   match Hashtbl.find_opt conn.objects guid with
   | Some obj ->
       let cbs = match Hashtbl.find_opt obj.events event_name with
         | Some cbs -> cbs
         | None -> []
       in
-      Hashtbl.replace obj.events event_name (cbs @ [cb])
-  | None -> Printf.eprintf "Cannot add event listener to unknown object %s\n%!" guid
+      Hashtbl.replace obj.events event_name (cbs @ [(id, cb)]);
+      id
+  | None -> 
+      Printf.eprintf "Cannot add event listener to unknown object %s\n%!" guid;
+      -1
+
+let remove_listener (conn : t) guid event_name id =
+  match Hashtbl.find_opt conn.objects guid with
+  | Some obj ->
+      let cbs = match Hashtbl.find_opt obj.events event_name with
+        | Some cbs -> cbs
+        | None -> []
+      in
+      Hashtbl.replace obj.events event_name (List.filter (fun (id', _) -> id <> id') cbs)
+  | None -> ()
+

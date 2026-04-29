@@ -156,7 +156,6 @@ let () =
                          Buffer.add_string args_sig (sprintf "~%s " ocaml_pk)
                      ) props;
                      
-                     (* REMOVED () from here *)
                      pf "  let %s %s(t : t) =\n" fn_name (Buffer.contents args_sig);
                      
                      if List.length props > 0 then begin
@@ -228,14 +227,36 @@ let () =
                      
                      if has_params then begin
                        pf "  let %s (t : t) cb =\n" fn_name;
-                       pf "    Connection.on t.conn t.guid \"%s\" (fun msg ->\n" ev_k;
+                       pf "    let _id = Connection.add_listener t.conn t.guid \"%s\" (fun msg ->\n" ev_k;
                        pf "      match Protocol.%s_of_yojson msg with\n" (ocaml_type_name raw_event_t);
                        pf "      | Ok ev -> cb ev\n";
                        pf "      | Error _ -> ()\n";
-                       pf "    )\n\n"
+                       pf "    ) in ()\n\n";
+                       pf "  let wait_for_%s ?predicate (t : t) =\n" (ocaml_name ev_k);
+                       pf "    let p, r = Eio.Promise.create () in\n";
+                       pf "    let id = ref (-1) in\n";
+                       pf "    id := Connection.add_listener t.conn t.guid \"%s\" (fun msg ->\n" ev_k;
+                       pf "      match Protocol.%s_of_yojson msg with\n" (ocaml_type_name raw_event_t);
+                       pf "      | Ok ev ->\n";
+                       pf "          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in\n";
+                       pf "          if is_match then begin\n";
+                       pf "            Connection.remove_listener t.conn t.guid \"%s\" !id;\n" ev_k;
+                       pf "            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev\n";
+                       pf "          end\n";
+                       pf "      | Error _ -> ()\n";
+                       pf "    );\n";
+                       pf "    Eio.Promise.await p\n\n"
                      end else begin
                        pf "  let %s (t : t) cb =\n" fn_name;
-                       pf "    Connection.on t.conn t.guid \"%s\" (fun _msg -> cb ())\n\n" ev_k
+                       pf "    let _id = Connection.add_listener t.conn t.guid \"%s\" (fun _msg -> cb ()) in ()\n\n" ev_k;
+                       pf "  let wait_for_%s (t : t) =\n" (ocaml_name ev_k);
+                       pf "    let p, r = Eio.Promise.create () in\n";
+                       pf "    let id = ref (-1) in\n";
+                       pf "    id := Connection.add_listener t.conn t.guid \"%s\" (fun _msg ->\n" ev_k;
+                       pf "      Connection.remove_listener t.conn t.guid \"%s\" !id;\n" ev_k;
+                       pf "      if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ()\n";
+                       pf "    );\n";
+                       pf "    Eio.Promise.await p\n\n"
                      end
                  | _ -> ()
                ) events

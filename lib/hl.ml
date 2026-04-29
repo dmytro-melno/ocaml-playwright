@@ -374,39 +374,114 @@ module Debug_controller = struct
     | Error e -> raise (Error e)
 
   let on_inspect_requested (t : t) cb =
-    Connection.on t.conn t.guid "inspectRequested" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "inspectRequested" (fun msg ->
       match Protocol.debug_controller_inspect_requested_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_inspect_requested ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "inspectRequested" (fun msg ->
+      match Protocol.debug_controller_inspect_requested_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "inspectRequested" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_set_mode_requested (t : t) cb =
-    Connection.on t.conn t.guid "setModeRequested" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "setModeRequested" (fun msg ->
       match Protocol.debug_controller_set_mode_requested_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_set_mode_requested ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "setModeRequested" (fun msg ->
+      match Protocol.debug_controller_set_mode_requested_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "setModeRequested" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_state_changed (t : t) cb =
-    Connection.on t.conn t.guid "stateChanged" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "stateChanged" (fun msg ->
       match Protocol.debug_controller_state_changed_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_state_changed ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "stateChanged" (fun msg ->
+      match Protocol.debug_controller_state_changed_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "stateChanged" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_source_changed (t : t) cb =
-    Connection.on t.conn t.guid "sourceChanged" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "sourceChanged" (fun msg ->
       match Protocol.debug_controller_source_changed_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_source_changed ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "sourceChanged" (fun msg ->
+      match Protocol.debug_controller_source_changed_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "sourceChanged" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_paused (t : t) cb =
-    Connection.on t.conn t.guid "paused" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "paused" (fun msg ->
       match Protocol.debug_controller_paused_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_paused ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "paused" (fun msg ->
+      match Protocol.debug_controller_paused_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "paused" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
 end
 
@@ -459,25 +534,70 @@ module Socks_support = struct
     | Error e -> raise (Error e)
 
   let on_socks_requested (t : t) cb =
-    Connection.on t.conn t.guid "socksRequested" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "socksRequested" (fun msg ->
       match Protocol.socks_support_socks_requested_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_socks_requested ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "socksRequested" (fun msg ->
+      match Protocol.socks_support_socks_requested_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "socksRequested" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_socks_data (t : t) cb =
-    Connection.on t.conn t.guid "socksData" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "socksData" (fun msg ->
       match Protocol.socks_support_socks_data_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_socks_data ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "socksData" (fun msg ->
+      match Protocol.socks_support_socks_data_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "socksData" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_socks_closed (t : t) cb =
-    Connection.on t.conn t.guid "socksClosed" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "socksClosed" (fun msg ->
       match Protocol.socks_support_socks_closed_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_socks_closed ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "socksClosed" (fun msg ->
+      match Protocol.socks_support_socks_closed_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "socksClosed" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
 end
 
@@ -733,11 +853,26 @@ module Browser = struct
     | Error e -> raise (Error e)
 
   let on_context (t : t) cb =
-    Connection.on t.conn t.guid "context" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "context" (fun msg ->
       match Protocol.browser_context_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_context ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "context" (fun msg ->
+      match Protocol.browser_context_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "context" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
 end
 
@@ -1057,95 +1192,290 @@ module Browser_context = struct
     | Error e -> raise (Error e)
 
   let on_binding_call (t : t) cb =
-    Connection.on t.conn t.guid "bindingCall" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "bindingCall" (fun msg ->
       match Protocol.browser_context_binding_call_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_binding_call ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "bindingCall" (fun msg ->
+      match Protocol.browser_context_binding_call_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "bindingCall" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_console (t : t) cb =
-    Connection.on t.conn t.guid "console" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "console" (fun msg ->
       match Protocol.browser_context_console_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_console ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "console" (fun msg ->
+      match Protocol.browser_context_console_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "console" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_dialog (t : t) cb =
-    Connection.on t.conn t.guid "dialog" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "dialog" (fun msg ->
       match Protocol.browser_context_dialog_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_dialog ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "dialog" (fun msg ->
+      match Protocol.browser_context_dialog_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "dialog" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_page (t : t) cb =
-    Connection.on t.conn t.guid "page" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "page" (fun msg ->
       match Protocol.browser_context_page_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_page ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "page" (fun msg ->
+      match Protocol.browser_context_page_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "page" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_page_error (t : t) cb =
-    Connection.on t.conn t.guid "pageError" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "pageError" (fun msg ->
       match Protocol.browser_context_page_error_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_page_error ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "pageError" (fun msg ->
+      match Protocol.browser_context_page_error_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "pageError" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_route (t : t) cb =
-    Connection.on t.conn t.guid "route" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "route" (fun msg ->
       match Protocol.browser_context_route_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_route ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "route" (fun msg ->
+      match Protocol.browser_context_route_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "route" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_web_socket_route (t : t) cb =
-    Connection.on t.conn t.guid "webSocketRoute" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "webSocketRoute" (fun msg ->
       match Protocol.browser_context_web_socket_route_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_web_socket_route ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "webSocketRoute" (fun msg ->
+      match Protocol.browser_context_web_socket_route_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "webSocketRoute" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_service_worker (t : t) cb =
-    Connection.on t.conn t.guid "serviceWorker" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "serviceWorker" (fun msg ->
       match Protocol.browser_context_service_worker_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_service_worker ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "serviceWorker" (fun msg ->
+      match Protocol.browser_context_service_worker_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "serviceWorker" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_request (t : t) cb =
-    Connection.on t.conn t.guid "request" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "request" (fun msg ->
       match Protocol.browser_context_request_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_request ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "request" (fun msg ->
+      match Protocol.browser_context_request_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "request" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_request_failed (t : t) cb =
-    Connection.on t.conn t.guid "requestFailed" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "requestFailed" (fun msg ->
       match Protocol.browser_context_request_failed_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_request_failed ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "requestFailed" (fun msg ->
+      match Protocol.browser_context_request_failed_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "requestFailed" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_request_finished (t : t) cb =
-    Connection.on t.conn t.guid "requestFinished" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "requestFinished" (fun msg ->
       match Protocol.browser_context_request_finished_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_request_finished ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "requestFinished" (fun msg ->
+      match Protocol.browser_context_request_finished_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "requestFinished" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_response (t : t) cb =
-    Connection.on t.conn t.guid "response" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "response" (fun msg ->
       match Protocol.browser_context_response_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_response ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "response" (fun msg ->
+      match Protocol.browser_context_response_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "response" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_recorder_event (t : t) cb =
-    Connection.on t.conn t.guid "recorderEvent" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "recorderEvent" (fun msg ->
       match Protocol.browser_context_recorder_event_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_recorder_event ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "recorderEvent" (fun msg ->
+      match Protocol.browser_context_recorder_event_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "recorderEvent" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
 end
 
@@ -1629,88 +1959,268 @@ module Page = struct
     | Error e -> raise (Error e)
 
   let on_binding_call (t : t) cb =
-    Connection.on t.conn t.guid "bindingCall" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "bindingCall" (fun msg ->
       match Protocol.page_binding_call_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_binding_call ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "bindingCall" (fun msg ->
+      match Protocol.page_binding_call_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "bindingCall" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_download (t : t) cb =
-    Connection.on t.conn t.guid "download" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "download" (fun msg ->
       match Protocol.page_download_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_download ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "download" (fun msg ->
+      match Protocol.page_download_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "download" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_viewport_size_changed (t : t) cb =
-    Connection.on t.conn t.guid "viewportSizeChanged" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "viewportSizeChanged" (fun msg ->
       match Protocol.page_viewport_size_changed_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_viewport_size_changed ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "viewportSizeChanged" (fun msg ->
+      match Protocol.page_viewport_size_changed_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "viewportSizeChanged" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_file_chooser (t : t) cb =
-    Connection.on t.conn t.guid "fileChooser" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "fileChooser" (fun msg ->
       match Protocol.page_file_chooser_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_file_chooser ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "fileChooser" (fun msg ->
+      match Protocol.page_file_chooser_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "fileChooser" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_frame_attached (t : t) cb =
-    Connection.on t.conn t.guid "frameAttached" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "frameAttached" (fun msg ->
       match Protocol.page_frame_attached_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_frame_attached ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "frameAttached" (fun msg ->
+      match Protocol.page_frame_attached_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "frameAttached" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_frame_detached (t : t) cb =
-    Connection.on t.conn t.guid "frameDetached" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "frameDetached" (fun msg ->
       match Protocol.page_frame_detached_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_frame_detached ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "frameDetached" (fun msg ->
+      match Protocol.page_frame_detached_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "frameDetached" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_locator_handler_triggered (t : t) cb =
-    Connection.on t.conn t.guid "locatorHandlerTriggered" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "locatorHandlerTriggered" (fun msg ->
       match Protocol.page_locator_handler_triggered_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_locator_handler_triggered ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "locatorHandlerTriggered" (fun msg ->
+      match Protocol.page_locator_handler_triggered_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "locatorHandlerTriggered" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_route (t : t) cb =
-    Connection.on t.conn t.guid "route" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "route" (fun msg ->
       match Protocol.page_route_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_route ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "route" (fun msg ->
+      match Protocol.page_route_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "route" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_screencast_frame (t : t) cb =
-    Connection.on t.conn t.guid "screencastFrame" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "screencastFrame" (fun msg ->
       match Protocol.page_screencast_frame_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_screencast_frame ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "screencastFrame" (fun msg ->
+      match Protocol.page_screencast_frame_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "screencastFrame" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_web_socket_route (t : t) cb =
-    Connection.on t.conn t.guid "webSocketRoute" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "webSocketRoute" (fun msg ->
       match Protocol.page_web_socket_route_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_web_socket_route ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "webSocketRoute" (fun msg ->
+      match Protocol.page_web_socket_route_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "webSocketRoute" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_web_socket (t : t) cb =
-    Connection.on t.conn t.guid "webSocket" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "webSocket" (fun msg ->
       match Protocol.page_web_socket_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_web_socket ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "webSocket" (fun msg ->
+      match Protocol.page_web_socket_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "webSocket" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_worker (t : t) cb =
-    Connection.on t.conn t.guid "worker" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "worker" (fun msg ->
       match Protocol.page_worker_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_worker ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "worker" (fun msg ->
+      match Protocol.page_worker_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "worker" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
 end
 
@@ -2272,18 +2782,48 @@ module Frame = struct
     | Error e -> raise (Error e)
 
   let on_loadstate (t : t) cb =
-    Connection.on t.conn t.guid "loadstate" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "loadstate" (fun msg ->
       match Protocol.frame_loadstate_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_loadstate ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "loadstate" (fun msg ->
+      match Protocol.frame_loadstate_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "loadstate" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_navigated (t : t) cb =
-    Connection.on t.conn t.guid "navigated" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "navigated" (fun msg ->
       match Protocol.frame_navigated_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_navigated ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "navigated" (fun msg ->
+      match Protocol.frame_navigated_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "navigated" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
 end
 
@@ -2328,11 +2868,26 @@ module Worker = struct
     | Error e -> raise (Error e)
 
   let on_console (t : t) cb =
-    Connection.on t.conn t.guid "console" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "console" (fun msg ->
       match Protocol.worker_console_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_console ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "console" (fun msg ->
+      match Protocol.worker_console_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "console" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
 end
 
@@ -2393,11 +2948,26 @@ module Js_handle = struct
     | Error e -> raise (Error e)
 
   let on_preview_updated (t : t) cb =
-    Connection.on t.conn t.guid "previewUpdated" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "previewUpdated" (fun msg ->
       match Protocol.js_handle_preview_updated_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_preview_updated ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "previewUpdated" (fun msg ->
+      match Protocol.js_handle_preview_updated_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "previewUpdated" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
 end
 
@@ -2864,32 +3434,92 @@ module Web_socket_route = struct
     | Error e -> raise (Error e)
 
   let on_message_from_page (t : t) cb =
-    Connection.on t.conn t.guid "messageFromPage" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "messageFromPage" (fun msg ->
       match Protocol.web_socket_route_message_from_page_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_message_from_page ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "messageFromPage" (fun msg ->
+      match Protocol.web_socket_route_message_from_page_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "messageFromPage" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_message_from_server (t : t) cb =
-    Connection.on t.conn t.guid "messageFromServer" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "messageFromServer" (fun msg ->
       match Protocol.web_socket_route_message_from_server_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_message_from_server ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "messageFromServer" (fun msg ->
+      match Protocol.web_socket_route_message_from_server_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "messageFromServer" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_close_page (t : t) cb =
-    Connection.on t.conn t.guid "closePage" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "closePage" (fun msg ->
       match Protocol.web_socket_route_close_page_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_close_page ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "closePage" (fun msg ->
+      match Protocol.web_socket_route_close_page_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "closePage" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_close_server (t : t) cb =
-    Connection.on t.conn t.guid "closeServer" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "closeServer" (fun msg ->
       match Protocol.web_socket_route_close_server_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_close_server ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "closeServer" (fun msg ->
+      match Protocol.web_socket_route_close_server_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "closeServer" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
 end
 
@@ -2940,25 +3570,70 @@ module Web_socket = struct
   type t = web_socket_type obj
 
   let on_frame_sent (t : t) cb =
-    Connection.on t.conn t.guid "frameSent" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "frameSent" (fun msg ->
       match Protocol.web_socket_frame_sent_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_frame_sent ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "frameSent" (fun msg ->
+      match Protocol.web_socket_frame_sent_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "frameSent" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_frame_received (t : t) cb =
-    Connection.on t.conn t.guid "frameReceived" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "frameReceived" (fun msg ->
       match Protocol.web_socket_frame_received_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_frame_received ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "frameReceived" (fun msg ->
+      match Protocol.web_socket_frame_received_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "frameReceived" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_socket_error (t : t) cb =
-    Connection.on t.conn t.guid "socketError" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "socketError" (fun msg ->
       match Protocol.web_socket_socket_error_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_socket_error ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "socketError" (fun msg ->
+      match Protocol.web_socket_socket_error_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "socketError" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
 end
 
@@ -3018,11 +3693,26 @@ module Debugger = struct
     | Error e -> raise (Error e)
 
   let on_paused_state_changed (t : t) cb =
-    Connection.on t.conn t.guid "pausedStateChanged" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "pausedStateChanged" (fun msg ->
       match Protocol.debugger_paused_state_changed_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_paused_state_changed ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "pausedStateChanged" (fun msg ->
+      match Protocol.debugger_paused_state_changed_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "pausedStateChanged" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
 end
 
@@ -3218,11 +3908,26 @@ module Cdp_session = struct
     | Error e -> raise (Error e)
 
   let on_event (t : t) cb =
-    Connection.on t.conn t.guid "event" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "event" (fun msg ->
       match Protocol.cdp_session_event_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_event ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "event" (fun msg ->
+      match Protocol.cdp_session_event_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "event" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
 end
 
@@ -3258,11 +3963,26 @@ module Android_socket = struct
     | Error e -> raise (Error e)
 
   let on_data (t : t) cb =
-    Connection.on t.conn t.guid "data" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "data" (fun msg ->
       match Protocol.android_socket_data_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_data ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "data" (fun msg ->
+      match Protocol.android_socket_data_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "data" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
 end
 
@@ -3520,18 +4240,48 @@ module Android_device = struct
     | Error e -> raise (Error e)
 
   let on_web_view_added (t : t) cb =
-    Connection.on t.conn t.guid "webViewAdded" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "webViewAdded" (fun msg ->
       match Protocol.android_device_web_view_added_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_web_view_added ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "webViewAdded" (fun msg ->
+      match Protocol.android_device_web_view_added_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "webViewAdded" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_web_view_removed (t : t) cb =
-    Connection.on t.conn t.guid "webViewRemoved" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "webViewRemoved" (fun msg ->
       match Protocol.android_device_web_view_removed_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_web_view_removed ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "webViewRemoved" (fun msg ->
+      match Protocol.android_device_web_view_removed_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "webViewRemoved" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
 end
 
@@ -3552,18 +4302,48 @@ module Json_pipe = struct
     | Error e -> raise (Error e)
 
   let on_message (t : t) cb =
-    Connection.on t.conn t.guid "message" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "message" (fun msg ->
       match Protocol.json_pipe_message_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_message ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "message" (fun msg ->
+      match Protocol.json_pipe_message_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "message" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
   let on_closed (t : t) cb =
-    Connection.on t.conn t.guid "closed" (fun msg ->
+    let _id = Connection.add_listener t.conn t.guid "closed" (fun msg ->
       match Protocol.json_pipe_closed_event_of_yojson msg with
       | Ok ev -> cb ev
       | Error _ -> ()
-    )
+    ) in ()
+
+  let wait_for_closed ?predicate (t : t) =
+    let p, r = Eio.Promise.create () in
+    let id = ref (-1) in
+    id := Connection.add_listener t.conn t.guid "closed" (fun msg ->
+      match Protocol.json_pipe_closed_event_of_yojson msg with
+      | Ok ev ->
+          let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in
+          if is_match then begin
+            Connection.remove_listener t.conn t.guid "closed" !id;
+            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev
+          end
+      | Error _ -> ()
+    );
+    Eio.Promise.await p
 
 end
 
