@@ -265,7 +265,7 @@ let () =
 
   let out = open_out "lib/protocol.ml" in
   let pf fmt = fprintf out fmt in
-  pf "[@@@ocaml.warning \"-39-32-34\"]\n\n";
+  pf "[@@@ocaml.warning \"-39-32-34-30\"]\n\n";
   pf "type channel = { guid: string } [@@deriving yojson { strict = false }]\n\n";
   pf "type any = Yojson.Safe.t [@@deriving yojson]\n\n";
   pf "type json = Yojson.Safe.t [@@deriving yojson]\n\n";
@@ -327,7 +327,7 @@ let () =
             List.iter (fun (k, pt, opt) ->
               (* Prefix fields with their type to avoid duplicate definition errors *)
               let base_field = ocaml_field_name name k in
-              let field = name ^ "_" ^ base_field in
+              let field = base_field in
               let t_str = ocaml_type_string pt in
               let final_t_str = if opt then t_str ^ " option" else t_str in
               let default_attr = if opt then " [@default None]" else "" in

@@ -57,9 +57,9 @@ let dispatch (t : t) (msg : Yojson.Safe.t) =
          let error_msg = 
            match Protocol.serialized_error_of_yojson error with
            | Ok se -> 
-               (match se.Protocol.serialized_error_error with
+               (match se.Protocol.error with
                 | Some e -> 
-                    Printf.sprintf "%s: %s\n%s" e.Protocol.serialized_error_error_name e.Protocol.serialized_error_error_message (Option.value ~default:"" e.Protocol.serialized_error_error_stack)
+                    Printf.sprintf "%s: %s\n%s" e.Protocol.name e.Protocol.message (Option.value ~default:"" e.Protocol.stack)
                 | None -> Yojson.Safe.to_string error)
            | Error _ -> Yojson.Safe.to_string error
          in

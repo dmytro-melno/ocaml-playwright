@@ -167,7 +167,7 @@ let () =
                          in
                          let is_bin = (type_str = "binary" || type_str = "binary?") in
                          let ocaml_pk = ocaml_name pk in
-                         let field_name = sprintf "%s_%s" (ocaml_type_name raw_args_t) ocaml_pk in
+                         let field_name = ocaml_name pk in
                          if is_bin then begin
                            if is_optional pv then
                              pf "      Protocol.%s = Option.map Base64.encode_exn %s;\n" field_name ocaml_pk
@@ -192,8 +192,8 @@ let () =
                          | `String s -> s | _ -> "" 
                        in
                        let is_bin = (type_str_ret = "binary" || type_str_ret = "binary?") in
-                       let raw_ret_t = k ^ "_" ^ cmd_k ^ "_returns" in
-                       let field_name = sprintf "%s_%s" (ocaml_type_name raw_ret_t) (ocaml_name rk) in
+                       
+                       let field_name = ocaml_name rk in
                        
                        if Hashtbl.mem interfaces type_str_ret then
                          pf "    | Ok res -> ({ conn = t.conn; guid = res.Protocol.%s.guid } : %s_type obj)\n" field_name (ocaml_type_name type_str_ret)

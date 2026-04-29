@@ -4,14 +4,10 @@ module Driver = Driver
 module Connection = Connection
 module Protocol = Protocol
 module Api = Api
-module Hl = Hl
+include Hl
 
-type t = {
-  main : Hl.Playwright.t;
-  close : unit -> unit;
-}
-
-let create ~sw ~env () =
+let with_playwright ~env f =
+  Eio.Switch.run @@ fun sw ->
   let process_mgr = Eio.Stdenv.process_mgr env in
   let p1_r, p1_w = Eio.Process.pipe ~sw process_mgr in
   let p2_r, p2_w = Eio.Process.pipe ~sw process_mgr in
@@ -23,14 +19,11 @@ let create ~sw ~env () =
   let conn = Connection.create (p2_r :> Eio.Flow.source_ty Eio.Resource.t) (p1_w :> Eio.Flow.sink_ty Eio.Resource.t) in
   Eio.Fiber.fork ~sw (fun () -> Connection.run_loop conn);
 
-  let root = { Hl.conn; guid = "" } in
-  let main = Hl.Root.initialize ~sdk_language:`Javascript root in
+  let root = { conn; guid = "" } in
+  let main = Root.initialize ~sdk_language:`Javascript root in
 
-  let close () =
-    Eio.Flow.close p1_w;
-    Eio.Flow.close p2_r;
-    ignore (Eio.Process.await p)
-  in
-  { main; close }
-
-let close t = t.close ()
+  Fun.protect (fun () -> f main)
+    ~finally:(fun () ->
+      Eio.Flow.close p1_w;
+      Eio.Flow.close p2_r;
+      ignore (Eio.Process.await p))

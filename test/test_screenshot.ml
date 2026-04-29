@@ -15,9 +15,9 @@ let () =
   let conn = Playwright.Connection.create p2_r p1_w in
   Eio.Fiber.fork ~sw (fun () -> Playwright.Connection.run_loop conn);
   
-  let root = { Playwright.Hl.conn = conn; guid = "" } in
+  let root = { Playwright.conn = conn; guid = "" } in
   
-  let _result = Playwright.Hl.Root.initialize ~sdk_language:`Javascript root in
+  let _result = Playwright.Root.initialize ~sdk_language:`Javascript root in
   
   Eio.Time.sleep (Eio.Stdenv.clock env) 1.0;
   
@@ -25,16 +25,16 @@ let () =
   (match pw_obj_opt with
   | Some o -> 
       let chromium_guid = Yojson.Safe.Util.(member "chromium" o.initializer_ |> member "guid" |> to_string) in
-      let chromium = { Playwright.Hl.conn = conn; guid = chromium_guid } in
+      let chromium = { Playwright.conn = conn; guid = chromium_guid } in
       
-      let browser = Playwright.Hl.Browser_type.launch ~executable_path:"/usr/bin/chromium" ~headless:true ~timeout:0.0 chromium in
-      let ctx = Playwright.Hl.Browser.new_context browser in
-      let page = Playwright.Hl.Browser_context.new_page ctx in
-      let main_frame = Playwright.Hl.Page.main_frame page in
+      let browser = Playwright.Browser_type.launch ~executable_path:"/usr/bin/chromium" ~headless:true ~timeout:0.0 chromium in
+      let ctx = Playwright.Browser.new_context browser in
+      let page = Playwright.Browser_context.new_page ctx in
+      let main_frame = Playwright.Page.main_frame page in
       
-      let _resp = Playwright.Hl.Frame.goto ~url:"https://example.com" ~timeout:10000.0 main_frame in
+      let _resp = Playwright.Frame.goto ~url:"https://example.com" ~timeout:10000.0 main_frame in
       
-      let screenshot_resp = Playwright.Hl.Page.screenshot ~timeout:10000.0 page in
+      let screenshot_resp = Playwright.Page.screenshot ~timeout:10000.0 page in
       Printf.printf "Screenshot string length: %d\n" (String.length screenshot_resp);
       Printf.printf "Screenshot prefix: %s\n" (String.sub screenshot_resp 0 20);
 
