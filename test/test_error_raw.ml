@@ -1,7 +1,9 @@
 
 let () =
   Eio_main.run @@ fun env ->
-  Playwright.with_playwright ~env @@ fun playwright ->
+  Eio.Switch.run @@ fun sw ->
+  let playwright = Playwright.create ~env ~sw () in
+  Fun.protect ~finally:(fun () -> Playwright.destroy playwright) (fun () ->
   let chromium = Playwright.Playwright.chromium playwright in
 
   let browser = Playwright.Browser_type.launch ~executable_path:"/usr/bin/chromium" ~headless:true ~timeout:0.0 chromium in
@@ -30,3 +32,4 @@ let () =
   (match res with
   | Error e -> Printf.printf "Raw error parsed string: %s\n" e
   | Ok v -> Printf.printf "Raw ok: %s\n" (Yojson.Safe.to_string v));
+)

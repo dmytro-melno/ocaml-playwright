@@ -1,7 +1,9 @@
 
 let () =
   Eio_main.run @@ fun env ->
-  Playwright.with_playwright ~env @@ fun playwright ->
+  Eio.Switch.run @@ fun sw ->
+  let playwright = Playwright.create ~env ~sw () in
+  Fun.protect ~finally:(fun () -> Playwright.destroy playwright) (fun () ->
   let chromium = Playwright.Playwright.chromium playwright in
 
   try
@@ -25,3 +27,4 @@ let () =
 
     Printf.printf "Test passed successfully!\n%!"
   with Playwright.Error err -> Printf.printf "Caught Error:\n%s\n%!" err
+)
