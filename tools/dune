@@ -1,4 +1,4 @@
 
 (executables
- (names generate_protocol analyze generate_api generate_hl)
+ (names generate_protocol analyze generate_api generate_api2 generate_hl generate_hli)
  (libraries yaml re.pcre yojson))

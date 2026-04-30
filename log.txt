@@ -1,0 +1,1451 @@
+  type: object
+  properties:
+    file: string
+    line: int
+--
+  type: object
+  properties:
+    location:
+      type: object?
+      properties:
+        file: string
+        line: int?
+--
+  type: object
+  properties:
+    id: int
+    stack:
+      type: array?
+      items: StackFrame
+
+Point:
+  type: object
+  properties:
+    x: float
+    y: float
+--
+  type: object
+  properties:
+    x: float
+    y: float
+--
+  type: mixin
+  properties:
+    duration: float?
+    position:
+      type: enum?
+      literals:
+      - top-left
+      - top
+--
+  type: object
+  # Exactly one of the properties must be present.
+  properties:
+    n: float?
+--
+      type: enum?
+      literals:
+      - null
+      - undefined
+--
+      type: object?
+      properties:
+        b: binary
+        k:
+          type: enum
+          literals:
+          - i8
+          - ui8
+--
+      type: object?
+      properties:
+        m: string
+        n: string
+--
+      type: object?
+      properties:
+        p: string
+        f: string
+--
+      type: array?
+      items: SerializedValue
+    # Object with keys and values.
+    o:
+      type: array?
+      items:
+        type: object
+        properties:
+          k: string
+          v: SerializedValue
+--
+  type: object
+  properties:
+    value: SerializedValue
+    handles:
+      type: array
+      items: Channel
+
+
+--
+  type: object
+  properties:
+    string: string?
+    regexSource: string?
+--
+  type: object
+  properties:
+    name: string
+    source: string
+--
+  type: object
+  properties:
+    hash: string
+    hostname: string
+--
+  type: object
+  properties:
+    name: string
+    value: string
+--
+      type: enum?
+      literals:
+      - Strict
+      - Lax
+--
+  type: object
+  properties:
+    name: string
+    value: string
+--
+      type: enum
+      literals:
+      - Strict
+      - Lax
+--
+  type: object
+  properties:
+    name: string
+    value: string
+--
+  type: object
+  properties:
+    name: string
+    version: int
+--
+      type: array
+      items:
+        type: object
+        properties:
+          name: string
+          autoIncrement: boolean
+--
+            type: array?
+            items: string
+          records:
+            type: array
+            items:
+              type: object
+              properties:
+                key: json?
+                keyEncoded: json?
+--
+            type: array
+            items:
+              type: object
+              properties:
+                name: string
+                keyPath: string?
+--
+                  type: array?
+                  items: string
+                multiEntry: boolean
+                unique: boolean
+--
+  type: object
+  properties:
+    origin: string
+    localStorage:
+      type: array
+      items: NameValue
+    indexedDB:
+      type: array?
+      items: IndexedDBDatabase
+
+OriginStorage:
+  type: object
+  properties:
+    origin: string
+    localStorage:
+      type: array
+      items: NameValue
+    indexedDB:
+      type: array?
+      items: IndexedDBDatabase
+
+SerializedError:
+  type: object
+  properties:
+    error:
+      type: object?
+      properties:
+        message: string
+        name: string
+--
+  type: object
+  properties:
+    zip: boolean?
+    content:
+      type: enum?
+      literals:
+      - embed
+      - attach
+--
+      type: enum?
+      literals:
+      - full
+      - minimal
+--
+  type: object
+  properties:
+    name: string
+    value: string?
+--
+      type: object?
+      properties:
+        name: string
+        mimeType: string?
+--
+  type: enum
+  literals:
+  - javascript
+  - python
+--
+  type: interface
+
+  initializer:
+    tracing: Tracing
+--
+          type: array?
+          items: NameValue
+        method: string?
+        headers:
+          type: array?
+          items: NameValue
+        postData: binary?
+        jsonData: string?
+--
+          type: array?
+          items: NameValue
+        multipartData:
+          type: array?
+          items: FormField
+        timeout: float
+        failOnStatusCode: boolean?
+--
+          type: array
+          items: string
+
+    storageState:
+--
+          type: array
+          items: NetworkCookie
+        origins:
+          type: array
+          items: OriginStorage
+
+    disposeAPIResponse:
+--
+  type: object
+  properties:
+    fetchUid: string
+    url: string
+--
+      type: array
+      items: NameValue
+
+
+--
+  type: enum
+  literals:
+  - load
+  - domcontentloaded
+--
+  type: enum
+  literals:
+  - all
+  - since-navigation
+--
+  type: mixin
+  properties:
+    omitBackground: boolean?
+    caret:
+      type: enum?
+      literals:
+      - hide
+      - initial
+--
+      type: enum?
+      literals:
+      - disabled
+      - allow
+--
+      type: enum?
+      literals:
+      - css
+      - device
+--
+      type: array?
+      items:
+        type: object
+        properties:
+          frame: Frame
+          selector: string
+--
+  type: mixin
+  properties:
+    channel: string?
+    executablePath: string?
+--
+      type: array?
+      items: string
+    ignoreAllDefaultArgs: boolean?
+    ignoreDefaultArgs:
+      type: array?
+      items: string
+    handleSIGINT: boolean?
+    handleSIGTERM: boolean?
+--
+      type: array?
+      items: NameValue
+    headless: boolean?
+    proxy:
+      type: object?
+      properties:
+        server: string
+        bypass: string?
+--
+  type: mixin
+  properties:
+    noDefaultViewport: boolean?
+    viewport:
+      type: object?
+      properties:
+        width: int
+        height: int
+--
+      type: object?
+      properties:
+        width: int
+        height: int
+--
+      type: array?
+      items:
+        type: object
+        properties:
+          origin: string
+          cert: binary?
+--
+      type: object?
+      properties:
+        longitude: float
+        latitude: float
+--
+      type: array?
+      items: string
+    extraHTTPHeaders:
+      type: array?
+      items: NameValue
+    offline: boolean?
+    httpCredentials:
+      type: object?
+      properties:
+        username: string
+        password: string
+--
+          type: enum?
+          literals:
+          - always
+          - unauthorized
+--
+      type: enum?
+      literals:
+      - dark
+      - light
+--
+      type: enum?
+      literals:
+      - reduce
+      - no-preference
+--
+      type: enum?
+      literals:
+      - active
+      - none
+--
+      type: enum?
+      literals:
+      - accept
+      - deny
+--
+      type: enum?
+      literals:
+      - no-preference
+      - more
+--
+      type: object?
+      properties:
+        dir: string?
+        size:
+          type: object?
+          properties:
+            width: int
+            height: int
+--
+          type: object?
+          properties:
+            $mixin: ShowActionsOptions
+    strictSelectors: boolean?
+--
+      type: enum?
+      literals:
+      - allow
+      - block
+--
+      type: array?
+      items: SelectorEngine
+    testIdAttributeName: string?
+
+--
+  type: interface
+
+  initializer:
+    deviceDescriptors:
+      type: array
+      items:
+        type: object
+        properties:
+          name: string
+          descriptor:
+            type: object
+            properties:
+              userAgent: string
+              viewport:
+                type: object
+                properties:
+                  width: int
+                  height: int
+--
+                type: object?
+                properties:
+                  width: int
+                  height: int
+--
+                type: enum
+                literals:
+                - chromium
+                - firefox
+--
+          type: array
+          items: NameValue
+        stacksId: string?
+        mode:
+          type: enum
+          literals:
+            - write
+            - append
+--
+          type: array?
+          items: string
+
+    harOpen:
+--
+          type: array
+          items: NameValue
+        postData: binary?
+        isNavigationRequest: boolean
+--
+          type: enum
+          literals:
+          - error
+          - redirect
+--
+          type: array?
+          items: NameValue
+        body: binary?
+
+--
+          type: array
+          items: NameValue
+
+    tracingStarted:
+--
+  type: interface
+
+  commands:
+
+--
+  type: interface
+
+  initializer:
+    chromium: BrowserType
+--
+          type: array?
+          items: NameValue
+        failOnStatusCode: boolean?
+        clientCertificates:
+          type: array?
+          items:
+            type: object
+            properties:
+              origin: string
+              cert: binary?
+--
+          type: object?
+          properties:
+            username: string
+            password: string
+--
+              type: enum?
+              literals:
+              - always
+              - unauthorized
+--
+          type: object?
+          properties:
+            server: string
+            bypass: string?
+--
+          type: object?
+          properties:
+            cookies:
+              type: array?
+              items: NetworkCookie
+            origins:
+              type: array?
+              items: SetOriginStorage
+        tracesDir: string?
+
+--
+  type: object
+  properties:
+    isRecorded: boolean
+    id: string
+--
+      type: array
+      items:
+        type: object
+        properties:
+          line: int
+          type: string
+    revealLine: int?
+    group: string?
+
+--
+  type: interface
+
+  commands:
+    initialize:
+--
+          type: enum
+          literals:
+            - inspecting
+            - recording
+--
+          type: array?
+          items: string
+
+    paused:
+--
+  type: interface
+
+  commands:
+    socksConnected:
+--
+  type: interface
+
+  initializer:
+    executablePath: string
+--
+          type: array?
+          items: NameValue
+        slowMo: float?
+        timeout: float
+--
+  type: interface
+
+  initializer:
+    version: string
+--
+      type: enum
+      literals:
+        - chromium
+        - firefox
+--
+          type: object?
+          properties:
+            server: string
+            bypass: string?
+--
+          type: object?
+          properties:
+            cookies:
+              type: array?
+              items: SetNetworkCookie
+            origins:
+              type: array?
+              items: SetOriginStorage
+      returns:
+        context: BrowserContext
+--
+          type: object?
+          properties:
+            server: string
+            bypass: string?
+--
+          type: object?
+          properties:
+            cookies:
+              type: array?
+              items: SetNetworkCookie
+            origins:
+              type: array?
+              items: SetOriginStorage
+      returns:
+        context: BrowserContext
+--
+          type: array?
+          items: string
+
+    stopTracing:
+--
+  type: mixin
+  properties:
+    type: string
+    text: string
+    args:
+      type: array
+      items: JSHandle
+    location:
+      type: object
+      properties:
+        url: string
+        lineNumber: int
+--
+  type: interface
+
+  commands:
+    waitForEventInfo:
+--
+          type: object
+          properties:
+            waitId: string
+            phase:
+              type: enum
+              literals:
+              - before
+              - after
+--
+  type: interface
+
+  extends: EventTarget
+
+--
+      type: object
+      properties:
+        $mixin: ContextOptions
+
+--
+          type: array
+          items: SetNetworkCookie
+
+    addInitScript:
+--
+          type: array
+          items: string
+      returns:
+        cookies:
+          type: array
+          items: NetworkCookie
+
+    exposeBinding:
+--
+          type: array
+          items: string
+        origin: string?
+
+--
+          type: array
+          items: NameValue
+
+    setGeolocation:
+--
+          type: object?
+          properties:
+            longitude: float
+            latitude: float
+--
+          type: object?
+          properties:
+            username: string
+            password: string
+--
+          type: array
+          items:
+            type: object
+            properties:
+              glob: string?
+              regexSource: string?
+--
+          type: array
+          items:
+            type: object
+            properties:
+              glob: string?
+              regexSource: string?
+--
+          type: array
+          items: NetworkCookie
+        origins:
+          type: array
+          items: OriginStorage
+
+    setStorageState:
+--
+          type: object?
+          properties:
+            cookies:
+              type: array?
+              items: SetNetworkCookie
+            origins:
+              type: array?
+              items: SetOriginStorage
+
+    pause:
+--
+          type: enum?
+          literals:
+          - inspecting
+          - recording
+--
+          type: enum?
+          literals:
+          - default
+          - api
+--
+          type: array
+          items:
+            type: object
+            properties:
+              name: string
+              lastModifiedMs: float?
+--
+          type: array
+          items: WritableStream
+
+    updateSubscription:
+--
+          type: enum
+          literals:
+          - console
+          - dialog
+--
+          type: object
+          properties:
+            url: string
+            line: int
+--
+          type: enum
+          literals:
+          - actionAdded
+          - actionUpdated
+--
+  type: interface
+
+  extends: EventTarget
+
+--
+      type: object?
+      properties:
+        width: int
+        height: int
+--
+          type: array
+          items:
+            type: object
+            properties:
+              $mixin: ConsoleMessage
+
+--
+          type: enum?
+          literals:
+          - screen
+          - print
+--
+          type: enum?
+          literals:
+          - dark
+          - light
+--
+          type: enum?
+          literals:
+          - reduce
+          - no-preference
+--
+          type: enum?
+          literals:
+          - active
+          - none
+--
+          type: enum?
+          literals:
+          - no-preference
+          - more
+--
+          type: object?
+          properties:
+            frame: Frame
+            selector: string
+--
+          type: array?
+          items: string
+      flags:
+        snapshot: true
+--
+        type:
+          type: enum?
+          literals:
+          - png
+          - jpeg
+--
+          type: array
+          items: NameValue
+
+    setNetworkInterceptionPatterns:
+--
+          type: array
+          items:
+            type: object
+            properties:
+              glob: string?
+              regexSource: string?
+--
+          type: array
+          items:
+            type: object
+            properties:
+              glob: string?
+              regexSource: string?
+--
+          type: object
+          properties:
+            width: int
+            height: int
+--
+          type: enum?
+          literals:
+          - left
+          - right
+--
+          type: enum?
+          literals:
+          - left
+          - right
+--
+          type: enum?
+          literals:
+          - left
+          - right
+--
+          type: array
+          items: SerializedError
+
+    pdf:
+--
+          type: object?
+          properties:
+            top: string?
+            bottom: string?
+--
+          type: array
+          items: Request
+
+    startJSCoverage:
+--
+          type: array
+          items:
+            type: object
+            properties:
+              url: string
+              scriptId: string
+--
+                type: array
+                items:
+                  type: object
+                  properties:
+                    functionName: string
+                    isBlockCoverage: boolean
+--
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          startOffset: int
+                          endOffset: int
+--
+          type: array
+          items:
+            type: object
+            properties:
+              url: string
+              text: string?
+--
+                type: array
+                items:
+                  type: object
+                  properties:
+                    start: int
+                    end: int
+--
+          type: object?
+          properties:
+            width: int
+            height: int
+--
+          type: enum
+          literals:
+          - console
+          - dialog
+--
+          type: object?
+          properties:
+            width: int
+            height: int
+--
+  type: interface
+
+  initializer:
+    url: string
+--
+      type: array
+      items: LifecycleEvent
+
+  commands:
+--
+        type: string?
+      returns:
+        element: ElementHandle
+      flags:
+--
+          type: enum?
+          literals:
+            - ai
+            - default
+--
+          type: array?
+          items:
+            type: enum
+            literals:
+            - Alt
+            - Control
+--
+          type: enum?
+          literals:
+          - left
+          - right
+--
+          type: array?
+          items:
+            type: object
+            properties:
+              name: string
+              mimeType: string?
+--
+          type: array?
+          items: string
+        streams:
+          type: array?
+          items: WritableStream
+        data:
+          type: array?
+          items:
+            type: object
+            properties:
+              mimeType: string
+              value: string
+--
+          type: array?
+          items:
+            type: enum
+            literals:
+            - Alt
+            - Control
+--
+          type: enum?
+          literals:
+          - left
+          - right
+--
+        type: string
+        eventInit: SerializedArgument
+        timeout: float
+      flags:
+--
+          type: array?
+          items:
+            type: enum
+            literals:
+            - Alt
+            - Control
+--
+          type: array
+          items: ElementHandle
+      flags:
+        snapshot: true
+--
+          type: array?
+          items: ElementHandle
+        options:
+          type: array?
+          items:
+            type: object
+            properties:
+              valueOrLabel: string?
+              value: string?
+--
+          type: array
+          items: string
+      flags:
+        slowMo: true
+--
+          type: array?
+          items:
+            type: object
+            properties:
+              name: string
+              mimeType: string?
+--
+          type: array?
+          items: string
+        streams:
+          type: array?
+          items: WritableStream
+        timeout: float
+      flags:
+--
+          type: array?
+          items:
+            type: enum
+            literals:
+            - Alt
+            - Control
+--
+    type:
+      title: Type "{text}"
+      parameters:
+        selector: string
+--
+          type: enum?
+          literals:
+          - attached
+          - detached
+--
+          type: enum?
+          literals:
+          - before
+          - after
+--
+          type: array?
+          items: ExpectedTextValue
+        expectedNumber: float?
+        expectedValue: SerializedArgument?
+--
+          type: object?
+          properties:
+            value: SerializedValue?
+            ariaSnapshot: string?
+--
+          type: array?
+          items: string
+      flags:
+        snapshot: true
+--
+          type: object?
+          properties:
+            request: Request?
+        error: string?
+--
+  type: interface
+
+  extends: EventTarget
+
+--
+          type: enum
+          literals:
+          - console
+        enabled: boolean
+--
+  type: interface
+
+  commands:
+
+--
+  type: interface
+
+  initializer:
+    preview: string
+--
+          type: array
+          items:
+            type: object
+            properties:
+              name: string
+              value: JSHandle
+--
+  type: interface
+
+  extends: JSHandle
+
+--
+          type: array?
+          items:
+            type: enum
+            literals:
+            - Alt
+            - Control
+--
+          type: enum?
+          literals:
+          - left
+          - right
+--
+          type: array?
+          items:
+            type: enum
+            literals:
+            - Alt
+            - Control
+--
+          type: enum?
+          literals:
+          - left
+          - right
+--
+        type: string
+        eventInit: SerializedArgument
+      flags:
+        slowMo: true
+--
+          type: array?
+          items:
+            type: enum
+            literals:
+            - Alt
+            - Control
+--
+          type: array
+          items: ElementHandle
+      flags:
+        snapshot: true
+--
+        type:
+          type: enum?
+          literals:
+          - png
+          - jpeg
+--
+          type: array?
+          items: ElementHandle
+        options:
+          type: array?
+          items:
+            type: object
+            properties:
+              valueOrLabel: string?
+              value: string?
+--
+          type: array
+          items: string
+      flags:
+        slowMo: true
+--
+          type: array?
+          items:
+            type: object
+            properties:
+              name: string
+              mimeType: string?
+--
+          type: array?
+          items: string
+        streams:
+          type: array?
+          items: WritableStream
+        timeout: float
+      flags:
+--
+          type: array?
+          items:
+            type: enum
+            literals:
+            - Alt
+            - Control
+--
+    type:
+      title: Type
+      parameters:
+        text: string
+--
+          type: enum
+          literals:
+          - visible
+          - hidden
+--
+          type: enum?
+          literals:
+          - attached
+          - detached
+--
+  type: interface
+
+  initializer:
+    frame: Frame?
+--
+      type: array
+      items: NameValue
+    isNavigationRequest: boolean
+    redirectedFrom: Request?
+--
+          type: array
+          items: NameValue
+
+Route:
+  type: interface
+
+  initializer:
+    request: Request
+--
+          type: array?
+          items: NameValue
+        postData: binary?
+        isFallback: boolean
+--
+          type: array?
+          items: NameValue
+        body: string?
+        isBase64: boolean?
+--
+  type: interface
+
+  initializer:
+    url: string
+--
+      type: array
+      items: string
+
+  commands:
+--
+  type: object
+  properties:
+    startTime: float
+    domainLookupStart: float
+--
+  type: interface
+
+  initializer:
+    request: Request
+--
+      type: array
+      items: NameValue
+    timing: ResourceTiming
+    fromServiceWorker: boolean
+--
+          type: array
+          items: NameValue
+
+    httpVersion:
+--
+  type: object
+  properties:
+    issuer: string?
+    protocol: string?
+--
+  type: object
+  properties:
+    requestBodySize: int
+    requestHeadersSize: int
+--
+  type: object
+  properties:
+    ipAddress: string
+    port: int
+--
+  type: interface
+
+  extends: EventTarget
+
+--
+  type: interface
+
+  initializer:
+    frame: Frame
+--
+      type: array
+      items: SerializedValue
+
+  commands:
+--
+  type: interface
+
+  extends: EventTarget
+
+--
+          type: object
+          properties:
+            file: string
+            line: int?
+--
+          type: object?
+          properties:
+            location:
+              type: object
+              properties:
+                file: string
+                line: int?
+--
+  type: interface
+
+  initializer:
+    page: Page?
+    type: string
+    message: string
+    defaultValue: string
+
+--
+  type: interface
+
+  commands:
+
+--
+          type: object?
+          properties:
+            file: string
+            line: int?
+--
+          type: enum
+          literals:
+          - archive
+          - discard
+--
+          type: array?
+          items: NameValue
+
+    tracingStop:
+--
+  type: interface
+
+  initializer:
+    absolutePath: string
+--
+  type: interface
+
+  commands:
+
+--
+  type: interface
+
+  commands:
+
+--
+  type: interface
+
+  commands:
+
+--
+  type: interface
+
+  commands:
+
+--
+          type: array
+          items: AndroidDevice
+
+AndroidSocket:
+  type: interface
+
+  commands:
+    write:
+--
+  type: interface
+
+  extends: EventTarget
+
+--
+          type: enum?
+          literals:
+          - gone
+        timeout: float
+--
+          type: enum
+          literals:
+          - up
+          - down
+--
+          type: enum
+          literals:
+          - up
+          - down
+--
+          type: enum
+          literals:
+          - up
+          - down
+--
+          type: array
+          items: Point
+        steps: int
+
+--
+          type: array?
+          items: string
+        proxy:
+          type: object?
+          properties:
+            server: string
+            bypass: string?
+--
+          type: array?
+          items: string
+
+    push:
+--
+  type: object
+  properties:
+    pid: int
+    pkg: string
+--
+  type: object
+  properties:
+    checkable: boolean?
+    checked: boolean?
+--
+      type: object?
+      properties:
+        androidSelector: AndroidSelector
+    hasDescendant:
+      type: object?
+      properties:
+        androidSelector: AndroidSelector
+        maxDepth: int?
+--
+  type: object
+  properties:
+    children:
+      type: array?
+      items: AndroidElementInfo
+    clazz: string
+    desc: string
+--
+  type: interface
+
+  commands:
+    send:

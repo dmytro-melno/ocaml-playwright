@@ -51,7 +51,7 @@ module Api_request_context = struct
          with _ -> failwith "Missing required initializer property tracing")
     | None -> failwith "Object not found in connection"
 
-  let fetch ?max_retries ?max_redirects ?ignore_https_errors ?fail_on_status_code ~timeout ?multipart_data ?form_data ?json_data ?post_data ?headers ?method_ ?params ?encoded_params ~url (t : t) =
+  let fetch ~url ?encoded_params ?params ?method_ ?headers ?post_data ?json_data ?form_data ?multipart_data ~timeout ?fail_on_status_code ?ignore_https_errors ?max_redirects ?max_retries (t : t) =
     let args : Protocol.api_request_context_fetch_args = {
       Protocol.max_retries = max_retries;
       Protocol.max_redirects = max_redirects;
@@ -117,7 +117,7 @@ end
 module Local_utils = struct
   type t = local_utils_type obj
 
-  let zip ?additional_sources ~include_sources ~mode ?stacks_id ~entries ~zip_file (t : t) =
+  let zip ~zip_file ~entries ?stacks_id ~mode ~include_sources ?additional_sources (t : t) =
     let args : Protocol.local_utils_zip_args = {
       Protocol.additional_sources = additional_sources;
       Protocol.include_sources = include_sources;
@@ -138,7 +138,7 @@ module Local_utils = struct
     | Ok res -> res
     | Error e -> raise (Error e)
 
-  let har_lookup ~is_navigation_request ?post_data ~headers ~method_ ~url ~har_id (t : t) =
+  let har_lookup ~har_id ~url ~method_ ~headers ?post_data ~is_navigation_request (t : t) =
     let args : Protocol.local_utils_har_lookup_args = {
       Protocol.is_navigation_request = is_navigation_request;
       Protocol.post_data = Option.map Base64.encode_exn post_data;
@@ -159,7 +159,7 @@ module Local_utils = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let har_unzip ~har_file ~zip_file (t : t) =
+  let har_unzip ~zip_file ~har_file (t : t) =
     let args : Protocol.local_utils_har_unzip_args = {
       Protocol.har_file = har_file;
       Protocol.zip_file = zip_file;
@@ -168,7 +168,7 @@ module Local_utils = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let connect ?socks_proxy_redirect_port_for_test ~timeout ?slow_mo ?expose_network ?headers ~endpoint (t : t) =
+  let connect ~endpoint ?headers ?expose_network ?slow_mo ~timeout ?socks_proxy_redirect_port_for_test (t : t) =
     let args : Protocol.local_utils_connect_args = {
       Protocol.socks_proxy_redirect_port_for_test = socks_proxy_redirect_port_for_test;
       Protocol.timeout = timeout;
@@ -181,7 +181,7 @@ module Local_utils = struct
     | Ok res -> res
     | Error e -> raise (Error e)
 
-  let tracing_started ?live ~trace_name ?traces_dir (t : t) =
+  let tracing_started ?traces_dir ~trace_name ?live (t : t) =
     let args : Protocol.local_utils_tracing_started_args = {
       Protocol.live = live;
       Protocol.trace_name = trace_name;
@@ -207,7 +207,7 @@ module Local_utils = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let glob_to_regex ?web_socket_url ?base_url ~glob (t : t) =
+  let glob_to_regex ~glob ?base_url ?web_socket_url (t : t) =
     let args : Protocol.local_utils_glob_to_regex_args = {
       Protocol.web_socket_url = web_socket_url;
       Protocol.base_url = base_url;
@@ -299,7 +299,7 @@ module Playwright = struct
          with _ -> None)
     | None -> failwith "Object not found in connection"
 
-  let new_request ?traces_dir ?storage_state ?proxy ?http_credentials ?max_redirects ?client_certificates ?fail_on_status_code ?extra_http_headers ?ignore_https_errors ?user_agent ?base_url (t : t) =
+  let new_request ?base_url ?user_agent ?ignore_https_errors ?extra_http_headers ?fail_on_status_code ?client_certificates ?max_redirects ?http_credentials ?proxy ?storage_state ?traces_dir (t : t) =
     let args : Protocol.playwright_new_request_args = {
       Protocol.traces_dir = traces_dir;
       Protocol.storage_state = storage_state;
@@ -322,7 +322,7 @@ end
 module Debug_controller = struct
   type t = debug_controller_type obj
 
-  let initialize ~sdk_language ~codegen_id (t : t) =
+  let initialize ~codegen_id ~sdk_language (t : t) =
     let args : Protocol.debug_controller_initialize_args = {
       Protocol.sdk_language = sdk_language;
       Protocol.codegen_id = codegen_id;
@@ -339,7 +339,7 @@ module Debug_controller = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let set_recorder_mode ?generate_auto_expect ?test_id_attribute_name ~mode (t : t) =
+  let set_recorder_mode ~mode ?test_id_attribute_name ?generate_auto_expect (t : t) =
     let args : Protocol.debug_controller_set_recorder_mode_args = {
       Protocol.generate_auto_expect = generate_auto_expect;
       Protocol.test_id_attribute_name = test_id_attribute_name;
@@ -349,7 +349,7 @@ module Debug_controller = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let highlight ?aria_template ?selector (t : t) =
+  let highlight ?selector ?aria_template (t : t) =
     let args : Protocol.debug_controller_highlight_args = {
       Protocol.aria_template = aria_template;
       Protocol.selector = selector;
@@ -488,7 +488,7 @@ end
 module Socks_support = struct
   type t = socks_support_type obj
 
-  let socks_connected ~port ~host ~uid (t : t) =
+  let socks_connected ~uid ~host ~port (t : t) =
     let args : Protocol.socks_support_socks_connected_args = {
       Protocol.port = port;
       Protocol.host = host;
@@ -498,7 +498,7 @@ module Socks_support = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let socks_failed ~error_code ~uid (t : t) =
+  let socks_failed ~uid ~error_code (t : t) =
     let args : Protocol.socks_support_socks_failed_args = {
       Protocol.error_code = error_code;
       Protocol.uid = uid;
@@ -507,7 +507,7 @@ module Socks_support = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let socks_data ~data ~uid (t : t) =
+  let socks_data ~uid ~data (t : t) =
     let args : Protocol.socks_support_socks_data_args = {
       Protocol.data = Base64.encode_exn data;
       Protocol.uid = uid;
@@ -516,7 +516,7 @@ module Socks_support = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let socks_error ~error ~uid (t : t) =
+  let socks_error ~uid ~error (t : t) =
     let args : Protocol.socks_support_socks_error_args = {
       Protocol.error = error;
       Protocol.uid = uid;
@@ -604,7 +604,7 @@ end
 module Browser_type = struct
   type t = browser_type_type obj
 
-  let launch ?cdp_port ?firefox_user_prefs ?chromium_sandbox ?artifacts_dir ?traces_dir ?downloads_path ?proxy ?headless ?env ~timeout ?handle_sighup ?handle_sigterm ?handle_sigint ?ignore_default_args ?ignore_all_default_args ?args ?executable_path ?channel ?slow_mo (t : t) =
+  let launch ?slow_mo ?channel ?executable_path ?args ?ignore_all_default_args ?ignore_default_args ?handle_sigint ?handle_sigterm ?handle_sighup ~timeout ?env ?headless ?proxy ?downloads_path ?traces_dir ?artifacts_dir ?chromium_sandbox ?firefox_user_prefs ?cdp_port (t : t) =
     let args : Protocol.browser_type_launch_args = {
       Protocol.cdp_port = cdp_port;
       Protocol.firefox_user_prefs = firefox_user_prefs;
@@ -630,7 +630,7 @@ module Browser_type = struct
     | Ok res -> ({ conn = t.conn; guid = res.Protocol.browser.guid } : browser_type obj)
     | Error e -> raise (Error e)
 
-  let launch_persistent_context ?test_id_attribute_name ?selector_engines ?service_workers ?strict_selectors ?record_video ?base_url ?contrast ?accept_downloads ?forced_colors ?reduced_motion ?color_scheme ?has_touch ?is_mobile ?device_scale_factor ?http_credentials ?offline ?extra_http_headers ?permissions ?geolocation ?timezone_id ?locale ?user_agent ?bypass_csp ?java_script_enabled ?client_certificates ?ignore_https_errors ?screen ?viewport ?no_default_viewport ?cdp_port ?firefox_user_prefs ?chromium_sandbox ?artifacts_dir ?traces_dir ?downloads_path ?proxy ?headless ?env ~timeout ?handle_sighup ?handle_sigterm ?handle_sigint ?ignore_default_args ?ignore_all_default_args ?args ?executable_path ?channel ?slow_mo ~user_data_dir (t : t) =
+  let launch_persistent_context ~user_data_dir ?slow_mo ?channel ?executable_path ?args ?ignore_all_default_args ?ignore_default_args ?handle_sigint ?handle_sigterm ?handle_sighup ~timeout ?env ?headless ?proxy ?downloads_path ?traces_dir ?artifacts_dir ?chromium_sandbox ?firefox_user_prefs ?cdp_port ?no_default_viewport ?viewport ?screen ?ignore_https_errors ?client_certificates ?java_script_enabled ?bypass_csp ?user_agent ?locale ?timezone_id ?geolocation ?permissions ?extra_http_headers ?offline ?http_credentials ?device_scale_factor ?is_mobile ?has_touch ?color_scheme ?reduced_motion ?forced_colors ?accept_downloads ?contrast ?base_url ?record_video ?strict_selectors ?service_workers ?selector_engines ?test_id_attribute_name (t : t) =
     let args : Protocol.browser_type_launch_persistent_context_args = {
       Protocol.test_id_attribute_name = test_id_attribute_name;
       Protocol.selector_engines = selector_engines;
@@ -686,7 +686,7 @@ module Browser_type = struct
     | Ok res -> res
     | Error e -> raise (Error e)
 
-  let connect_over_cdp ?no_defaults ?is_local ~timeout ?slow_mo ?headers ~endpoint_url (t : t) =
+  let connect_over_cdp ~endpoint_url ?headers ?slow_mo ~timeout ?is_local ?no_defaults (t : t) =
     let args : Protocol.browser_type_connect_over_cd_p_args = {
       Protocol.no_defaults = no_defaults;
       Protocol.is_local = is_local;
@@ -699,7 +699,7 @@ module Browser_type = struct
     | Ok res -> res
     | Error e -> raise (Error e)
 
-  let connect_to_worker ~timeout ~endpoint (t : t) =
+  let connect_to_worker ~endpoint ~timeout (t : t) =
     let args : Protocol.browser_type_connect_to_worker_args = {
       Protocol.timeout = timeout;
       Protocol.endpoint = endpoint;
@@ -713,7 +713,7 @@ end
 module Browser = struct
   type t = browser_type obj
 
-  let start_server ?port ?host ?metadata ?workspace_dir ~title (t : t) =
+  let start_server ~title ?workspace_dir ?metadata ?host ?port (t : t) =
     let args : Protocol.browser_start_server_args = {
       Protocol.port = port;
       Protocol.host = host;
@@ -748,7 +748,7 @@ module Browser = struct
     | Ok res -> res.Protocol.user_agent
     | Error e -> raise (Error e)
 
-  let new_context ?test_id_attribute_name ?selector_engines ?service_workers ?strict_selectors ?record_video ?base_url ?contrast ?accept_downloads ?forced_colors ?reduced_motion ?color_scheme ?has_touch ?is_mobile ?device_scale_factor ?http_credentials ?offline ?extra_http_headers ?permissions ?geolocation ?timezone_id ?locale ?user_agent ?bypass_csp ?java_script_enabled ?client_certificates ?ignore_https_errors ?screen ?viewport ?no_default_viewport ?storage_state ?proxy (t : t) =
+  let new_context ?proxy ?storage_state ?no_default_viewport ?viewport ?screen ?ignore_https_errors ?client_certificates ?java_script_enabled ?bypass_csp ?user_agent ?locale ?timezone_id ?geolocation ?permissions ?extra_http_headers ?offline ?http_credentials ?device_scale_factor ?is_mobile ?has_touch ?color_scheme ?reduced_motion ?forced_colors ?accept_downloads ?contrast ?base_url ?record_video ?strict_selectors ?service_workers ?selector_engines ?test_id_attribute_name (t : t) =
     let args : Protocol.browser_new_context_args = {
       Protocol.test_id_attribute_name = test_id_attribute_name;
       Protocol.selector_engines = selector_engines;
@@ -786,7 +786,7 @@ module Browser = struct
     | Ok res -> ({ conn = t.conn; guid = res.Protocol.context.guid } : browser_context_type obj)
     | Error e -> raise (Error e)
 
-  let new_context_for_reuse ?test_id_attribute_name ?selector_engines ?service_workers ?strict_selectors ?record_video ?base_url ?contrast ?accept_downloads ?forced_colors ?reduced_motion ?color_scheme ?has_touch ?is_mobile ?device_scale_factor ?http_credentials ?offline ?extra_http_headers ?permissions ?geolocation ?timezone_id ?locale ?user_agent ?bypass_csp ?java_script_enabled ?client_certificates ?ignore_https_errors ?screen ?viewport ?no_default_viewport ?storage_state ?proxy (t : t) =
+  let new_context_for_reuse ?proxy ?storage_state ?no_default_viewport ?viewport ?screen ?ignore_https_errors ?client_certificates ?java_script_enabled ?bypass_csp ?user_agent ?locale ?timezone_id ?geolocation ?permissions ?extra_http_headers ?offline ?http_credentials ?device_scale_factor ?is_mobile ?has_touch ?color_scheme ?reduced_motion ?forced_colors ?accept_downloads ?contrast ?base_url ?record_video ?strict_selectors ?service_workers ?selector_engines ?test_id_attribute_name (t : t) =
     let args : Protocol.browser_new_context_for_reuse_args = {
       Protocol.test_id_attribute_name = test_id_attribute_name;
       Protocol.selector_engines = selector_engines;
@@ -837,7 +837,7 @@ module Browser = struct
     | Ok res -> ({ conn = t.conn; guid = res.Protocol.session.guid } : cdp_session_type obj)
     | Error e -> raise (Error e)
 
-  let start_tracing ?categories ?screenshots ?page (t : t) =
+  let start_tracing ?page ?screenshots ?categories (t : t) =
     let args : Protocol.browser_start_tracing_args = {
       Protocol.categories = categories;
       Protocol.screenshots = screenshots;
@@ -932,7 +932,7 @@ module Browser_context = struct
     | Ok res -> ({ conn = t.conn; guid = res.Protocol.disposable.guid } : disposable_type obj)
     | Error e -> raise (Error e)
 
-  let clear_cookies ?path_regex_flags ?path_regex_source ?path ?domain_regex_flags ?domain_regex_source ?domain ?name_regex_flags ?name_regex_source ?name (t : t) =
+  let clear_cookies ?name ?name_regex_source ?name_regex_flags ?domain ?domain_regex_source ?domain_regex_flags ?path ?path_regex_source ?path_regex_flags (t : t) =
     let args : Protocol.browser_context_clear_cookies_args = {
       Protocol.path_regex_flags = path_regex_flags;
       Protocol.path_regex_source = path_regex_source;
@@ -977,7 +977,7 @@ module Browser_context = struct
     | Ok res -> ({ conn = t.conn; guid = res.Protocol.disposable.guid } : disposable_type obj)
     | Error e -> raise (Error e)
 
-  let grant_permissions ?origin ~permissions (t : t) =
+  let grant_permissions ~permissions ?origin (t : t) =
     let args : Protocol.browser_context_grant_permissions_args = {
       Protocol.origin = origin;
       Protocol.permissions = permissions;
@@ -1076,7 +1076,7 @@ module Browser_context = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let enable_recorder ?omit_call_tracking ?handle_sigint ?output_file ?save_storage ?device ?context_options ?launch_options ?test_id_attribute_name ?pause_on_next_statement ?recorder_mode ?mode ?language (t : t) =
+  let enable_recorder ?language ?mode ?recorder_mode ?pause_on_next_statement ?test_id_attribute_name ?launch_options ?context_options ?device ?save_storage ?output_file ?handle_sigint ?omit_call_tracking (t : t) =
     let args : Protocol.browser_context_enable_recorder_args = {
       Protocol.omit_call_tracking = omit_call_tracking;
       Protocol.handle_sigint = handle_sigint;
@@ -1105,7 +1105,7 @@ module Browser_context = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let new_cdp_session ?frame ?page (t : t) =
+  let new_cdp_session ?page ?frame (t : t) =
     let args : Protocol.browser_context_new_cdp_session_args = {
       Protocol.frame = frame;
       Protocol.page = page;
@@ -1114,7 +1114,7 @@ module Browser_context = struct
     | Ok res -> ({ conn = t.conn; guid = res.Protocol.session.guid } : cdp_session_type obj)
     | Error e -> raise (Error e)
 
-  let create_temp_files ~items ?root_dir_name (t : t) =
+  let create_temp_files ?root_dir_name ~items (t : t) =
     let args : Protocol.browser_context_create_temp_files_args = {
       Protocol.items = items;
       Protocol.root_dir_name = root_dir_name;
@@ -1123,7 +1123,7 @@ module Browser_context = struct
     | Ok res -> res
     | Error e -> raise (Error e)
 
-  let update_subscription ~enabled ~event (t : t) =
+  let update_subscription ~event ~enabled (t : t) =
     let args : Protocol.browser_context_update_subscription_args = {
       Protocol.enabled = enabled;
       Protocol.event = event;
@@ -1132,7 +1132,7 @@ module Browser_context = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let clock_fast_forward ?ticks_string ?ticks_number (t : t) =
+  let clock_fast_forward ?ticks_number ?ticks_string (t : t) =
     let args : Protocol.browser_context_clock_fast_forward_args = {
       Protocol.ticks_string = ticks_string;
       Protocol.ticks_number = ticks_number;
@@ -1141,7 +1141,7 @@ module Browser_context = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let clock_install ?time_string ?time_number (t : t) =
+  let clock_install ?time_number ?time_string (t : t) =
     let args : Protocol.browser_context_clock_install_args = {
       Protocol.time_string = time_string;
       Protocol.time_number = time_number;
@@ -1150,7 +1150,7 @@ module Browser_context = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let clock_pause_at ?time_string ?time_number (t : t) =
+  let clock_pause_at ?time_number ?time_string (t : t) =
     let args : Protocol.browser_context_clock_pause_at_args = {
       Protocol.time_string = time_string;
       Protocol.time_number = time_number;
@@ -1164,7 +1164,7 @@ module Browser_context = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let clock_run_for ?ticks_string ?ticks_number (t : t) =
+  let clock_run_for ?ticks_number ?ticks_string (t : t) =
     let args : Protocol.browser_context_clock_run_for_args = {
       Protocol.ticks_string = ticks_string;
       Protocol.ticks_number = ticks_number;
@@ -1173,7 +1173,7 @@ module Browser_context = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let clock_set_fixed_time ?time_string ?time_number (t : t) =
+  let clock_set_fixed_time ?time_number ?time_string (t : t) =
     let args : Protocol.browser_context_clock_set_fixed_time_args = {
       Protocol.time_string = time_string;
       Protocol.time_number = time_number;
@@ -1182,7 +1182,7 @@ module Browser_context = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let clock_set_system_time ?time_string ?time_number (t : t) =
+  let clock_set_system_time ?time_number ?time_string (t : t) =
     let args : Protocol.browser_context_clock_set_system_time_args = {
       Protocol.time_string = time_string;
       Protocol.time_number = time_number;
@@ -1514,7 +1514,7 @@ module Page = struct
     | Ok res -> ({ conn = t.conn; guid = res.Protocol.disposable.guid } : disposable_type obj)
     | Error e -> raise (Error e)
 
-  let close ?reason ?run_before_unload (t : t) =
+  let close ?run_before_unload ?reason (t : t) =
     let args : Protocol.page_close_args = {
       Protocol.reason = reason;
       Protocol.run_before_unload = run_before_unload;
@@ -1536,7 +1536,7 @@ module Page = struct
     | Ok res -> res.Protocol.messages
     | Error e -> raise (Error e)
 
-  let emulate_media ?contrast ?forced_colors ?reduced_motion ?color_scheme ?media (t : t) =
+  let emulate_media ?media ?color_scheme ?reduced_motion ?forced_colors ?contrast (t : t) =
     let args : Protocol.page_emulate_media_args = {
       Protocol.contrast = contrast;
       Protocol.forced_colors = forced_colors;
@@ -1556,7 +1556,7 @@ module Page = struct
     | Ok res -> ({ conn = t.conn; guid = res.Protocol.disposable.guid } : disposable_type obj)
     | Error e -> raise (Error e)
 
-  let go_back ?wait_until ~timeout (t : t) =
+  let go_back ~timeout ?wait_until (t : t) =
     let args : Protocol.page_go_back_args = {
       Protocol.wait_until = wait_until;
       Protocol.timeout = timeout;
@@ -1565,7 +1565,7 @@ module Page = struct
     | Ok res -> res.Protocol.response
     | Error e -> raise (Error e)
 
-  let go_forward ?wait_until ~timeout (t : t) =
+  let go_forward ~timeout ?wait_until (t : t) =
     let args : Protocol.page_go_forward_args = {
       Protocol.wait_until = wait_until;
       Protocol.timeout = timeout;
@@ -1579,7 +1579,7 @@ module Page = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let register_locator_handler ?no_wait_after ~selector (t : t) =
+  let register_locator_handler ~selector ?no_wait_after (t : t) =
     let args : Protocol.page_register_locator_handler_args = {
       Protocol.no_wait_after = no_wait_after;
       Protocol.selector = selector;
@@ -1588,7 +1588,7 @@ module Page = struct
     | Ok res -> res.Protocol.uid
     | Error e -> raise (Error e)
 
-  let resolve_locator_handler_no_reply ?remove ~uid (t : t) =
+  let resolve_locator_handler_no_reply ~uid ?remove (t : t) =
     let args : Protocol.page_resolve_locator_handler_no_reply_args = {
       Protocol.remove = remove;
       Protocol.uid = uid;
@@ -1605,7 +1605,7 @@ module Page = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let reload ?wait_until ~timeout (t : t) =
+  let reload ~timeout ?wait_until (t : t) =
     let args : Protocol.page_reload_args = {
       Protocol.wait_until = wait_until;
       Protocol.timeout = timeout;
@@ -1614,7 +1614,7 @@ module Page = struct
     | Ok res -> res.Protocol.response
     | Error e -> raise (Error e)
 
-  let expect_screenshot ?style ?mask_color ?mask ?scale ?animations ?caret ?omit_background ?clip ?full_page ?threshold ?max_diff_pixel_ratio ?max_diff_pixels ?comparator ?locator ~is_not ~timeout ?expected (t : t) =
+  let expect_screenshot ?expected ~timeout ~is_not ?locator ?comparator ?max_diff_pixels ?max_diff_pixel_ratio ?threshold ?full_page ?clip ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (t : t) =
     let args : Protocol.page_expect_screenshot_args = {
       Protocol.style = style;
       Protocol.mask_color = mask_color;
@@ -1638,7 +1638,7 @@ module Page = struct
     | Ok res -> res
     | Error e -> raise (Error e)
 
-  let screenshot ?style ?mask_color ?mask ?scale ?animations ?caret ?omit_background ?clip ?full_page ?quality ?type_ ~timeout (t : t) =
+  let screenshot ~timeout ?type_ ?quality ?full_page ?clip ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (t : t) =
     let args : Protocol.page_screenshot_args = {
       Protocol.style = style;
       Protocol.mask_color = mask_color;
@@ -1713,7 +1713,7 @@ module Page = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let keyboard_type ?delay ~text (t : t) =
+  let keyboard_type ~text ?delay (t : t) =
     let args : Protocol.page_keyboard_type_args = {
       Protocol.delay = delay;
       Protocol.text = text;
@@ -1722,7 +1722,7 @@ module Page = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let keyboard_press ?delay ~key (t : t) =
+  let keyboard_press ~key ?delay (t : t) =
     let args : Protocol.page_keyboard_press_args = {
       Protocol.delay = delay;
       Protocol.key = key;
@@ -1731,7 +1731,7 @@ module Page = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let mouse_move ?steps ~y ~x (t : t) =
+  let mouse_move ~x ~y ?steps (t : t) =
     let args : Protocol.page_mouse_move_args = {
       Protocol.steps = steps;
       Protocol.y = y;
@@ -1741,7 +1741,7 @@ module Page = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let mouse_down ?click_count ?button (t : t) =
+  let mouse_down ?button ?click_count (t : t) =
     let args : Protocol.page_mouse_down_args = {
       Protocol.click_count = click_count;
       Protocol.button = button;
@@ -1750,7 +1750,7 @@ module Page = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let mouse_up ?click_count ?button (t : t) =
+  let mouse_up ?button ?click_count (t : t) =
     let args : Protocol.page_mouse_up_args = {
       Protocol.click_count = click_count;
       Protocol.button = button;
@@ -1759,7 +1759,7 @@ module Page = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let mouse_click ?click_count ?button ?delay ~y ~x (t : t) =
+  let mouse_click ~x ~y ?delay ?button ?click_count (t : t) =
     let args : Protocol.page_mouse_click_args = {
       Protocol.click_count = click_count;
       Protocol.button = button;
@@ -1771,7 +1771,7 @@ module Page = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let mouse_wheel ~delta_y ~delta_x (t : t) =
+  let mouse_wheel ~delta_x ~delta_y (t : t) =
     let args : Protocol.page_mouse_wheel_args = {
       Protocol.delta_y = delta_y;
       Protocol.delta_x = delta_x;
@@ -1780,7 +1780,7 @@ module Page = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let touchscreen_tap ~y ~x (t : t) =
+  let touchscreen_tap ~x ~y (t : t) =
     let args : Protocol.page_touchscreen_tap_args = {
       Protocol.y = y;
       Protocol.x = x;
@@ -1802,7 +1802,7 @@ module Page = struct
     | Ok res -> res.Protocol.errors
     | Error e -> raise (Error e)
 
-  let pdf ?outline ?tagged ?margin ?prefer_css_page_size ?height ?width ?format ?page_ranges ?landscape ?print_background ?footer_template ?header_template ?display_header_footer ?scale (t : t) =
+  let pdf ?scale ?display_header_footer ?header_template ?footer_template ?print_background ?landscape ?page_ranges ?format ?width ?height ?prefer_css_page_size ?margin ?tagged ?outline (t : t) =
     let args : Protocol.page_pdf_args = {
       Protocol.outline = outline;
       Protocol.tagged = tagged;
@@ -1828,7 +1828,7 @@ module Page = struct
     | Ok res -> res.Protocol.requests
     | Error e -> raise (Error e)
 
-  let start_js_coverage ?report_anonymous_scripts ?reset_on_navigation (t : t) =
+  let start_js_coverage ?reset_on_navigation ?report_anonymous_scripts (t : t) =
     let args : Protocol.page_start_js_coverage_args = {
       Protocol.report_anonymous_scripts = report_anonymous_scripts;
       Protocol.reset_on_navigation = reset_on_navigation;
@@ -1875,7 +1875,7 @@ module Page = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let screencast_show_overlay ?duration ~html (t : t) =
+  let screencast_show_overlay ~html ?duration (t : t) =
     let args : Protocol.page_screencast_show_overlay_args = {
       Protocol.duration = duration;
       Protocol.html = html;
@@ -1892,7 +1892,7 @@ module Page = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let screencast_chapter ?duration ?description ~title (t : t) =
+  let screencast_chapter ~title ?description ?duration (t : t) =
     let args : Protocol.page_screencast_chapter_args = {
       Protocol.duration = duration;
       Protocol.description = description;
@@ -1910,7 +1910,7 @@ module Page = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let screencast_show_actions ?font_size ?position ?duration (t : t) =
+  let screencast_show_actions ?duration ?position ?font_size (t : t) =
     let args : Protocol.page_screencast_show_actions_args = {
       Protocol.font_size = font_size;
       Protocol.position = position;
@@ -1925,7 +1925,7 @@ module Page = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let screencast_start ?record ?send_frames ?quality ?size (t : t) =
+  let screencast_start ?size ?quality ?send_frames ?record (t : t) =
     let args : Protocol.page_screencast_start_args = {
       Protocol.record = record;
       Protocol.send_frames = send_frames;
@@ -1941,7 +1941,7 @@ module Page = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let update_subscription ~enabled ~event (t : t) =
+  let update_subscription ~event ~enabled (t : t) =
     let args : Protocol.page_update_subscription_args = {
       Protocol.enabled = enabled;
       Protocol.event = event;
@@ -2235,7 +2235,7 @@ module Frame = struct
          with _ -> None)
     | None -> failwith "Object not found in connection"
 
-  let eval_on_selector ~arg ?is_function ~expression ?strict ~selector (t : t) =
+  let eval_on_selector ~selector ?strict ~expression ?is_function ~arg (t : t) =
     let args : Protocol.frame_eval_on_selector_args = {
       Protocol.arg = arg;
       Protocol.is_function = is_function;
@@ -2247,7 +2247,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let eval_on_selector_all ~arg ?is_function ~expression ~selector (t : t) =
+  let eval_on_selector_all ~selector ~expression ?is_function ~arg (t : t) =
     let args : Protocol.frame_eval_on_selector_all_args = {
       Protocol.arg = arg;
       Protocol.is_function = is_function;
@@ -2258,7 +2258,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let add_script_tag ?type_ ?content ?url (t : t) =
+  let add_script_tag ?url ?content ?type_ (t : t) =
     let args : Protocol.frame_add_script_tag_args = {
       Protocol.type_ = type_;
       Protocol.content = content;
@@ -2268,7 +2268,7 @@ module Frame = struct
     | Ok res -> ({ conn = t.conn; guid = res.Protocol.element.guid } : element_handle_type obj)
     | Error e -> raise (Error e)
 
-  let add_style_tag ?content ?url (t : t) =
+  let add_style_tag ?url ?content (t : t) =
     let args : Protocol.frame_add_style_tag_args = {
       Protocol.content = content;
       Protocol.url = url;
@@ -2277,7 +2277,7 @@ module Frame = struct
     | Ok res -> ({ conn = t.conn; guid = res.Protocol.element.guid } : element_handle_type obj)
     | Error e -> raise (Error e)
 
-  let aria_ref ~timeout ~selector (t : t) =
+  let aria_ref ~selector ~timeout (t : t) =
     let args : Protocol.frame_aria_ref_args = {
       Protocol.timeout = timeout;
       Protocol.selector = selector;
@@ -2286,7 +2286,7 @@ module Frame = struct
     | Ok res -> res.Protocol.ref
     | Error e -> raise (Error e)
 
-  let aria_snapshot ~timeout ?boxes ?depth ?selector ?track ?mode (t : t) =
+  let aria_snapshot ?mode ?track ?selector ?depth ?boxes ~timeout (t : t) =
     let args : Protocol.frame_aria_snapshot_args = {
       Protocol.timeout = timeout;
       Protocol.boxes = boxes;
@@ -2299,7 +2299,7 @@ module Frame = struct
     | Ok res -> res.Protocol.snapshot
     | Error e -> raise (Error e)
 
-  let blur ~timeout ?strict ~selector (t : t) =
+  let blur ~selector ?strict ~timeout (t : t) =
     let args : Protocol.frame_blur_args = {
       Protocol.timeout = timeout;
       Protocol.strict = strict;
@@ -2309,7 +2309,7 @@ module Frame = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let check ?trial ~timeout ?position ?force ?strict ~selector (t : t) =
+  let check ~selector ?strict ?force ?position ~timeout ?trial (t : t) =
     let args : Protocol.frame_check_args = {
       Protocol.trial = trial;
       Protocol.timeout = timeout;
@@ -2322,7 +2322,7 @@ module Frame = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let click ?steps ?trial ~timeout ?click_count ?button ?delay ?position ?modifiers ?no_wait_after ?force ?strict ~selector (t : t) =
+  let click ~selector ?strict ?force ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ~timeout ?trial ?steps (t : t) =
     let args : Protocol.frame_click_args = {
       Protocol.steps = steps;
       Protocol.trial = trial;
@@ -2346,7 +2346,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let drag_and_drop ?steps ?strict ?target_position ?source_position ?trial ~timeout ?force ~target ~source (t : t) =
+  let drag_and_drop ~source ~target ?force ~timeout ?trial ?source_position ?target_position ?strict ?steps (t : t) =
     let args : Protocol.frame_drag_and_drop_args = {
       Protocol.steps = steps;
       Protocol.strict = strict;
@@ -2362,7 +2362,7 @@ module Frame = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let drop ~timeout ?data ?streams ?local_paths ?payloads ?position ?strict ~selector (t : t) =
+  let drop ~selector ?strict ?position ?payloads ?local_paths ?streams ?data ~timeout (t : t) =
     let args : Protocol.frame_drop_args = {
       Protocol.timeout = timeout;
       Protocol.data = data;
@@ -2377,7 +2377,7 @@ module Frame = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let dblclick ?steps ?trial ~timeout ?button ?delay ?position ?modifiers ?force ?strict ~selector (t : t) =
+  let dblclick ~selector ?strict ?force ?modifiers ?position ?delay ?button ~timeout ?trial ?steps (t : t) =
     let args : Protocol.frame_dblclick_args = {
       Protocol.steps = steps;
       Protocol.trial = trial;
@@ -2394,7 +2394,7 @@ module Frame = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let dispatch_event ~timeout ~event_init ~type_ ?strict ~selector (t : t) =
+  let dispatch_event ~selector ?strict ~type_ ~event_init ~timeout (t : t) =
     let args : Protocol.frame_dispatch_event_args = {
       Protocol.timeout = timeout;
       Protocol.event_init = event_init;
@@ -2406,7 +2406,7 @@ module Frame = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let evaluate_expression ~arg ?is_function ~expression (t : t) =
+  let evaluate_expression ~expression ?is_function ~arg (t : t) =
     let args : Protocol.frame_evaluate_expression_args = {
       Protocol.arg = arg;
       Protocol.is_function = is_function;
@@ -2416,7 +2416,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let evaluate_expression_handle ~arg ?is_function ~expression (t : t) =
+  let evaluate_expression_handle ~expression ?is_function ~arg (t : t) =
     let args : Protocol.frame_evaluate_expression_handle_args = {
       Protocol.arg = arg;
       Protocol.is_function = is_function;
@@ -2426,7 +2426,7 @@ module Frame = struct
     | Ok res -> ({ conn = t.conn; guid = res.Protocol.handle.guid } : js_handle_type obj)
     | Error e -> raise (Error e)
 
-  let fill ~timeout ?force ~value ?strict ~selector (t : t) =
+  let fill ~selector ?strict ~value ?force ~timeout (t : t) =
     let args : Protocol.frame_fill_args = {
       Protocol.timeout = timeout;
       Protocol.force = force;
@@ -2438,7 +2438,7 @@ module Frame = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let focus ~timeout ?strict ~selector (t : t) =
+  let focus ~selector ?strict ~timeout (t : t) =
     let args : Protocol.frame_focus_args = {
       Protocol.timeout = timeout;
       Protocol.strict = strict;
@@ -2461,7 +2461,7 @@ module Frame = struct
     | Ok res -> res.Protocol.resolved_selector
     | Error e -> raise (Error e)
 
-  let highlight ?style ~selector (t : t) =
+  let highlight ~selector ?style (t : t) =
     let args : Protocol.frame_highlight_args = {
       Protocol.style = style;
       Protocol.selector = selector;
@@ -2478,7 +2478,7 @@ module Frame = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let get_attribute ~timeout ~name ?strict ~selector (t : t) =
+  let get_attribute ~selector ?strict ~name ~timeout (t : t) =
     let args : Protocol.frame_get_attribute_args = {
       Protocol.timeout = timeout;
       Protocol.name = name;
@@ -2489,7 +2489,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let goto ?referer ?wait_until ~timeout ~url (t : t) =
+  let goto ~url ~timeout ?wait_until ?referer (t : t) =
     let args : Protocol.frame_goto_args = {
       Protocol.referer = referer;
       Protocol.wait_until = wait_until;
@@ -2500,7 +2500,7 @@ module Frame = struct
     | Ok res -> res.Protocol.response
     | Error e -> raise (Error e)
 
-  let hover ?trial ~timeout ?position ?modifiers ?force ?strict ~selector (t : t) =
+  let hover ~selector ?strict ?force ?modifiers ?position ~timeout ?trial (t : t) =
     let args : Protocol.frame_hover_args = {
       Protocol.trial = trial;
       Protocol.timeout = timeout;
@@ -2514,7 +2514,7 @@ module Frame = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let inner_html ~timeout ?strict ~selector (t : t) =
+  let inner_html ~selector ?strict ~timeout (t : t) =
     let args : Protocol.frame_inner_htm_l_args = {
       Protocol.timeout = timeout;
       Protocol.strict = strict;
@@ -2524,7 +2524,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let inner_text ~timeout ?strict ~selector (t : t) =
+  let inner_text ~selector ?strict ~timeout (t : t) =
     let args : Protocol.frame_inner_text_args = {
       Protocol.timeout = timeout;
       Protocol.strict = strict;
@@ -2534,7 +2534,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let input_value ~timeout ?strict ~selector (t : t) =
+  let input_value ~selector ?strict ~timeout (t : t) =
     let args : Protocol.frame_input_value_args = {
       Protocol.timeout = timeout;
       Protocol.strict = strict;
@@ -2544,7 +2544,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let is_checked ~timeout ?strict ~selector (t : t) =
+  let is_checked ~selector ?strict ~timeout (t : t) =
     let args : Protocol.frame_is_checked_args = {
       Protocol.timeout = timeout;
       Protocol.strict = strict;
@@ -2554,7 +2554,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let is_disabled ~timeout ?strict ~selector (t : t) =
+  let is_disabled ~selector ?strict ~timeout (t : t) =
     let args : Protocol.frame_is_disabled_args = {
       Protocol.timeout = timeout;
       Protocol.strict = strict;
@@ -2564,7 +2564,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let is_enabled ~timeout ?strict ~selector (t : t) =
+  let is_enabled ~selector ?strict ~timeout (t : t) =
     let args : Protocol.frame_is_enabled_args = {
       Protocol.timeout = timeout;
       Protocol.strict = strict;
@@ -2574,7 +2574,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let is_hidden ?strict ~selector (t : t) =
+  let is_hidden ~selector ?strict (t : t) =
     let args : Protocol.frame_is_hidden_args = {
       Protocol.strict = strict;
       Protocol.selector = selector;
@@ -2583,7 +2583,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let is_visible ?strict ~selector (t : t) =
+  let is_visible ~selector ?strict (t : t) =
     let args : Protocol.frame_is_visible_args = {
       Protocol.strict = strict;
       Protocol.selector = selector;
@@ -2592,7 +2592,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let is_editable ~timeout ?strict ~selector (t : t) =
+  let is_editable ~selector ?strict ~timeout (t : t) =
     let args : Protocol.frame_is_editable_args = {
       Protocol.timeout = timeout;
       Protocol.strict = strict;
@@ -2602,7 +2602,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let press ~timeout ?no_wait_after ?delay ~key ?strict ~selector (t : t) =
+  let press ~selector ?strict ~key ?delay ?no_wait_after ~timeout (t : t) =
     let args : Protocol.frame_press_args = {
       Protocol.timeout = timeout;
       Protocol.no_wait_after = no_wait_after;
@@ -2615,7 +2615,7 @@ module Frame = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let query_selector ?strict ~selector (t : t) =
+  let query_selector ~selector ?strict (t : t) =
     let args : Protocol.frame_query_selector_args = {
       Protocol.strict = strict;
       Protocol.selector = selector;
@@ -2640,7 +2640,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let select_option ~timeout ?force ?options ?elements ?strict ~selector (t : t) =
+  let select_option ~selector ?strict ?elements ?options ?force ~timeout (t : t) =
     let args : Protocol.frame_select_option_args = {
       Protocol.timeout = timeout;
       Protocol.force = force;
@@ -2653,7 +2653,7 @@ module Frame = struct
     | Ok res -> res.Protocol.values
     | Error e -> raise (Error e)
 
-  let set_content ?wait_until ~timeout ~html (t : t) =
+  let set_content ~html ~timeout ?wait_until (t : t) =
     let args : Protocol.frame_set_content_args = {
       Protocol.wait_until = wait_until;
       Protocol.timeout = timeout;
@@ -2663,7 +2663,7 @@ module Frame = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let set_input_files ~timeout ?streams ?local_paths ?directory_stream ?local_directory ?payloads ?strict ~selector (t : t) =
+  let set_input_files ~selector ?strict ?payloads ?local_directory ?directory_stream ?local_paths ?streams ~timeout (t : t) =
     let args : Protocol.frame_set_input_files_args = {
       Protocol.timeout = timeout;
       Protocol.streams = streams;
@@ -2678,7 +2678,7 @@ module Frame = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let tap ?trial ~timeout ?position ?modifiers ?force ?strict ~selector (t : t) =
+  let tap ~selector ?strict ?force ?modifiers ?position ~timeout ?trial (t : t) =
     let args : Protocol.frame_tap_args = {
       Protocol.trial = trial;
       Protocol.timeout = timeout;
@@ -2692,7 +2692,7 @@ module Frame = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let text_content ~timeout ?strict ~selector (t : t) =
+  let text_content ~selector ?strict ~timeout (t : t) =
     let args : Protocol.frame_text_content_args = {
       Protocol.timeout = timeout;
       Protocol.strict = strict;
@@ -2707,7 +2707,7 @@ module Frame = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let type_ ~timeout ?delay ~text ?strict ~selector (t : t) =
+  let type_ ~selector ?strict ~text ?delay ~timeout (t : t) =
     let args : Protocol.frame_type_args = {
       Protocol.timeout = timeout;
       Protocol.delay = delay;
@@ -2719,7 +2719,7 @@ module Frame = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let uncheck ?trial ~timeout ?position ?force ?strict ~selector (t : t) =
+  let uncheck ~selector ?strict ?force ?position ~timeout ?trial (t : t) =
     let args : Protocol.frame_uncheck_args = {
       Protocol.trial = trial;
       Protocol.timeout = timeout;
@@ -2740,7 +2740,7 @@ module Frame = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let wait_for_function ?polling_interval ~timeout ~arg ?is_function ~expression (t : t) =
+  let wait_for_function ~expression ?is_function ~arg ~timeout ?polling_interval (t : t) =
     let args : Protocol.frame_wait_for_function_args = {
       Protocol.polling_interval = polling_interval;
       Protocol.timeout = timeout;
@@ -2752,7 +2752,7 @@ module Frame = struct
     | Ok res -> ({ conn = t.conn; guid = res.Protocol.handle.guid } : js_handle_type obj)
     | Error e -> raise (Error e)
 
-  let wait_for_selector ?omit_return_value ?state ~timeout ?strict ~selector (t : t) =
+  let wait_for_selector ~selector ?strict ~timeout ?state ?omit_return_value (t : t) =
     let args : Protocol.frame_wait_for_selector_args = {
       Protocol.omit_return_value = omit_return_value;
       Protocol.state = state;
@@ -2764,7 +2764,7 @@ module Frame = struct
     | Ok res -> res.Protocol.element
     | Error e -> raise (Error e)
 
-  let expect ~timeout ~is_not ?use_inner_text ?expected_value ?expected_number ?expected_text ?pseudo ?expression_arg ~expression ?selector (t : t) =
+  let expect ?selector ~expression ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not ~timeout (t : t) =
     let args : Protocol.frame_expect_args = {
       Protocol.timeout = timeout;
       Protocol.is_not = is_not;
@@ -2838,7 +2838,7 @@ module Worker = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let evaluate_expression ~arg ?is_function ~expression (t : t) =
+  let evaluate_expression ~expression ?is_function ~arg (t : t) =
     let args : Protocol.worker_evaluate_expression_args = {
       Protocol.arg = arg;
       Protocol.is_function = is_function;
@@ -2848,7 +2848,7 @@ module Worker = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let evaluate_expression_handle ~arg ?is_function ~expression (t : t) =
+  let evaluate_expression_handle ~expression ?is_function ~arg (t : t) =
     let args : Protocol.worker_evaluate_expression_handle_args = {
       Protocol.arg = arg;
       Protocol.is_function = is_function;
@@ -2858,7 +2858,7 @@ module Worker = struct
     | Ok res -> ({ conn = t.conn; guid = res.Protocol.handle.guid } : js_handle_type obj)
     | Error e -> raise (Error e)
 
-  let update_subscription ~enabled ~event (t : t) =
+  let update_subscription ~event ~enabled (t : t) =
     let args : Protocol.worker_update_subscription_args = {
       Protocol.enabled = enabled;
       Protocol.event = event;
@@ -2909,7 +2909,7 @@ module Js_handle = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let evaluate_expression ~arg ?is_function ~expression (t : t) =
+  let evaluate_expression ~expression ?is_function ~arg (t : t) =
     let args : Protocol.js_handle_evaluate_expression_args = {
       Protocol.arg = arg;
       Protocol.is_function = is_function;
@@ -2919,7 +2919,7 @@ module Js_handle = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let evaluate_expression_handle ~arg ?is_function ~expression (t : t) =
+  let evaluate_expression_handle ~expression ?is_function ~arg (t : t) =
     let args : Protocol.js_handle_evaluate_expression_handle_args = {
       Protocol.arg = arg;
       Protocol.is_function = is_function;
@@ -2974,7 +2974,7 @@ end
 module Element_handle = struct
   type t = element_handle_type obj
 
-  let eval_on_selector ~arg ?is_function ~expression ?strict ~selector (t : t) =
+  let eval_on_selector ~selector ?strict ~expression ?is_function ~arg (t : t) =
     let args : Protocol.element_handle_eval_on_selector_args = {
       Protocol.arg = arg;
       Protocol.is_function = is_function;
@@ -2986,7 +2986,7 @@ module Element_handle = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let eval_on_selector_all ~arg ?is_function ~expression ~selector (t : t) =
+  let eval_on_selector_all ~selector ~expression ?is_function ~arg (t : t) =
     let args : Protocol.element_handle_eval_on_selector_all_args = {
       Protocol.arg = arg;
       Protocol.is_function = is_function;
@@ -3002,7 +3002,7 @@ module Element_handle = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let check ?trial ~timeout ?position ?force (t : t) =
+  let check ?force ?position ~timeout ?trial (t : t) =
     let args : Protocol.element_handle_check_args = {
       Protocol.trial = trial;
       Protocol.timeout = timeout;
@@ -3013,7 +3013,7 @@ module Element_handle = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let click ?steps ?trial ~timeout ?click_count ?button ?delay ?position ?modifiers ?no_wait_after ?force (t : t) =
+  let click ?force ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ~timeout ?trial ?steps (t : t) =
     let args : Protocol.element_handle_click_args = {
       Protocol.steps = steps;
       Protocol.trial = trial;
@@ -3035,7 +3035,7 @@ module Element_handle = struct
     | Ok res -> res.Protocol.frame
     | Error e -> raise (Error e)
 
-  let dblclick ?steps ?trial ~timeout ?button ?delay ?position ?modifiers ?force (t : t) =
+  let dblclick ?force ?modifiers ?position ?delay ?button ~timeout ?trial ?steps (t : t) =
     let args : Protocol.element_handle_dblclick_args = {
       Protocol.steps = steps;
       Protocol.trial = trial;
@@ -3050,7 +3050,7 @@ module Element_handle = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let dispatch_event ~event_init ~type_ (t : t) =
+  let dispatch_event ~type_ ~event_init (t : t) =
     let args : Protocol.element_handle_dispatch_event_args = {
       Protocol.event_init = event_init;
       Protocol.type_ = type_;
@@ -3059,7 +3059,7 @@ module Element_handle = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let fill ~timeout ?force ~value (t : t) =
+  let fill ~value ?force ~timeout (t : t) =
     let args : Protocol.element_handle_fill_args = {
       Protocol.timeout = timeout;
       Protocol.force = force;
@@ -3082,7 +3082,7 @@ module Element_handle = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let hover ?trial ~timeout ?position ?modifiers ?force (t : t) =
+  let hover ?force ?modifiers ?position ~timeout ?trial (t : t) =
     let args : Protocol.element_handle_hover_args = {
       Protocol.trial = trial;
       Protocol.timeout = timeout;
@@ -3144,7 +3144,7 @@ module Element_handle = struct
     | Ok res -> res.Protocol.frame
     | Error e -> raise (Error e)
 
-  let press ?no_wait_after ~timeout ?delay ~key (t : t) =
+  let press ~key ?delay ~timeout ?no_wait_after (t : t) =
     let args : Protocol.element_handle_press_args = {
       Protocol.no_wait_after = no_wait_after;
       Protocol.timeout = timeout;
@@ -3155,7 +3155,7 @@ module Element_handle = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let query_selector ?strict ~selector (t : t) =
+  let query_selector ~selector ?strict (t : t) =
     let args : Protocol.element_handle_query_selector_args = {
       Protocol.strict = strict;
       Protocol.selector = selector;
@@ -3172,7 +3172,7 @@ module Element_handle = struct
     | Ok res -> res.Protocol.elements
     | Error e -> raise (Error e)
 
-  let screenshot ?style ?mask_color ?mask ?scale ?animations ?caret ?omit_background ?quality ?type_ ~timeout (t : t) =
+  let screenshot ~timeout ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (t : t) =
     let args : Protocol.element_handle_screenshot_args = {
       Protocol.style = style;
       Protocol.mask_color = mask_color;
@@ -3197,7 +3197,7 @@ module Element_handle = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let select_option ~timeout ?force ?options ?elements (t : t) =
+  let select_option ?elements ?options ?force ~timeout (t : t) =
     let args : Protocol.element_handle_select_option_args = {
       Protocol.timeout = timeout;
       Protocol.force = force;
@@ -3208,7 +3208,7 @@ module Element_handle = struct
     | Ok res -> res.Protocol.values
     | Error e -> raise (Error e)
 
-  let select_text ~timeout ?force (t : t) =
+  let select_text ?force ~timeout (t : t) =
     let args : Protocol.element_handle_select_text_args = {
       Protocol.timeout = timeout;
       Protocol.force = force;
@@ -3217,7 +3217,7 @@ module Element_handle = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let set_input_files ~timeout ?streams ?local_paths ?directory_stream ?local_directory ?payloads (t : t) =
+  let set_input_files ?payloads ?local_directory ?directory_stream ?local_paths ?streams ~timeout (t : t) =
     let args : Protocol.element_handle_set_input_files_args = {
       Protocol.timeout = timeout;
       Protocol.streams = streams;
@@ -3230,7 +3230,7 @@ module Element_handle = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let tap ?trial ~timeout ?position ?modifiers ?force (t : t) =
+  let tap ?force ?modifiers ?position ~timeout ?trial (t : t) =
     let args : Protocol.element_handle_tap_args = {
       Protocol.trial = trial;
       Protocol.timeout = timeout;
@@ -3247,7 +3247,7 @@ module Element_handle = struct
     | Ok res -> res.Protocol.value
     | Error e -> raise (Error e)
 
-  let type_ ~timeout ?delay ~text (t : t) =
+  let type_ ~text ?delay ~timeout (t : t) =
     let args : Protocol.element_handle_type_args = {
       Protocol.timeout = timeout;
       Protocol.delay = delay;
@@ -3257,7 +3257,7 @@ module Element_handle = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let uncheck ?trial ~timeout ?position ?force (t : t) =
+  let uncheck ?force ?position ~timeout ?trial (t : t) =
     let args : Protocol.element_handle_uncheck_args = {
       Protocol.trial = trial;
       Protocol.timeout = timeout;
@@ -3268,7 +3268,7 @@ module Element_handle = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let wait_for_element_state ~timeout ~state (t : t) =
+  let wait_for_element_state ~state ~timeout (t : t) =
     let args : Protocol.element_handle_wait_for_element_state_args = {
       Protocol.timeout = timeout;
       Protocol.state = state;
@@ -3277,7 +3277,7 @@ module Element_handle = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let wait_for_selector ?state ~timeout ?strict ~selector (t : t) =
+  let wait_for_selector ~selector ?strict ~timeout ?state (t : t) =
     let args : Protocol.element_handle_wait_for_selector_args = {
       Protocol.state = state;
       Protocol.timeout = timeout;
@@ -3356,7 +3356,7 @@ module Route = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let continue ~is_fallback ?post_data ?headers ?method_ ?url (t : t) =
+  let continue ?url ?method_ ?headers ?post_data ~is_fallback (t : t) =
     let args : Protocol.route_continue_args = {
       Protocol.is_fallback = is_fallback;
       Protocol.post_data = Option.map Base64.encode_exn post_data;
@@ -3368,7 +3368,7 @@ module Route = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let fulfill ?fetch_response_uid ?is_base64 ?body ?headers ?status (t : t) =
+  let fulfill ?status ?headers ?body ?is_base64 ?fetch_response_uid (t : t) =
     let args : Protocol.route_fulfill_args = {
       Protocol.fetch_response_uid = fetch_response_uid;
       Protocol.is_base64 = is_base64;
@@ -3395,7 +3395,7 @@ module Web_socket_route = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let send_to_page ~is_base64 ~message (t : t) =
+  let send_to_page ~message ~is_base64 (t : t) =
     let args : Protocol.web_socket_route_send_to_page_args = {
       Protocol.is_base64 = is_base64;
       Protocol.message = message;
@@ -3404,7 +3404,7 @@ module Web_socket_route = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let send_to_server ~is_base64 ~message (t : t) =
+  let send_to_server ~message ~is_base64 (t : t) =
     let args : Protocol.web_socket_route_send_to_server_args = {
       Protocol.is_base64 = is_base64;
       Protocol.message = message;
@@ -3413,7 +3413,7 @@ module Web_socket_route = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let close_page ~was_clean ?reason ?code (t : t) =
+  let close_page ?code ?reason ~was_clean (t : t) =
     let args : Protocol.web_socket_route_close_page_args = {
       Protocol.was_clean = was_clean;
       Protocol.reason = reason;
@@ -3423,7 +3423,7 @@ module Web_socket_route = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let close_server ~was_clean ?reason ?code (t : t) =
+  let close_server ?code ?reason ~was_clean (t : t) =
     let args : Protocol.web_socket_route_close_server_args = {
       Protocol.was_clean = was_clean;
       Protocol.reason = reason;
@@ -3745,7 +3745,7 @@ end
 module Tracing = struct
   type t = tracing_type obj
 
-  let tracing_start ?live ?screenshots ?snapshots ?name (t : t) =
+  let tracing_start ?name ?snapshots ?screenshots ?live (t : t) =
     let args : Protocol.tracing_tracing_start_args = {
       Protocol.live = live;
       Protocol.screenshots = screenshots;
@@ -3756,7 +3756,7 @@ module Tracing = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let tracing_start_chunk ?title ?name (t : t) =
+  let tracing_start_chunk ?name ?title (t : t) =
     let args : Protocol.tracing_tracing_start_chunk_args = {
       Protocol.title = title;
       Protocol.name = name;
@@ -3765,7 +3765,7 @@ module Tracing = struct
     | Ok res -> res.Protocol.trace_name
     | Error e -> raise (Error e)
 
-  let tracing_group ?location ~name (t : t) =
+  let tracing_group ~name ?location (t : t) =
     let args : Protocol.tracing_tracing_group_args = {
       Protocol.location = location;
       Protocol.name = name;
@@ -3792,7 +3792,7 @@ module Tracing = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let har_start ~options ?page (t : t) =
+  let har_start ?page ~options (t : t) =
     let args : Protocol.tracing_har_start_args = {
       Protocol.options = options;
       Protocol.page = page;
@@ -3893,7 +3893,7 @@ end
 module Cdp_session = struct
   type t = cdp_session_type obj
 
-  let send ?params ~method_ (t : t) =
+  let send ~method_ ?params (t : t) =
     let args : Protocol.cdp_session_send_args = {
       Protocol.params = params;
       Protocol.method_ = method_;
@@ -3934,7 +3934,7 @@ end
 module Android = struct
   type t = android_type obj
 
-  let devices ?omit_driver_install ?port ?host (t : t) =
+  let devices ?host ?port ?omit_driver_install (t : t) =
     let args : Protocol.android_devices_args = {
       Protocol.omit_driver_install = omit_driver_install;
       Protocol.port = port;
@@ -3989,7 +3989,7 @@ end
 module Android_device = struct
   type t = android_device_type obj
 
-  let wait ~timeout ?state ~android_selector (t : t) =
+  let wait ~android_selector ?state ~timeout (t : t) =
     let args : Protocol.android_device_wait_args = {
       Protocol.timeout = timeout;
       Protocol.state = state;
@@ -3999,7 +3999,7 @@ module Android_device = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let fill ~timeout ~text ~android_selector (t : t) =
+  let fill ~android_selector ~text ~timeout (t : t) =
     let args : Protocol.android_device_fill_args = {
       Protocol.timeout = timeout;
       Protocol.text = text;
@@ -4009,7 +4009,7 @@ module Android_device = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let tap ~timeout ?duration ~android_selector (t : t) =
+  let tap ~android_selector ?duration ~timeout (t : t) =
     let args : Protocol.android_device_tap_args = {
       Protocol.timeout = timeout;
       Protocol.duration = duration;
@@ -4019,7 +4019,7 @@ module Android_device = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let drag ~timeout ?speed ~dest ~android_selector (t : t) =
+  let drag ~android_selector ~dest ?speed ~timeout (t : t) =
     let args : Protocol.android_device_drag_args = {
       Protocol.timeout = timeout;
       Protocol.speed = speed;
@@ -4030,7 +4030,7 @@ module Android_device = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let fling ~timeout ?speed ~direction ~android_selector (t : t) =
+  let fling ~android_selector ~direction ?speed ~timeout (t : t) =
     let args : Protocol.android_device_fling_args = {
       Protocol.timeout = timeout;
       Protocol.speed = speed;
@@ -4041,7 +4041,7 @@ module Android_device = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let long_tap ~timeout ~android_selector (t : t) =
+  let long_tap ~android_selector ~timeout (t : t) =
     let args : Protocol.android_device_long_tap_args = {
       Protocol.timeout = timeout;
       Protocol.android_selector = android_selector;
@@ -4050,7 +4050,7 @@ module Android_device = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let pinch_close ~timeout ?speed ~percent ~android_selector (t : t) =
+  let pinch_close ~android_selector ~percent ?speed ~timeout (t : t) =
     let args : Protocol.android_device_pinch_close_args = {
       Protocol.timeout = timeout;
       Protocol.speed = speed;
@@ -4061,7 +4061,7 @@ module Android_device = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let pinch_open ~timeout ?speed ~percent ~android_selector (t : t) =
+  let pinch_open ~android_selector ~percent ?speed ~timeout (t : t) =
     let args : Protocol.android_device_pinch_open_args = {
       Protocol.timeout = timeout;
       Protocol.speed = speed;
@@ -4072,7 +4072,7 @@ module Android_device = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let scroll ~timeout ?speed ~percent ~direction ~android_selector (t : t) =
+  let scroll ~android_selector ~direction ~percent ?speed ~timeout (t : t) =
     let args : Protocol.android_device_scroll_args = {
       Protocol.timeout = timeout;
       Protocol.speed = speed;
@@ -4084,7 +4084,7 @@ module Android_device = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let swipe ~timeout ?speed ~percent ~direction ~android_selector (t : t) =
+  let swipe ~android_selector ~direction ~percent ?speed ~timeout (t : t) =
     let args : Protocol.android_device_swipe_args = {
       Protocol.timeout = timeout;
       Protocol.speed = speed;
@@ -4133,7 +4133,7 @@ module Android_device = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let input_swipe ~steps ~segments (t : t) =
+  let input_swipe ~segments ~steps (t : t) =
     let args : Protocol.android_device_input_swipe_args = {
       Protocol.steps = steps;
       Protocol.segments = segments;
@@ -4142,7 +4142,7 @@ module Android_device = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let input_drag ~steps ~to_ ~from (t : t) =
+  let input_drag ~from ~to_ ~steps (t : t) =
     let args : Protocol.android_device_input_drag_args = {
       Protocol.steps = steps;
       Protocol.to_ = to_;
@@ -4152,7 +4152,7 @@ module Android_device = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let launch_browser ?test_id_attribute_name ?selector_engines ?service_workers ?strict_selectors ?record_video ?base_url ?contrast ?accept_downloads ?forced_colors ?reduced_motion ?color_scheme ?has_touch ?is_mobile ?device_scale_factor ?http_credentials ?offline ?extra_http_headers ?permissions ?geolocation ?timezone_id ?locale ?user_agent ?bypass_csp ?java_script_enabled ?client_certificates ?ignore_https_errors ?screen ?viewport ?no_default_viewport ?proxy ?args ?pkg (t : t) =
+  let launch_browser ?pkg ?args ?proxy ?no_default_viewport ?viewport ?screen ?ignore_https_errors ?client_certificates ?java_script_enabled ?bypass_csp ?user_agent ?locale ?timezone_id ?geolocation ?permissions ?extra_http_headers ?offline ?http_credentials ?device_scale_factor ?is_mobile ?has_touch ?color_scheme ?reduced_motion ?forced_colors ?accept_downloads ?contrast ?base_url ?record_video ?strict_selectors ?service_workers ?selector_engines ?test_id_attribute_name (t : t) =
     let args : Protocol.android_device_launch_browser_args = {
       Protocol.test_id_attribute_name = test_id_attribute_name;
       Protocol.selector_engines = selector_engines;
@@ -4207,7 +4207,7 @@ module Android_device = struct
     | Ok res -> Base64.decode_exn res.Protocol.result
     | Error e -> raise (Error e)
 
-  let install_apk ?args ~file (t : t) =
+  let install_apk ~file ?args (t : t) =
     let args : Protocol.android_device_install_apk_args = {
       Protocol.args = args;
       Protocol.file = Base64.encode_exn file;
@@ -4216,7 +4216,7 @@ module Android_device = struct
     | Ok _res -> ()
     | Error e -> raise (Error e)
 
-  let push ?mode ~path ~file (t : t) =
+  let push ~file ~path ?mode (t : t) =
     let args : Protocol.android_device_push_args = {
       Protocol.mode = mode;
       Protocol.path = path;

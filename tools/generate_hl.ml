@@ -16,7 +16,7 @@ let ocaml_name ?(is_type=false) s =
   let buf = Buffer.create (String.length s * 2) in
   String.iteri (fun i c ->
     if is_upper c then (
-      if i > 0 && s.[i-1] <> '_' && s.[i-1] <> '-' && 
+      if i > 0 && s.[i-1] <> '_' && s.[i-1] <> '-' &&
          not (is_upper s.[i-1] && (i+1 = String.length s || is_upper s.[i+1])) then
         Buffer.add_char buf '_';
       Buffer.add_char buf (to_lower c)
@@ -76,9 +76,9 @@ let flatten_props props =
   aux props []
 
 let is_optional pv =
-  let type_str = match pv with 
-    | `O po -> (match List.assoc_opt "type" po with Some (`String s) -> s | _ -> "") 
-    | `String s -> s | _ -> "" 
+  let type_str = match pv with
+    | `O po -> (match List.assoc_opt "type" po with Some (`String s) -> s | _ -> "")
+    | `String s -> s | _ -> ""
   in
   String.ends_with ~suffix:"?" type_str
 
@@ -94,7 +94,7 @@ let () =
     pf "type %s_type\n" (ocaml_type_name k)
   ) interfaces;
   pf "\n";
-  
+
   List.iter (fun (k, (v: Yaml.value)) ->
     if Hashtbl.mem interfaces k then begin
       let module_name = String.capitalize_ascii (ocaml_name k) in
@@ -105,13 +105,13 @@ let () =
           (match List.assoc_opt "initializer" o with
            | Some (`O init_props) ->
                List.iter (fun (prop_k, prop_v) ->
-                 let type_str_ret = match prop_v with 
-                   | `O ro -> (match List.assoc_opt "type" ro with Some (`String s) -> s | _ -> "") 
-                   | `String s -> s | _ -> "" 
+                 let type_str_ret = match prop_v with
+                   | `O ro -> (match List.assoc_opt "type" ro with Some (`String s) -> s | _ -> "")
+                   | `String s -> s | _ -> ""
                  in
                  let is_opt = is_optional prop_v in
                  let type_str_base = if is_opt then String.sub type_str_ret 0 (String.length type_str_ret - 1) else type_str_ret in
-                 
+
                  if Hashtbl.mem interfaces type_str_base then begin
                    pf "  let %s (t : t) =\n" (ocaml_name prop_k);
                    pf "    match Hashtbl.find_opt t.conn.objects t.guid with\n";
@@ -128,7 +128,7 @@ let () =
                  end
                ) init_props
            | _ -> ());
-      
+
           (match List.assoc_opt "commands" o with
            | Some (`O commands) ->
                List.iter (fun (cmd_k, cmd_v) ->
@@ -136,7 +136,7 @@ let () =
                  | `O cmd_o ->
                      let fn_name = ocaml_name cmd_k in
                      let raw_args_t = k ^ "_" ^ cmd_k ^ "_args" in
-                     
+
                      let props = match List.assoc_opt "parameters" cmd_o with
                        | Some (`O p) -> flatten_props (get_properties "" p)
                        | _ -> []
@@ -145,25 +145,25 @@ let () =
                        | Some (`O p) -> flatten_props (get_properties "" p)
                        | _ -> []
                      in
-                     
+
                      let args_sig = Buffer.create 100 in
-                     List.iter (fun (pk, pv) ->
+                     props |> List.rev |> List.iter (fun (pk, pv) ->
                        let is_opt = is_optional pv in
                        let ocaml_pk = ocaml_name pk in
                        if is_opt then
                          Buffer.add_string args_sig (sprintf "?%s " ocaml_pk)
                        else
                          Buffer.add_string args_sig (sprintf "~%s " ocaml_pk)
-                     ) props;
-                     
+                     );
+
                      pf "  let %s %s(t : t) =\n" fn_name (Buffer.contents args_sig);
-                     
+
                      if List.length props > 0 then begin
                        pf "    let args : Protocol.%s = {\n" (ocaml_type_name raw_args_t);
                        List.iter (fun (pk, pv) ->
-                         let type_str = match pv with 
-                           | `O po -> (match List.assoc_opt "type" po with Some (`String s) -> s | _ -> "") 
-                           | `String s -> s | _ -> "" 
+                         let type_str = match pv with
+                           | `O po -> (match List.assoc_opt "type" po with Some (`String s) -> s | _ -> "")
+                           | `String s -> s | _ -> ""
                          in
                          let is_bin = (type_str = "binary" || type_str = "binary?") in
                          let ocaml_pk = ocaml_name pk in
@@ -179,22 +179,22 @@ let () =
                        ) props;
                        pf "    } in\n"
                      end;
-                     
+
                      let params_str = if List.length props > 0 then "args" else "()" in
                      pf "    match Api.%s.%s t.conn t.guid %s with\n" module_name fn_name params_str;
-                     
+
                      if List.length rets = 0 then
                        pf "    | Ok _res -> ()\n"
                      else if List.length rets = 1 then begin
                        let (rk, rv) = List.hd rets in
-                       let type_str_ret = match rv with 
-                         | `O ro -> (match List.assoc_opt "type" ro with Some (`String s) -> s | _ -> "") 
-                         | `String s -> s | _ -> "" 
+                       let type_str_ret = match rv with
+                         | `O ro -> (match List.assoc_opt "type" ro with Some (`String s) -> s | _ -> "")
+                         | `String s -> s | _ -> ""
                        in
                        let is_bin = (type_str_ret = "binary" || type_str_ret = "binary?") in
-                       
+
                        let field_name = ocaml_name rk in
-                       
+
                        if Hashtbl.mem interfaces type_str_ret then
                          pf "    | Ok res -> ({ conn = t.conn; guid = res.Protocol.%s.guid } : %s_type obj)\n" field_name (ocaml_type_name type_str_ret)
                        else if is_bin then begin
@@ -211,7 +211,7 @@ let () =
                  | _ -> ()
                ) commands
            | _ -> ());
-          
+
           (match List.assoc_opt "events" o with
            | Some (`O events) ->
                List.iter (fun (ev_k, ev_v) ->
@@ -219,12 +219,12 @@ let () =
                  | `O ev_o ->
                      let fn_name = "on_" ^ ocaml_name ev_k in
                      let raw_event_t = k ^ "_" ^ ev_k ^ "_event" in
-                     
+
                      let has_params = match List.assoc_opt "parameters" ev_o with
                        | Some (`O _) -> true
                        | _ -> false
                      in
-                     
+
                      if has_params then begin
                        pf "  let %s (t : t) cb =\n" fn_name;
                        pf "    let _id = Connection.add_listener t.conn t.guid \"%s\" (fun msg ->\n" ev_k;
@@ -261,7 +261,7 @@ let () =
                  | _ -> ()
                ) events
            | _ -> ());
-           
+
           pf "end\n\n"
       | _ -> pf "end\n\n"
     end
