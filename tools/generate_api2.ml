@@ -115,13 +115,15 @@ module Parser = struct
                 | "enum" ->
                     let literals =
                         match List.assoc_opt "literals" d with
-                        | Some (`A l) -> List.map (function
-                            | `String s -> s
-                            | `Float f ->
-                                let s = string_of_float f in
-                                if String.ends_with ~suffix:"." s then String.sub s 0 (String.length s - 1) else s
-                            | `Null -> "null"
-                            | _ -> failwith "unknown literal") l
+                        | Some (`A l) ->
+                            l |> List.map (function
+                                | `String s -> s
+                                | `Float f ->
+                                    let s = string_of_float f in
+                                    if String.ends_with ~suffix:"." s then String.sub s 0 (String.length s - 1) else s
+                                | `Null -> "null"
+                                | _ -> failwith "unknown literal"
+                            )
                         | _ -> []
                     in
                     Types.EnumType { literals }
@@ -132,17 +134,17 @@ module Parser = struct
 
     and parse_properties env props_d =
         let rec resolve_props d =
-            List.concat_map (fun (k, v) ->
+            d |> List.concat_map (fun (k, v) ->
                 if String.starts_with ~prefix:"$mixin" k then
                     let mixin_name = match v with `String s -> s | _ -> failwith "mixin expected string" in
                     let mixin_props = match List.assoc_opt mixin_name env with Some p -> p | None -> failwithf "mixin %s not found" mixin_name in
                     resolve_props mixin_props
                 else
                     [(k, v)]
-            ) d
+            )
         in
         let resolved_props = resolve_props props_d in
-        let properties = List.map (fun (k, v) -> (k, parse_type env k v)) resolved_props in
+        let properties = resolved_props |> List.map (fun (k, v) -> (k, parse_type env k v)) in
         { Types.properties }
 
     and parse_object env d =
@@ -170,13 +172,15 @@ module Parser = struct
         | "enum" ->
             let literals =
                 match List.assoc_opt "literals" d with
-                | Some (`A l) -> List.map (function
-                    | `String s -> s
-                    | `Float f ->
-                        let s = string_of_float f in
-                        if String.ends_with ~suffix:"." s then String.sub s 0 (String.length s - 1) else s
-                    | `Null -> "null"
-                    | _ -> failwith "unknown literal") l
+                | Some (`A l) ->
+                    l |> List.map (function
+                        | `String s -> s
+                        | `Float f ->
+                            let s = string_of_float f in
+                            if String.ends_with ~suffix:"." s then String.sub s 0 (String.length s - 1) else s
+                        | `Null -> "null"
+                        | _ -> failwith "unknown literal"
+                    )
                 | _ -> []
             in
             Some (Types.Enum { literals })
@@ -195,19 +199,19 @@ module Parser = struct
         let top_dict = get_dict yaml in
 
         let mixins =
-            List.filter_map (fun (name, v) ->
+            top_dict |> List.filter_map (fun (name, v) ->
                 let d = get_dict v in
                 if opt_string "type" d = Some "mixin" then
                     Some (name, opt_dict "properties" d)
                 else None
-            ) top_dict
+            )
         in
 
         let top_defs =
-            List.filter_map (fun (name, v) ->
+            top_dict |> List.filter_map (fun (name, v) ->
                 let d = get_dict v in
                 Option.map (fun def -> (name, def)) (parse_top_def mixins name d)
-            ) top_dict
+            )
         in
         { Types.top_defs }
 end
