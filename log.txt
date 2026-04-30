@@ -1,1451 +1,2058 @@
-  type: object
-  properties:
-    file: string
-    line: int
---
-  type: object
-  properties:
-    location:
-      type: object?
-      properties:
-        file: string
-        line: int?
---
-  type: object
-  properties:
-    id: int
-    stack:
-      type: array?
-      items: StackFrame
-
-Point:
-  type: object
-  properties:
-    x: float
-    y: float
---
-  type: object
-  properties:
-    x: float
-    y: float
---
-  type: mixin
-  properties:
-    duration: float?
-    position:
-      type: enum?
-      literals:
-      - top-left
-      - top
---
-  type: object
-  # Exactly one of the properties must be present.
-  properties:
-    n: float?
---
-      type: enum?
-      literals:
-      - null
-      - undefined
---
-      type: object?
-      properties:
-        b: binary
-        k:
-          type: enum
-          literals:
-          - i8
-          - ui8
---
-      type: object?
-      properties:
-        m: string
-        n: string
---
-      type: object?
-      properties:
-        p: string
-        f: string
---
-      type: array?
-      items: SerializedValue
-    # Object with keys and values.
-    o:
-      type: array?
-      items:
-        type: object
-        properties:
-          k: string
-          v: SerializedValue
---
-  type: object
-  properties:
-    value: SerializedValue
-    handles:
-      type: array
-      items: Channel
-
-
---
-  type: object
-  properties:
-    string: string?
-    regexSource: string?
---
-  type: object
-  properties:
-    name: string
-    source: string
---
-  type: object
-  properties:
-    hash: string
-    hostname: string
---
-  type: object
-  properties:
-    name: string
-    value: string
---
-      type: enum?
-      literals:
-      - Strict
-      - Lax
---
-  type: object
-  properties:
-    name: string
-    value: string
---
-      type: enum
-      literals:
-      - Strict
-      - Lax
---
-  type: object
-  properties:
-    name: string
-    value: string
---
-  type: object
-  properties:
-    name: string
-    version: int
---
-      type: array
-      items:
-        type: object
-        properties:
-          name: string
-          autoIncrement: boolean
---
-            type: array?
-            items: string
-          records:
-            type: array
-            items:
-              type: object
-              properties:
-                key: json?
-                keyEncoded: json?
---
-            type: array
-            items:
-              type: object
-              properties:
-                name: string
-                keyPath: string?
---
-                  type: array?
-                  items: string
-                multiEntry: boolean
-                unique: boolean
---
-  type: object
-  properties:
-    origin: string
-    localStorage:
-      type: array
-      items: NameValue
-    indexedDB:
-      type: array?
-      items: IndexedDBDatabase
-
-OriginStorage:
-  type: object
-  properties:
-    origin: string
-    localStorage:
-      type: array
-      items: NameValue
-    indexedDB:
-      type: array?
-      items: IndexedDBDatabase
-
-SerializedError:
-  type: object
-  properties:
-    error:
-      type: object?
-      properties:
-        message: string
-        name: string
---
-  type: object
-  properties:
-    zip: boolean?
-    content:
-      type: enum?
-      literals:
-      - embed
-      - attach
---
-      type: enum?
-      literals:
-      - full
-      - minimal
---
-  type: object
-  properties:
-    name: string
-    value: string?
---
-      type: object?
-      properties:
-        name: string
-        mimeType: string?
---
-  type: enum
-  literals:
-  - javascript
-  - python
---
-  type: interface
-
-  initializer:
-    tracing: Tracing
---
-          type: array?
-          items: NameValue
-        method: string?
-        headers:
-          type: array?
-          items: NameValue
-        postData: binary?
-        jsonData: string?
---
-          type: array?
-          items: NameValue
-        multipartData:
-          type: array?
-          items: FormField
-        timeout: float
-        failOnStatusCode: boolean?
---
-          type: array
-          items: string
-
-    storageState:
---
-          type: array
-          items: NetworkCookie
-        origins:
-          type: array
-          items: OriginStorage
-
-    disposeAPIResponse:
---
-  type: object
-  properties:
-    fetchUid: string
-    url: string
---
-      type: array
-      items: NameValue
-
-
---
-  type: enum
-  literals:
-  - load
-  - domcontentloaded
---
-  type: enum
-  literals:
-  - all
-  - since-navigation
---
-  type: mixin
-  properties:
-    omitBackground: boolean?
-    caret:
-      type: enum?
-      literals:
-      - hide
-      - initial
---
-      type: enum?
-      literals:
-      - disabled
-      - allow
---
-      type: enum?
-      literals:
-      - css
-      - device
---
-      type: array?
-      items:
-        type: object
-        properties:
-          frame: Frame
-          selector: string
---
-  type: mixin
-  properties:
-    channel: string?
-    executablePath: string?
---
-      type: array?
-      items: string
-    ignoreAllDefaultArgs: boolean?
-    ignoreDefaultArgs:
-      type: array?
-      items: string
-    handleSIGINT: boolean?
-    handleSIGTERM: boolean?
---
-      type: array?
-      items: NameValue
-    headless: boolean?
-    proxy:
-      type: object?
-      properties:
-        server: string
-        bypass: string?
---
-  type: mixin
-  properties:
-    noDefaultViewport: boolean?
-    viewport:
-      type: object?
-      properties:
-        width: int
-        height: int
---
-      type: object?
-      properties:
-        width: int
-        height: int
---
-      type: array?
-      items:
-        type: object
-        properties:
-          origin: string
-          cert: binary?
---
-      type: object?
-      properties:
-        longitude: float
-        latitude: float
---
-      type: array?
-      items: string
-    extraHTTPHeaders:
-      type: array?
-      items: NameValue
-    offline: boolean?
-    httpCredentials:
-      type: object?
-      properties:
-        username: string
-        password: string
---
-          type: enum?
-          literals:
-          - always
-          - unauthorized
---
-      type: enum?
-      literals:
-      - dark
-      - light
---
-      type: enum?
-      literals:
-      - reduce
-      - no-preference
---
-      type: enum?
-      literals:
-      - active
-      - none
---
-      type: enum?
-      literals:
-      - accept
-      - deny
---
-      type: enum?
-      literals:
-      - no-preference
-      - more
---
-      type: object?
-      properties:
-        dir: string?
-        size:
-          type: object?
-          properties:
-            width: int
-            height: int
---
-          type: object?
-          properties:
-            $mixin: ShowActionsOptions
-    strictSelectors: boolean?
---
-      type: enum?
-      literals:
-      - allow
-      - block
---
-      type: array?
-      items: SelectorEngine
-    testIdAttributeName: string?
-
---
-  type: interface
-
-  initializer:
-    deviceDescriptors:
-      type: array
-      items:
-        type: object
-        properties:
-          name: string
-          descriptor:
-            type: object
-            properties:
-              userAgent: string
-              viewport:
-                type: object
-                properties:
-                  width: int
-                  height: int
---
-                type: object?
-                properties:
-                  width: int
-                  height: int
---
-                type: enum
-                literals:
-                - chromium
-                - firefox
---
-          type: array
-          items: NameValue
-        stacksId: string?
-        mode:
-          type: enum
-          literals:
-            - write
-            - append
---
-          type: array?
-          items: string
-
-    harOpen:
---
-          type: array
-          items: NameValue
-        postData: binary?
-        isNavigationRequest: boolean
---
-          type: enum
-          literals:
-          - error
-          - redirect
---
-          type: array?
-          items: NameValue
-        body: binary?
-
---
-          type: array
-          items: NameValue
-
-    tracingStarted:
---
-  type: interface
-
-  commands:
-
---
-  type: interface
-
-  initializer:
-    chromium: BrowserType
---
-          type: array?
-          items: NameValue
-        failOnStatusCode: boolean?
-        clientCertificates:
-          type: array?
-          items:
-            type: object
-            properties:
-              origin: string
-              cert: binary?
---
-          type: object?
-          properties:
-            username: string
-            password: string
---
-              type: enum?
-              literals:
-              - always
-              - unauthorized
---
-          type: object?
-          properties:
-            server: string
-            bypass: string?
---
-          type: object?
-          properties:
-            cookies:
-              type: array?
-              items: NetworkCookie
-            origins:
-              type: array?
-              items: SetOriginStorage
-        tracesDir: string?
-
---
-  type: object
-  properties:
-    isRecorded: boolean
-    id: string
---
-      type: array
-      items:
-        type: object
-        properties:
-          line: int
-          type: string
-    revealLine: int?
-    group: string?
-
---
-  type: interface
-
-  commands:
-    initialize:
---
-          type: enum
-          literals:
-            - inspecting
-            - recording
---
-          type: array?
-          items: string
-
-    paused:
---
-  type: interface
-
-  commands:
-    socksConnected:
---
-  type: interface
-
-  initializer:
-    executablePath: string
---
-          type: array?
-          items: NameValue
-        slowMo: float?
-        timeout: float
---
-  type: interface
-
-  initializer:
-    version: string
---
-      type: enum
-      literals:
-        - chromium
-        - firefox
---
-          type: object?
-          properties:
-            server: string
-            bypass: string?
---
-          type: object?
-          properties:
-            cookies:
-              type: array?
-              items: SetNetworkCookie
-            origins:
-              type: array?
-              items: SetOriginStorage
-      returns:
-        context: BrowserContext
---
-          type: object?
-          properties:
-            server: string
-            bypass: string?
---
-          type: object?
-          properties:
-            cookies:
-              type: array?
-              items: SetNetworkCookie
-            origins:
-              type: array?
-              items: SetOriginStorage
-      returns:
-        context: BrowserContext
---
-          type: array?
-          items: string
-
-    stopTracing:
---
-  type: mixin
-  properties:
-    type: string
-    text: string
-    args:
-      type: array
-      items: JSHandle
-    location:
-      type: object
-      properties:
-        url: string
-        lineNumber: int
---
-  type: interface
-
-  commands:
-    waitForEventInfo:
---
-          type: object
-          properties:
-            waitId: string
-            phase:
-              type: enum
-              literals:
-              - before
-              - after
---
-  type: interface
-
-  extends: EventTarget
-
---
-      type: object
-      properties:
-        $mixin: ContextOptions
-
---
-          type: array
-          items: SetNetworkCookie
-
-    addInitScript:
---
-          type: array
-          items: string
-      returns:
-        cookies:
-          type: array
-          items: NetworkCookie
-
-    exposeBinding:
---
-          type: array
-          items: string
-        origin: string?
-
---
-          type: array
-          items: NameValue
-
-    setGeolocation:
---
-          type: object?
-          properties:
-            longitude: float
-            latitude: float
---
-          type: object?
-          properties:
-            username: string
-            password: string
---
-          type: array
-          items:
-            type: object
-            properties:
-              glob: string?
-              regexSource: string?
---
-          type: array
-          items:
-            type: object
-            properties:
-              glob: string?
-              regexSource: string?
---
-          type: array
-          items: NetworkCookie
-        origins:
-          type: array
-          items: OriginStorage
-
-    setStorageState:
---
-          type: object?
-          properties:
-            cookies:
-              type: array?
-              items: SetNetworkCookie
-            origins:
-              type: array?
-              items: SetOriginStorage
-
-    pause:
---
-          type: enum?
-          literals:
-          - inspecting
-          - recording
---
-          type: enum?
-          literals:
-          - default
-          - api
---
-          type: array
-          items:
-            type: object
-            properties:
-              name: string
-              lastModifiedMs: float?
---
-          type: array
-          items: WritableStream
-
-    updateSubscription:
---
-          type: enum
-          literals:
-          - console
-          - dialog
---
-          type: object
-          properties:
-            url: string
-            line: int
---
-          type: enum
-          literals:
-          - actionAdded
-          - actionUpdated
---
-  type: interface
-
-  extends: EventTarget
-
---
-      type: object?
-      properties:
-        width: int
-        height: int
---
-          type: array
-          items:
-            type: object
-            properties:
-              $mixin: ConsoleMessage
-
---
-          type: enum?
-          literals:
-          - screen
-          - print
---
-          type: enum?
-          literals:
-          - dark
-          - light
---
-          type: enum?
-          literals:
-          - reduce
-          - no-preference
---
-          type: enum?
-          literals:
-          - active
-          - none
---
-          type: enum?
-          literals:
-          - no-preference
-          - more
---
-          type: object?
-          properties:
-            frame: Frame
-            selector: string
---
-          type: array?
-          items: string
-      flags:
-        snapshot: true
---
-        type:
-          type: enum?
-          literals:
-          - png
-          - jpeg
---
-          type: array
-          items: NameValue
-
-    setNetworkInterceptionPatterns:
---
-          type: array
-          items:
-            type: object
-            properties:
-              glob: string?
-              regexSource: string?
---
-          type: array
-          items:
-            type: object
-            properties:
-              glob: string?
-              regexSource: string?
---
-          type: object
-          properties:
-            width: int
-            height: int
---
-          type: enum?
-          literals:
-          - left
-          - right
---
-          type: enum?
-          literals:
-          - left
-          - right
---
-          type: enum?
-          literals:
-          - left
-          - right
---
-          type: array
-          items: SerializedError
-
-    pdf:
---
-          type: object?
-          properties:
-            top: string?
-            bottom: string?
---
-          type: array
-          items: Request
-
-    startJSCoverage:
---
-          type: array
-          items:
-            type: object
-            properties:
-              url: string
-              scriptId: string
---
-                type: array
-                items:
-                  type: object
-                  properties:
-                    functionName: string
-                    isBlockCoverage: boolean
---
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          startOffset: int
-                          endOffset: int
---
-          type: array
-          items:
-            type: object
-            properties:
-              url: string
-              text: string?
---
-                type: array
-                items:
-                  type: object
-                  properties:
-                    start: int
-                    end: int
---
-          type: object?
-          properties:
-            width: int
-            height: int
---
-          type: enum
-          literals:
-          - console
-          - dialog
---
-          type: object?
-          properties:
-            width: int
-            height: int
---
-  type: interface
-
-  initializer:
-    url: string
---
-      type: array
-      items: LifecycleEvent
-
-  commands:
---
-        type: string?
-      returns:
-        element: ElementHandle
-      flags:
---
-          type: enum?
-          literals:
-            - ai
-            - default
---
-          type: array?
-          items:
-            type: enum
-            literals:
-            - Alt
-            - Control
---
-          type: enum?
-          literals:
-          - left
-          - right
---
-          type: array?
-          items:
-            type: object
-            properties:
-              name: string
-              mimeType: string?
---
-          type: array?
-          items: string
-        streams:
-          type: array?
-          items: WritableStream
-        data:
-          type: array?
-          items:
-            type: object
-            properties:
-              mimeType: string
-              value: string
---
-          type: array?
-          items:
-            type: enum
-            literals:
-            - Alt
-            - Control
---
-          type: enum?
-          literals:
-          - left
-          - right
---
-        type: string
-        eventInit: SerializedArgument
-        timeout: float
-      flags:
---
-          type: array?
-          items:
-            type: enum
-            literals:
-            - Alt
-            - Control
---
-          type: array
-          items: ElementHandle
-      flags:
-        snapshot: true
---
-          type: array?
-          items: ElementHandle
-        options:
-          type: array?
-          items:
-            type: object
-            properties:
-              valueOrLabel: string?
-              value: string?
---
-          type: array
-          items: string
-      flags:
-        slowMo: true
---
-          type: array?
-          items:
-            type: object
-            properties:
-              name: string
-              mimeType: string?
---
-          type: array?
-          items: string
-        streams:
-          type: array?
-          items: WritableStream
-        timeout: float
-      flags:
---
-          type: array?
-          items:
-            type: enum
-            literals:
-            - Alt
-            - Control
---
-    type:
-      title: Type "{text}"
-      parameters:
-        selector: string
---
-          type: enum?
-          literals:
-          - attached
-          - detached
---
-          type: enum?
-          literals:
-          - before
-          - after
---
-          type: array?
-          items: ExpectedTextValue
-        expectedNumber: float?
-        expectedValue: SerializedArgument?
---
-          type: object?
-          properties:
-            value: SerializedValue?
-            ariaSnapshot: string?
---
-          type: array?
-          items: string
-      flags:
-        snapshot: true
---
-          type: object?
-          properties:
-            request: Request?
-        error: string?
---
-  type: interface
-
-  extends: EventTarget
-
---
-          type: enum
-          literals:
-          - console
-        enabled: boolean
---
-  type: interface
-
-  commands:
-
---
-  type: interface
-
-  initializer:
-    preview: string
---
-          type: array
-          items:
-            type: object
-            properties:
-              name: string
-              value: JSHandle
---
-  type: interface
-
-  extends: JSHandle
-
---
-          type: array?
-          items:
-            type: enum
-            literals:
-            - Alt
-            - Control
---
-          type: enum?
-          literals:
-          - left
-          - right
---
-          type: array?
-          items:
-            type: enum
-            literals:
-            - Alt
-            - Control
---
-          type: enum?
-          literals:
-          - left
-          - right
---
-        type: string
-        eventInit: SerializedArgument
-      flags:
-        slowMo: true
---
-          type: array?
-          items:
-            type: enum
-            literals:
-            - Alt
-            - Control
---
-          type: array
-          items: ElementHandle
-      flags:
-        snapshot: true
---
-        type:
-          type: enum?
-          literals:
-          - png
-          - jpeg
---
-          type: array?
-          items: ElementHandle
-        options:
-          type: array?
-          items:
-            type: object
-            properties:
-              valueOrLabel: string?
-              value: string?
---
-          type: array
-          items: string
-      flags:
-        slowMo: true
---
-          type: array?
-          items:
-            type: object
-            properties:
-              name: string
-              mimeType: string?
---
-          type: array?
-          items: string
-        streams:
-          type: array?
-          items: WritableStream
-        timeout: float
-      flags:
---
-          type: array?
-          items:
-            type: enum
-            literals:
-            - Alt
-            - Control
---
-    type:
-      title: Type
-      parameters:
-        text: string
---
-          type: enum
-          literals:
-          - visible
-          - hidden
---
-          type: enum?
-          literals:
-          - attached
-          - detached
---
-  type: interface
-
-  initializer:
-    frame: Frame?
---
-      type: array
-      items: NameValue
-    isNavigationRequest: boolean
-    redirectedFrom: Request?
---
-          type: array
-          items: NameValue
-
-Route:
-  type: interface
-
-  initializer:
-    request: Request
---
-          type: array?
-          items: NameValue
-        postData: binary?
-        isFallback: boolean
---
-          type: array?
-          items: NameValue
-        body: string?
-        isBase64: boolean?
---
-  type: interface
-
-  initializer:
-    url: string
---
-      type: array
-      items: string
-
-  commands:
---
-  type: object
-  properties:
-    startTime: float
-    domainLookupStart: float
---
-  type: interface
-
-  initializer:
-    request: Request
---
-      type: array
-      items: NameValue
-    timing: ResourceTiming
-    fromServiceWorker: boolean
---
-          type: array
-          items: NameValue
-
-    httpVersion:
---
-  type: object
-  properties:
-    issuer: string?
-    protocol: string?
---
-  type: object
-  properties:
-    requestBodySize: int
-    requestHeadersSize: int
---
-  type: object
-  properties:
-    ipAddress: string
-    port: int
---
-  type: interface
-
-  extends: EventTarget
-
---
-  type: interface
-
-  initializer:
-    frame: Frame
---
-      type: array
-      items: SerializedValue
-
-  commands:
---
-  type: interface
-
-  extends: EventTarget
-
---
-          type: object
-          properties:
-            file: string
-            line: int?
---
-          type: object?
-          properties:
-            location:
-              type: object
-              properties:
-                file: string
-                line: int?
---
-  type: interface
-
-  initializer:
-    page: Page?
-    type: string
-    message: string
-    defaultValue: string
-
---
-  type: interface
-
-  commands:
-
---
-          type: object?
-          properties:
-            file: string
-            line: int?
---
-          type: enum
-          literals:
-          - archive
-          - discard
---
-          type: array?
-          items: NameValue
-
-    tracingStop:
---
-  type: interface
-
-  initializer:
-    absolutePath: string
---
-  type: interface
-
-  commands:
-
---
-  type: interface
-
-  commands:
-
---
-  type: interface
-
-  commands:
-
---
-  type: interface
-
-  commands:
-
---
-          type: array
-          items: AndroidDevice
-
-AndroidSocket:
-  type: interface
-
-  commands:
-    write:
---
-  type: interface
-
-  extends: EventTarget
-
---
-          type: enum?
-          literals:
-          - gone
-        timeout: float
---
-          type: enum
-          literals:
-          - up
-          - down
---
-          type: enum
-          literals:
-          - up
-          - down
---
-          type: enum
-          literals:
-          - up
-          - down
---
-          type: array
-          items: Point
-        steps: int
-
---
-          type: array?
-          items: string
-        proxy:
-          type: object?
-          properties:
-            server: string
-            bypass: string?
---
-          type: array?
-          items: string
-
-    push:
---
-  type: object
-  properties:
-    pid: int
-    pkg: string
---
-  type: object
-  properties:
-    checkable: boolean?
-    checked: boolean?
---
-      type: object?
-      properties:
-        androidSelector: AndroidSelector
-    hasDescendant:
-      type: object?
-      properties:
-        androidSelector: AndroidSelector
-        maxDepth: int?
---
-  type: object
-  properties:
-    children:
-      type: array?
-      items: AndroidElementInfo
-    clazz: string
-    desc: string
---
-  type: interface
-
-  commands:
-    send:
+module StackFrame : sig
+    type t = {
+        file : string;
+        line : int;
+        column : int;
+        function_ : string option;
+    }
+end
+
+module Metadata : sig
+    type location_t = {
+        file : string;
+        line : int option;
+        column : int option;
+    }
+    type t = {
+        location : location_t option;
+        title : string option;
+        internal : bool option;
+        step_id : string option;
+    }
+end
+
+module ClientSideCallMetadata : sig
+    type t = {
+        id : int;
+        stack : StackFrame.t array option;
+    }
+end
+
+module Point : sig
+    type t = {
+        x : float;
+        y : float;
+    }
+end
+
+module Rect : sig
+    type t = {
+        x : float;
+        y : float;
+        width : float;
+        height : float;
+    }
+end
+
+module SerializedValue : sig
+    type o_t = {
+        k : string;
+        v : SerializedValue.t;
+    }
+    type r_t = {
+        p : string;
+        f : string;
+    }
+    type e_t = {
+        m : string;
+        n : string;
+        s : string;
+    }
+    type ta_t = {
+        b : string;
+        k : k_t;
+    }
+    type k_t = [
+        | `I8
+        | `Ui8
+        | `Ui8c
+        | `I16
+        | `Ui16
+        | `I32
+        | `Ui32
+        | `F32
+        | `F64
+        | `Bi64
+        | `Bui64
+    ]
+    type v_t = [
+        | `Null
+        | `Undefined
+        | `Nan
+        | `Inf
+        | `Minus_inf
+        | `Minus_zero
+    ]
+    type t = {
+        n : float option;
+        b : bool option;
+        s : string option;
+        v : v_t option;
+        d : string option;
+        u : string option;
+        bi : string option;
+        ta : ta_t option;
+        e : e_t option;
+        r : r_t option;
+        a : SerializedValue.t array option;
+        o : o_t array option;
+        h : int option;
+        id : int option;
+        ref : int option;
+    }
+end
+
+module SerializedArgument : sig
+    type t = {
+        value : SerializedValue.t;
+        handles : Channel.t array;
+    }
+end
+
+module ExpectedTextValue : sig
+    type t = {
+        string : string option;
+        regex_source : string option;
+        regex_flags : string option;
+        match_substring : bool option;
+        ignore_case : bool option;
+        normalize_white_space : bool option;
+    }
+end
+
+module SelectorEngine : sig
+    type t = {
+        name : string;
+        source : string;
+        content_script : bool option;
+    }
+end
+
+module URLPattern : sig
+    type t = {
+        hash : string;
+        hostname : string;
+        password : string;
+        pathname : string;
+        port : string;
+        protocol : string;
+        search : string;
+        username : string;
+    }
+end
+
+module SetNetworkCookie : sig
+    type same_site_t = [
+        | `Strict
+        | `Lax
+        | `None
+    ]
+    type t = {
+        name : string;
+        value : string;
+        url : string option;
+        domain : string option;
+        path : string option;
+        expires : float option;
+        http_only : bool option;
+        secure : bool option;
+        same_site : same_site_t option;
+        partition_key : string option;
+        cr_has_cross_site_ancestor : bool option;
+    }
+end
+
+module NetworkCookie : sig
+    type same_site_t = [
+        | `Strict
+        | `Lax
+        | `None
+    ]
+    type t = {
+        name : string;
+        value : string;
+        domain : string;
+        path : string;
+        expires : float;
+        http_only : bool;
+        secure : bool;
+        same_site : same_site_t;
+        partition_key : string option;
+        cr_has_cross_site_ancestor : bool option;
+    }
+end
+
+module NameValue : sig
+    type t = {
+        name : string;
+        value : string;
+    }
+end
+
+module IndexedDBDatabase : sig
+    type stores_t = {
+        name : string;
+        auto_increment : bool;
+        key_path : string option;
+        key_path_array : string array option;
+        records : records_t array;
+        indexes : indexes_t array;
+    }
+    type indexes_t = {
+        name : string;
+        key_path : string option;
+        key_path_array : string array option;
+        multi_entry : bool;
+        unique : bool;
+    }
+    type records_t = {
+        key : Yojson.t option;
+        key_encoded : Yojson.t option;
+        value : Yojson.t option;
+        value_encoded : Yojson.t option;
+    }
+    type t = {
+        name : string;
+        version : int;
+        stores : stores_t array;
+    }
+end
+
+module SetOriginStorage : sig
+    type t = {
+        origin : string;
+        local_storage : NameValue.t array;
+        indexed_db : IndexedDBDatabase.t array option;
+    }
+end
+
+module OriginStorage : sig
+    type t = {
+        origin : string;
+        local_storage : NameValue.t array;
+        indexed_db : IndexedDBDatabase.t array option;
+    }
+end
+
+module SerializedError : sig
+    type error_t = {
+        message : string;
+        name : string;
+        stack : string option;
+    }
+    type t = {
+        error : error_t option;
+        value : SerializedValue.t option;
+    }
+end
+
+module RecordHarOptions : sig
+    type mode_t = [
+        | `Full
+        | `Minimal
+    ]
+    type content_t = [
+        | `Embed
+        | `Attach
+        | `Omit
+    ]
+    type t = {
+        zip : bool option;
+        content : content_t option;
+        mode : mode_t option;
+        url_glob : string option;
+        url_regex_source : string option;
+        url_regex_flags : string option;
+    }
+end
+
+module FormField : sig
+    type file_t = {
+        name : string;
+        mime_type : string option;
+        buffer : string;
+    }
+    type t = {
+        name : string;
+        value : string option;
+        file : file_t option;
+    }
+end
+
+module SDKLanguage : sig
+    type t = {
+        | `Javascript
+        | `Python
+        | `Java
+        | `Csharp
+    }
+end
+
+module APIResponse : sig
+    type t = {
+        fetch_uid : string;
+        url : string;
+        status : int;
+        status_text : string;
+        headers : NameValue.t array;
+    }
+end
+
+module LifecycleEvent : sig
+    type t = {
+        | `Load
+        | `Domcontentloaded
+        | `Networkidle
+        | `Commit
+    }
+end
+
+module ConsoleMessagesFilter : sig
+    type t = {
+        | `All
+        | `Since_navigation
+    }
+end
+
+module RecorderSource : sig
+    type highlight_t = {
+        line : int;
+        type_ : string;
+    }
+    type t = {
+        is_recorded : bool;
+        id : string;
+        label : string;
+        text : string;
+        language : string;
+        highlight : highlight_t array;
+        reveal_line : int option;
+        group : string option;
+    }
+end
+
+module ResourceTiming : sig
+    type t = {
+        start_time : float;
+        domain_lookup_start : float;
+        domain_lookup_end : float;
+        connect_start : float;
+        secure_connection_start : float;
+        connect_end : float;
+        request_start : float;
+        response_start : float;
+    }
+end
+
+module SecurityDetails : sig
+    type t = {
+        issuer : string option;
+        protocol : string option;
+        subject_name : string option;
+        valid_from : float option;
+        valid_to : float option;
+    }
+end
+
+module RequestSizes : sig
+    type t = {
+        request_body_size : int;
+        request_headers_size : int;
+        response_body_size : int;
+        response_headers_size : int;
+    }
+end
+
+module RemoteAddr : sig
+    type t = {
+        ip_address : string;
+        port : int;
+    }
+end
+
+module AndroidWebView : sig
+    type t = {
+        pid : int;
+        pkg : string;
+        socket_name : string;
+    }
+end
+
+module AndroidSelector : sig
+    type has_descendant_t = {
+        android_selector : AndroidSelector.t;
+        max_depth : int option;
+    }
+    type has_child_t = {
+        android_selector : AndroidSelector.t;
+    }
+    type t = {
+        checkable : bool option;
+        checked : bool option;
+        clazz : string option;
+        clickable : bool option;
+        depth : int option;
+        desc : string option;
+        enabled : bool option;
+        focusable : bool option;
+        focused : bool option;
+        has_child : has_child_t option;
+        has_descendant : has_descendant_t option;
+        long_clickable : bool option;
+        pkg : string option;
+        res : string option;
+        scrollable : bool option;
+        selected : bool option;
+        text : string option;
+    }
+end
+
+module AndroidElementInfo : sig
+    type t = {
+        children : AndroidElementInfo.t array option;
+        clazz : string;
+        desc : string;
+        res : string;
+        pkg : string;
+        text : string;
+        bounds : Rect.t;
+        checkable : bool;
+        checked : bool;
+        clickable : bool;
+        enabled : bool;
+        focusable : bool;
+        focused : bool;
+        long_clickable : bool;
+        scrollable : bool;
+        selected : bool;
+    }
+end
+
+module rec APIRequestContext : sig
+    type t = {
+        tracing : Tracing.t;
+        __internal_obj : obj
+    }
+    val fetch : url:string -> ?encoded_params:string -> ?params:NameValue.t array -> ?method:string -> ?headers:NameValue.t array -> ?post_data:string -> ?json_data:string -> ?form_data:NameValue.t array -> ?multipart_data:FormField.t array -> timeout:float -> ?fail_on_status_code:bool -> ?ignore_https_errors:bool -> ?max_redirects:int -> ?max_retries:int -> t -> APIResponse.t
+    val fetch_response_body : fetch_uid:string -> t -> string option
+    val fetch_log : fetch_uid:string -> t -> string array
+
+    type storage_state_res_t = {
+        cookies : NetworkCookie.t array;
+        origins : OriginStorage.t array;
+    }
+    val storage_state : ?indexed_db:bool -> t -> storage_state_res_t
+    val dispose_api_response : fetch_uid:string -> t -> unit
+    val dispose : ?reason:string -> t -> unit
+and
+module LocalUtils : sig
+    type device_descriptors_t = {
+        name : string;
+        descriptor : descriptor_t;
+    }
+    type descriptor_t = {
+        user_agent : string;
+        viewport : viewport_t;
+        screen : screen_t option;
+        device_scale_factor : float;
+        is_mobile : bool;
+        has_touch : bool;
+        default_browser_type : default_browser_type_t;
+    }
+    type default_browser_type_t = [
+        | `Chromium
+        | `Firefox
+        | `Webkit
+    ]
+    type screen_t = {
+        width : int;
+        height : int;
+    }
+    type viewport_t = {
+        width : int;
+        height : int;
+    }
+    type t = {
+        device_descriptors : device_descriptors_t array;
+        __internal_obj : obj
+    }
+
+    type mode_t = [
+        | `Write
+        | `Append
+    ]
+    val zip : zip_file:string -> entries:NameValue.t array -> ?stacks_id:string -> mode:mode_t -> include_sources:bool -> ?additional_sources:string array -> t -> unit
+
+    type har_open_res_t = {
+        har_id : string option;
+        error : string option;
+    }
+    val har_open : file:string -> t -> har_open_res_t
+
+    type har_lookup_res_t = {
+        action : action_t;
+        message : string option;
+        redirect_url : string option;
+        status : int option;
+        headers : NameValue.t array option;
+        body : string option;
+    }
+    type action_t = [
+        | `Error
+        | `Redirect
+        | `Fulfill
+        | `Noentry
+    ]
+    val har_lookup : har_id:string -> url:string -> method_:string -> headers:NameValue.t array -> ?post_data:string -> is_navigation_request:bool -> t -> har_lookup_res_t
+    val har_close : har_id:string -> t -> unit
+    val har_unzip : zip_file:string -> har_file:string -> t -> unit
+
+    type connect_res_t = {
+        pipe : JsonPipe.t;
+        headers : NameValue.t array;
+    }
+    val connect : endpoint:string -> ?headers:Yojson.t -> ?expose_network:string -> ?slow_mo:float -> timeout:float -> ?socks_proxy_redirect_port_for_test:int -> t -> connect_res_t
+    val tracing_started : ?traces_dir:string -> trace_name:string -> ?live:bool -> t -> string
+    val add_stack_to_tracing_no_reply : call_data:ClientSideCallMetadata.t -> t -> unit
+    val trace_discarded : stacks_id:string -> t -> unit
+    val glob_to_regex : glob:string -> ?base_url:string -> ?web_socket_url:bool -> t -> string
+and
+module Root : sig
+    type t
+
+    val initialize : sdk_language:SDKLanguage.t -> t -> Playwright.t
+and
+module Playwright : sig
+    type t = {
+        chromium : BrowserType.t;
+        firefox : BrowserType.t;
+        webkit : BrowserType.t;
+        android : Android.t;
+        utils : LocalUtils.t option;
+        pre_launched_browser : Browser.t option;
+        pre_connected_android_device : AndroidDevice.t option;
+        socks_support : SocksSupport.t option;
+        __internal_obj : obj
+    }
+
+    type storage_state_t = {
+        cookies : NetworkCookie.t array option;
+        origins : SetOriginStorage.t array option;
+    }
+    type proxy_t = {
+        server : string;
+        bypass : string option;
+        username : string option;
+        password : string option;
+    }
+    type http_credentials_t = {
+        username : string;
+        password : string;
+        origin : string option;
+        send : send_t option;
+    }
+    type send_t = [
+        | `Always
+        | `Unauthorized
+    ]
+    type client_certificates_t = {
+        origin : string;
+        cert : string option;
+        key : string option;
+        passphrase : string option;
+        pfx : string option;
+    }
+    val new_request : ?base_url:string -> ?user_agent:string -> ?ignore_https_errors:bool -> ?extra_http_headers:NameValue.t array -> ?fail_on_status_code:bool -> ?client_certificates:client_certificates_t array -> ?max_redirects:int -> ?http_credentials:http_credentials_t -> ?proxy:proxy_t -> ?storage_state:storage_state_t -> ?traces_dir:string -> t -> APIRequestContext.t
+and
+module DebugController : sig
+    type t
+
+    val initialize : codegen_id:string -> sdk_language:SDKLanguage.t -> t -> unit
+    val set_report_state_changed : enabled:bool -> t -> unit
+
+    type mode_t = [
+        | `Inspecting
+        | `Recording
+        | `None
+    ]
+    val set_recorder_mode : mode:mode_t -> ?test_id_attribute_name:string -> ?generate_auto_expect:bool -> t -> unit
+    val highlight : ?selector:string -> ?aria_template:string -> t -> unit
+    val hide_highlight : t -> unit
+    val resume : t -> unit
+    val kill : t -> unit
+and
+module SocksSupport : sig
+    type t
+
+    val socks_connected : uid:string -> host:string -> port:int -> t -> unit
+    val socks_failed : uid:string -> error_code:string -> t -> unit
+    val socks_data : uid:string -> data:string -> t -> unit
+    val socks_error : uid:string -> error:string -> t -> unit
+    val socks_end : uid:string -> t -> unit
+and
+module BrowserType : sig
+    type t = {
+        executable_path : string;
+        name : string;
+        __internal_obj : obj
+    }
+
+    type proxy_t = {
+        server : string;
+        bypass : string option;
+        username : string option;
+        password : string option;
+    }
+    val launch : ?channel:string -> ?executable_path:string -> ?args:string array -> ?ignore_all_default_args:bool -> ?ignore_default_args:string array -> ?handle_sigint:bool -> ?handle_sigterm:bool -> ?handle_sighup:bool -> timeout:float -> ?env:NameValue.t array -> ?headless:bool -> ?proxy:proxy_t -> ?downloads_path:string -> ?traces_dir:string -> ?artifacts_dir:string -> ?chromium_sandbox:bool -> ?firefox_user_prefs:Yojson.t -> ?cdp_port:int -> ?slow_mo:float -> t -> Browser.t
+
+    type launch_persistent_context_res_t = {
+        browser : Browser.t;
+        context : BrowserContext.t;
+    }
+    type service_workers_t = [
+        | `Allow
+        | `Block
+    ]
+    type record_video_t = {
+        dir : string option;
+        size : size_t option;
+        show_actions : show_actions_t option;
+    }
+    type show_actions_t = {
+        duration : float option;
+        position : position_t option;
+        font_size : int option;
+    }
+    type position_t = [
+        | `Top_left
+        | `Top
+        | `Top_right
+        | `Bottom_left
+        | `Bottom
+        | `Bottom_right
+    ]
+    type size_t = {
+        width : int;
+        height : int;
+    }
+    type contrast_t = [
+        | `No_preference
+        | `More
+        | `No_override
+    ]
+    type accept_downloads_t = [
+        | `Accept
+        | `Deny
+        | `Internal_browser_default
+    ]
+    type forced_colors_t = [
+        | `Active
+        | `None
+        | `No_override
+    ]
+    type reduced_motion_t = [
+        | `Reduce
+        | `No_preference
+        | `No_override
+    ]
+    type color_scheme_t = [
+        | `Dark
+        | `Light
+        | `No_preference
+        | `No_override
+    ]
+    type http_credentials_t = {
+        username : string;
+        password : string;
+        origin : string option;
+        send : send_t option;
+    }
+    type send_t = [
+        | `Always
+        | `Unauthorized
+    ]
+    type geolocation_t = {
+        longitude : float;
+        latitude : float;
+        accuracy : float option;
+    }
+    type client_certificates_t = {
+        origin : string;
+        cert : string option;
+        key : string option;
+        passphrase : string option;
+        pfx : string option;
+    }
+    type screen_t = {
+        width : int;
+        height : int;
+    }
+    type viewport_t = {
+        width : int;
+        height : int;
+    }
+    type proxy_t = {
+        server : string;
+        bypass : string option;
+        username : string option;
+        password : string option;
+    }
+    val launch_persistent_context : ?channel:string -> ?executable_path:string -> ?args:string array -> ?ignore_all_default_args:bool -> ?ignore_default_args:string array -> ?handle_sigint:bool -> ?handle_sigterm:bool -> ?handle_sighup:bool -> timeout:float -> ?env:NameValue.t array -> ?headless:bool -> ?proxy:proxy_t -> ?downloads_path:string -> ?traces_dir:string -> ?artifacts_dir:string -> ?chromium_sandbox:bool -> ?firefox_user_prefs:Yojson.t -> ?cdp_port:int -> ?no_default_viewport:bool -> ?viewport:viewport_t -> ?screen:screen_t -> ?ignore_https_errors:bool -> ?client_certificates:client_certificates_t array -> ?java_script_enabled:bool -> ?bypass_csp:bool -> ?user_agent:string -> ?locale:string -> ?timezone_id:string -> ?geolocation:geolocation_t -> ?permissions:string array -> ?extra_http_headers:NameValue.t array -> ?offline:bool -> ?http_credentials:http_credentials_t -> ?device_scale_factor:float -> ?is_mobile:bool -> ?has_touch:bool -> ?color_scheme:color_scheme_t -> ?reduced_motion:reduced_motion_t -> ?forced_colors:forced_colors_t -> ?accept_downloads:accept_downloads_t -> ?contrast:contrast_t -> ?base_url:string -> ?record_video:record_video_t -> ?strict_selectors:bool -> ?service_workers:service_workers_t -> ?selector_engines:SelectorEngine.t array -> ?test_id_attribute_name:string -> user_data_dir:string -> ?slow_mo:float -> t -> launch_persistent_context_res_t
+
+    type connect_over_cdp_res_t = {
+        browser : Browser.t;
+        default_context : BrowserContext.t option;
+    }
+    val connect_over_cdp : endpoint_url:string -> ?headers:NameValue.t array -> ?slow_mo:float -> timeout:float -> ?is_local:bool -> ?no_defaults:bool -> t -> connect_over_cdp_res_t
+    val connect_to_worker : endpoint:string -> timeout:float -> t -> Worker.t
+and
+module Browser : sig
+    type browser_name_t = [
+        | `Chromium
+        | `Firefox
+        | `Webkit
+    ]
+    type t = {
+        version : string;
+        name : string;
+        browser_name : browser_name_t;
+        __internal_obj : obj
+    }
+    val start_server : title:string -> ?workspace_dir:string -> ?metadata:Yojson.t -> ?host:string -> ?port:int -> t -> string
+    val stop_server : t -> unit
+    val close : ?reason:string -> t -> unit
+    val kill_for_tests : t -> unit
+    val default_user_agent_for_test : t -> string
+
+    type storage_state_t = {
+        cookies : SetNetworkCookie.t array option;
+        origins : SetOriginStorage.t array option;
+    }
+    type proxy_t = {
+        server : string;
+        bypass : string option;
+        username : string option;
+        password : string option;
+    }
+    type service_workers_t = [
+        | `Allow
+        | `Block
+    ]
+    type record_video_t = {
+        dir : string option;
+        size : size_t option;
+        show_actions : show_actions_t option;
+    }
+    type show_actions_t = {
+        duration : float option;
+        position : position_t option;
+        font_size : int option;
+    }
+    type position_t = [
+        | `Top_left
+        | `Top
+        | `Top_right
+        | `Bottom_left
+        | `Bottom
+        | `Bottom_right
+    ]
+    type size_t = {
+        width : int;
+        height : int;
+    }
+    type contrast_t = [
+        | `No_preference
+        | `More
+        | `No_override
+    ]
+    type accept_downloads_t = [
+        | `Accept
+        | `Deny
+        | `Internal_browser_default
+    ]
+    type forced_colors_t = [
+        | `Active
+        | `None
+        | `No_override
+    ]
+    type reduced_motion_t = [
+        | `Reduce
+        | `No_preference
+        | `No_override
+    ]
+    type color_scheme_t = [
+        | `Dark
+        | `Light
+        | `No_preference
+        | `No_override
+    ]
+    type http_credentials_t = {
+        username : string;
+        password : string;
+        origin : string option;
+        send : send_t option;
+    }
+    type send_t = [
+        | `Always
+        | `Unauthorized
+    ]
+    type geolocation_t = {
+        longitude : float;
+        latitude : float;
+        accuracy : float option;
+    }
+    type client_certificates_t = {
+        origin : string;
+        cert : string option;
+        key : string option;
+        passphrase : string option;
+        pfx : string option;
+    }
+    type screen_t = {
+        width : int;
+        height : int;
+    }
+    type viewport_t = {
+        width : int;
+        height : int;
+    }
+    val new_context : ?no_default_viewport:bool -> ?viewport:viewport_t -> ?screen:screen_t -> ?ignore_https_errors:bool -> ?client_certificates:client_certificates_t array -> ?java_script_enabled:bool -> ?bypass_csp:bool -> ?user_agent:string -> ?locale:string -> ?timezone_id:string -> ?geolocation:geolocation_t -> ?permissions:string array -> ?extra_http_headers:NameValue.t array -> ?offline:bool -> ?http_credentials:http_credentials_t -> ?device_scale_factor:float -> ?is_mobile:bool -> ?has_touch:bool -> ?color_scheme:color_scheme_t -> ?reduced_motion:reduced_motion_t -> ?forced_colors:forced_colors_t -> ?accept_downloads:accept_downloads_t -> ?contrast:contrast_t -> ?base_url:string -> ?record_video:record_video_t -> ?strict_selectors:bool -> ?service_workers:service_workers_t -> ?selector_engines:SelectorEngine.t array -> ?test_id_attribute_name:string -> ?proxy:proxy_t -> ?storage_state:storage_state_t -> t -> BrowserContext.t
+
+    type storage_state_t = {
+        cookies : SetNetworkCookie.t array option;
+        origins : SetOriginStorage.t array option;
+    }
+    type proxy_t = {
+        server : string;
+        bypass : string option;
+        username : string option;
+        password : string option;
+    }
+    type service_workers_t = [
+        | `Allow
+        | `Block
+    ]
+    type record_video_t = {
+        dir : string option;
+        size : size_t option;
+        show_actions : show_actions_t option;
+    }
+    type show_actions_t = {
+        duration : float option;
+        position : position_t option;
+        font_size : int option;
+    }
+    type position_t = [
+        | `Top_left
+        | `Top
+        | `Top_right
+        | `Bottom_left
+        | `Bottom
+        | `Bottom_right
+    ]
+    type size_t = {
+        width : int;
+        height : int;
+    }
+    type contrast_t = [
+        | `No_preference
+        | `More
+        | `No_override
+    ]
+    type accept_downloads_t = [
+        | `Accept
+        | `Deny
+        | `Internal_browser_default
+    ]
+    type forced_colors_t = [
+        | `Active
+        | `None
+        | `No_override
+    ]
+    type reduced_motion_t = [
+        | `Reduce
+        | `No_preference
+        | `No_override
+    ]
+    type color_scheme_t = [
+        | `Dark
+        | `Light
+        | `No_preference
+        | `No_override
+    ]
+    type http_credentials_t = {
+        username : string;
+        password : string;
+        origin : string option;
+        send : send_t option;
+    }
+    type send_t = [
+        | `Always
+        | `Unauthorized
+    ]
+    type geolocation_t = {
+        longitude : float;
+        latitude : float;
+        accuracy : float option;
+    }
+    type client_certificates_t = {
+        origin : string;
+        cert : string option;
+        key : string option;
+        passphrase : string option;
+        pfx : string option;
+    }
+    type screen_t = {
+        width : int;
+        height : int;
+    }
+    type viewport_t = {
+        width : int;
+        height : int;
+    }
+    val new_context_for_reuse : ?no_default_viewport:bool -> ?viewport:viewport_t -> ?screen:screen_t -> ?ignore_https_errors:bool -> ?client_certificates:client_certificates_t array -> ?java_script_enabled:bool -> ?bypass_csp:bool -> ?user_agent:string -> ?locale:string -> ?timezone_id:string -> ?geolocation:geolocation_t -> ?permissions:string array -> ?extra_http_headers:NameValue.t array -> ?offline:bool -> ?http_credentials:http_credentials_t -> ?device_scale_factor:float -> ?is_mobile:bool -> ?has_touch:bool -> ?color_scheme:color_scheme_t -> ?reduced_motion:reduced_motion_t -> ?forced_colors:forced_colors_t -> ?accept_downloads:accept_downloads_t -> ?contrast:contrast_t -> ?base_url:string -> ?record_video:record_video_t -> ?strict_selectors:bool -> ?service_workers:service_workers_t -> ?selector_engines:SelectorEngine.t array -> ?test_id_attribute_name:string -> ?proxy:proxy_t -> ?storage_state:storage_state_t -> t -> BrowserContext.t
+    val disconnect_from_reused_context : reason:string -> t -> unit
+    val new_browser_cdp_session : t -> CDPSession.t
+    val start_tracing : ?page:Page.t -> ?screenshots:bool -> ?categories:string array -> t -> unit
+    val stop_tracing : t -> Artifact.t
+and
+module EventTarget : sig
+    type t
+
+
+    type info_t = {
+        wait_id : string;
+        phase : phase_t;
+        event : string option;
+        message : string option;
+        error : string option;
+    }
+    type phase_t = [
+        | `Before
+        | `After
+        | `Log
+    ]
+    val wait_for_event_info : info:info_t -> t -> unit
+and
+module BrowserContext : sig
+    type options_t = {
+        no_default_viewport : bool option;
+        viewport : viewport_t option;
+        screen : screen_t option;
+        ignore_https_errors : bool option;
+        client_certificates : client_certificates_t array option;
+        java_script_enabled : bool option;
+        bypass_csp : bool option;
+        user_agent : string option;
+        locale : string option;
+        timezone_id : string option;
+        geolocation : geolocation_t option;
+        permissions : string array option;
+        extra_http_headers : NameValue.t array option;
+        offline : bool option;
+        http_credentials : http_credentials_t option;
+        device_scale_factor : float option;
+        is_mobile : bool option;
+        has_touch : bool option;
+        color_scheme : color_scheme_t option;
+        reduced_motion : reduced_motion_t option;
+        forced_colors : forced_colors_t option;
+        accept_downloads : accept_downloads_t option;
+        contrast : contrast_t option;
+        base_url : string option;
+        record_video : record_video_t option;
+        strict_selectors : bool option;
+        service_workers : service_workers_t option;
+        selector_engines : SelectorEngine.t array option;
+        test_id_attribute_name : string option;
+    }
+    type service_workers_t = [
+        | `Allow
+        | `Block
+    ]
+    type record_video_t = {
+        dir : string option;
+        size : size_t option;
+        show_actions : show_actions_t option;
+    }
+    type show_actions_t = {
+        duration : float option;
+        position : position_t option;
+        font_size : int option;
+    }
+    type position_t = [
+        | `Top_left
+        | `Top
+        | `Top_right
+        | `Bottom_left
+        | `Bottom
+        | `Bottom_right
+    ]
+    type size_t = {
+        width : int;
+        height : int;
+    }
+    type contrast_t = [
+        | `No_preference
+        | `More
+        | `No_override
+    ]
+    type accept_downloads_t = [
+        | `Accept
+        | `Deny
+        | `Internal_browser_default
+    ]
+    type forced_colors_t = [
+        | `Active
+        | `None
+        | `No_override
+    ]
+    type reduced_motion_t = [
+        | `Reduce
+        | `No_preference
+        | `No_override
+    ]
+    type color_scheme_t = [
+        | `Dark
+        | `Light
+        | `No_preference
+        | `No_override
+    ]
+    type http_credentials_t = {
+        username : string;
+        password : string;
+        origin : string option;
+        send : send_t option;
+    }
+    type send_t = [
+        | `Always
+        | `Unauthorized
+    ]
+    type geolocation_t = {
+        longitude : float;
+        latitude : float;
+        accuracy : float option;
+    }
+    type client_certificates_t = {
+        origin : string;
+        cert : string option;
+        key : string option;
+        passphrase : string option;
+        pfx : string option;
+    }
+    type screen_t = {
+        width : int;
+        height : int;
+    }
+    type viewport_t = {
+        width : int;
+        height : int;
+    }
+    type t = {
+        debugger : Debugger.t;
+        request_context : APIRequestContext.t;
+        tracing : Tracing.t;
+        options : options_t;
+        __internal_obj : obj
+    }
+    include EventTarget
+
+    val add_cookies : cookies:SetNetworkCookie.t array -> t -> unit
+    val add_init_script : source:string -> t -> Disposable.t
+    val clear_cookies : ?name:string -> ?name_regex_source:string -> ?name_regex_flags:string -> ?domain:string -> ?domain_regex_source:string -> ?domain_regex_flags:string -> ?path:string -> ?path_regex_source:string -> ?path_regex_flags:string -> t -> unit
+    val clear_permissions : t -> unit
+    val close : ?reason:string -> t -> unit
+    val cookies : urls:string array -> t -> NetworkCookie.t array
+    val expose_binding : name:string -> t -> Disposable.t
+    val grant_permissions : permissions:string array -> ?origin:string -> t -> unit
+    val new_page : t -> Page.t
+    val register_selector_engine : selector_engine:SelectorEngine.t -> t -> unit
+    val set_test_id_attribute_name : test_id_attribute_name:string -> t -> unit
+    val set_extra_http_headers : headers:NameValue.t array -> t -> unit
+
+    type geolocation_t = {
+        longitude : float;
+        latitude : float;
+        accuracy : float option;
+    }
+    val set_geolocation : ?geolocation:geolocation_t -> t -> unit
+
+    type http_credentials_t = {
+        username : string;
+        password : string;
+        origin : string option;
+    }
+    val set_http_credentials : ?http_credentials:http_credentials_t -> t -> unit
+
+    type patterns_t = {
+        glob : string option;
+        regex_source : string option;
+        regex_flags : string option;
+        url_pattern : URLPattern.t option;
+    }
+    val set_network_interception_patterns : patterns:patterns_t array -> t -> unit
+
+    type patterns_t = {
+        glob : string option;
+        regex_source : string option;
+        regex_flags : string option;
+        url_pattern : URLPattern.t option;
+    }
+    val set_web_socket_interception_patterns : patterns:patterns_t array -> t -> unit
+    val set_offline : offline:bool -> t -> unit
+
+    type storage_state_res_t = {
+        cookies : NetworkCookie.t array;
+        origins : OriginStorage.t array;
+    }
+    val storage_state : ?indexed_db:bool -> t -> storage_state_res_t
+
+    type storage_state_t = {
+        cookies : SetNetworkCookie.t array option;
+        origins : SetOriginStorage.t array option;
+    }
+    val set_storage_state : ?storage_state:storage_state_t -> t -> unit
+    val pause : t -> unit
+
+    type recorder_mode_t = [
+        | `Default
+        | `Api
+    ]
+    type mode_t = [
+        | `Inspecting
+        | `Recording
+    ]
+    val enable_recorder : ?language:string -> ?mode:mode_t -> ?recorder_mode:recorder_mode_t -> ?pause_on_next_statement:bool -> ?test_id_attribute_name:string -> ?launch_options:Yojson.t -> ?context_options:Yojson.t -> ?device:string -> ?save_storage:string -> ?output_file:string -> ?handle_sigint:bool -> ?omit_call_tracking:bool -> t -> unit
+    val disable_recorder : t -> unit
+    val expose_console_api : t -> unit
+    val new_cdp_session : ?page:Page.t -> ?frame:Frame.t -> t -> CDPSession.t
+
+    type create_temp_files_res_t = {
+        root_dir : WritableStream.t option;
+        writable_streams : WritableStream.t array;
+    }
+    type items_t = {
+        name : string;
+        last_modified_ms : float option;
+    }
+    val create_temp_files : ?root_dir_name:string -> items:items_t array -> t -> create_temp_files_res_t
+
+    type event_t = [
+        | `Console
+        | `Dialog
+        | `Request
+        | `Response
+        | `Request_finished
+        | `Request_failed
+    ]
+    val update_subscription : event:event_t -> enabled:bool -> t -> unit
+    val clock_fast_forward : ?ticks_number:float -> ?ticks_string:string -> t -> unit
+    val clock_install : ?time_number:float -> ?time_string:string -> t -> unit
+    val clock_pause_at : ?time_number:float -> ?time_string:string -> t -> unit
+    val clock_resume : t -> unit
+    val clock_run_for : ?ticks_number:float -> ?ticks_string:string -> t -> unit
+    val clock_set_fixed_time : ?time_number:float -> ?time_string:string -> t -> unit
+    val clock_set_system_time : ?time_number:float -> ?time_string:string -> t -> unit
+and
+module Page : sig
+    type viewport_size_t = {
+        width : int;
+        height : int;
+    }
+    type t = {
+        main_frame : Frame.t;
+        viewport_size : viewport_size_t option;
+        is_closed : bool;
+        opener : Page.t option;
+        video : Artifact.t option;
+        __internal_obj : obj
+    }
+    include EventTarget
+
+    val add_init_script : source:string -> t -> Disposable.t
+    val close : ?run_before_unload:bool -> ?reason:string -> t -> unit
+    val clear_console_messages : t -> unit
+
+    type messages_t = {
+        type_ : string;
+        text : string;
+        args : JSHandle.t array;
+        location : location_t;
+        timestamp : float;
+    }
+    type location_t = {
+        url : string;
+        line_number : int;
+        column_number : int;
+    }
+    val console_messages : ?filter:ConsoleMessagesFilter.t -> t -> messages_t array
+
+    type contrast_t = [
+        | `No_preference
+        | `More
+        | `No_override
+    ]
+    type forced_colors_t = [
+        | `Active
+        | `None
+        | `No_override
+    ]
+    type reduced_motion_t = [
+        | `Reduce
+        | `No_preference
+        | `No_override
+    ]
+    type color_scheme_t = [
+        | `Dark
+        | `Light
+        | `No_preference
+        | `No_override
+    ]
+    type media_t = [
+        | `Screen
+        | `Print
+        | `No_override
+    ]
+    val emulate_media : ?media:media_t -> ?color_scheme:color_scheme_t -> ?reduced_motion:reduced_motion_t -> ?forced_colors:forced_colors_t -> ?contrast:contrast_t -> t -> unit
+    val expose_binding : name:string -> t -> Disposable.t
+    val go_back : timeout:float -> ?wait_until:LifecycleEvent.t -> t -> Response.t option
+    val go_forward : timeout:float -> ?wait_until:LifecycleEvent.t -> t -> Response.t option
+    val request_gc : t -> unit
+    val register_locator_handler : selector:string -> ?no_wait_after:bool -> t -> int
+    val resolve_locator_handler_no_reply : uid:int -> ?remove:bool -> t -> unit
+    val unregister_locator_handler : uid:int -> t -> unit
+    val reload : timeout:float -> ?wait_until:LifecycleEvent.t -> t -> Response.t option
+
+    type expect_screenshot_res_t = {
+        diff : string option;
+        error_message : string option;
+        actual : string option;
+        previous : string option;
+        timed_out : bool option;
+        log : string array option;
+    }
+    type mask_t = {
+        frame : Frame.t;
+        selector : string;
+    }
+    type scale_t = [
+        | `Css
+        | `Device
+    ]
+    type animations_t = [
+        | `Disabled
+        | `Allow
+    ]
+    type caret_t = [
+        | `Hide
+        | `Initial
+    ]
+    type locator_t = {
+        frame : Frame.t;
+        selector : string;
+    }
+    val expect_screenshot : ?expected:string -> timeout:float -> is_not:bool -> ?locator:locator_t -> ?comparator:string -> ?max_diff_pixels:int -> ?max_diff_pixel_ratio:float -> ?threshold:float -> ?full_page:bool -> ?clip:Rect.t -> ?omit_background:bool -> ?caret:caret_t -> ?animations:animations_t -> ?scale:scale_t -> ?mask:mask_t array -> ?mask_color:string -> ?style:string -> t -> expect_screenshot_res_t
+
+    type mask_t = {
+        frame : Frame.t;
+        selector : string;
+    }
+    type scale_t = [
+        | `Css
+        | `Device
+    ]
+    type animations_t = [
+        | `Disabled
+        | `Allow
+    ]
+    type caret_t = [
+        | `Hide
+        | `Initial
+    ]
+    type type__t = [
+        | `Png
+        | `Jpeg
+    ]
+    val screenshot : timeout:float -> ?type:type__t -> ?quality:int -> ?full_page:bool -> ?clip:Rect.t -> ?omit_background:bool -> ?caret:caret_t -> ?animations:animations_t -> ?scale:scale_t -> ?mask:mask_t array -> ?mask_color:string -> ?style:string -> t -> string
+    val set_extra_http_headers : headers:NameValue.t array -> t -> unit
+
+    type patterns_t = {
+        glob : string option;
+        regex_source : string option;
+        regex_flags : string option;
+        url_pattern : URLPattern.t option;
+    }
+    val set_network_interception_patterns : patterns:patterns_t array -> t -> unit
+
+    type patterns_t = {
+        glob : string option;
+        regex_source : string option;
+        regex_flags : string option;
+        url_pattern : URLPattern.t option;
+    }
+    val set_web_socket_interception_patterns : patterns:patterns_t array -> t -> unit
+
+    type viewport_size_t = {
+        width : int;
+        height : int;
+    }
+    val set_viewport_size : viewport_size:viewport_size_t -> t -> unit
+    val keyboard_down : key:string -> t -> unit
+    val keyboard_up : key:string -> t -> unit
+    val keyboard_insert_text : text:string -> t -> unit
+    val keyboard_type : text:string -> ?delay:float -> t -> unit
+    val keyboard_press : key:string -> ?delay:float -> t -> unit
+    val mouse_move : x:float -> y:float -> ?steps:int -> t -> unit
+
+    type button_t = [
+        | `Left
+        | `Right
+        | `Middle
+    ]
+    val mouse_down : ?button:button_t -> ?click_count:int -> t -> unit
+
+    type button_t = [
+        | `Left
+        | `Right
+        | `Middle
+    ]
+    val mouse_up : ?button:button_t -> ?click_count:int -> t -> unit
+
+    type button_t = [
+        | `Left
+        | `Right
+        | `Middle
+    ]
+    val mouse_click : x:float -> y:float -> ?delay:float -> ?button:button_t -> ?click_count:int -> t -> unit
+    val mouse_wheel : delta_x:float -> delta_y:float -> t -> unit
+    val touchscreen_tap : x:float -> y:float -> t -> unit
+    val clear_page_errors : t -> unit
+    val page_errors : ?filter:ConsoleMessagesFilter.t -> t -> SerializedError.t array
+
+    type margin_t = {
+        top : string option;
+        bottom : string option;
+        left : string option;
+        right : string option;
+    }
+    val pdf : ?scale:float -> ?display_header_footer:bool -> ?header_template:string -> ?footer_template:string -> ?print_background:bool -> ?landscape:bool -> ?page_ranges:string -> ?format:string -> ?width:string -> ?height:string -> ?prefer_css_page_size:bool -> ?margin:margin_t -> ?tagged:bool -> ?outline:bool -> t -> string
+    val requests : t -> Request.t array
+    val start_js_coverage : ?reset_on_navigation:bool -> ?report_anonymous_scripts:bool -> t -> unit
+
+    type entries_t = {
+        url : string;
+        script_id : string;
+        source : string option;
+        functions : functions_t array;
+    }
+    type functions_t = {
+        function_name : string;
+        is_block_coverage : bool;
+        ranges : ranges_t array;
+    }
+    type ranges_t = {
+        start_offset : int;
+        end_offset : int;
+        count : int;
+    }
+    val stop_js_coverage : t -> entries_t array
+    val start_css_coverage : ?reset_on_navigation:bool -> t -> unit
+
+    type entries_t = {
+        url : string;
+        text : string option;
+        ranges : ranges_t array;
+    }
+    type ranges_t = {
+        start : int;
+        end_ : int;
+    }
+    val stop_css_coverage : t -> entries_t array
+    val bring_to_front : t -> unit
+    val pick_locator : t -> string
+    val cancel_pick_locator : t -> unit
+    val hide_highlight : t -> unit
+    val screencast_show_overlay : html:string -> ?duration:float -> t -> string
+    val screencast_remove_overlay : id:string -> t -> unit
+    val screencast_chapter : title:string -> ?description:string -> ?duration:float -> t -> unit
+    val screencast_set_overlay_visible : visible:bool -> t -> unit
+
+    type position_t = [
+        | `Top_left
+        | `Top
+        | `Top_right
+        | `Bottom_left
+        | `Bottom
+        | `Bottom_right
+    ]
+    val screencast_show_actions : ?duration:float -> ?position:position_t -> ?font_size:int -> t -> unit
+    val screencast_hide_actions : t -> unit
+
+    type size_t = {
+        width : int;
+        height : int;
+    }
+    val screencast_start : ?size:size_t -> ?quality:int -> ?send_frames:bool -> ?record:bool -> t -> Artifact.t option
+    val screencast_stop : t -> unit
+
+    type event_t = [
+        | `Console
+        | `Dialog
+        | `File_chooser
+        | `Request
+        | `Response
+        | `Request_finished
+        | `Request_failed
+    ]
+    val update_subscription : event:event_t -> enabled:bool -> t -> unit
+    val set_dock_tile : image:string -> t -> unit
+and
+module Frame : sig
+    type t = {
+        url : string;
+        name : string;
+        parent_frame : Frame.t option;
+        load_states : LifecycleEvent.t array;
+        __internal_obj : obj
+    }
+    val eval_on_selector : selector:string -> ?strict:bool -> expression:string -> ?is_function:bool -> arg:SerializedArgument.t -> t -> SerializedValue.t
+    val eval_on_selector_all : selector:string -> expression:string -> ?is_function:bool -> arg:SerializedArgument.t -> t -> SerializedValue.t
+    val add_script_tag : ?url:string -> ?content:string -> ?type:string -> t -> ElementHandle.t
+    val add_style_tag : ?url:string -> ?content:string -> t -> ElementHandle.t
+    val aria_ref : selector:string -> timeout:float -> t -> string option
+
+    type mode_t = [
+        | `Ai
+        | `Default
+    ]
+    val aria_snapshot : ?mode:mode_t -> ?track:string -> ?selector:string -> ?depth:int -> ?boxes:bool -> timeout:float -> t -> string
+    val blur : selector:string -> ?strict:bool -> timeout:float -> t -> unit
+    val check : selector:string -> ?strict:bool -> ?force:bool -> ?position:Point.t -> timeout:float -> ?trial:bool -> t -> unit
+
+    type button_t = [
+        | `Left
+        | `Right
+        | `Middle
+    ]
+    type modifiers_t = [
+        | `Alt
+        | `Control
+        | `Control_or_meta
+        | `Meta
+        | `Shift
+    ]
+    val click : selector:string -> ?strict:bool -> ?force:bool -> ?no_wait_after:bool -> ?modifiers:modifiers_t array -> ?position:Point.t -> ?delay:float -> ?button:button_t -> ?click_count:int -> timeout:float -> ?trial:bool -> ?steps:int -> t -> unit
+    val content : t -> string
+    val drag_and_drop : source:string -> target:string -> ?force:bool -> timeout:float -> ?trial:bool -> ?source_position:Point.t -> ?target_position:Point.t -> ?strict:bool -> ?steps:int -> t -> unit
+
+    type data_t = {
+        mime_type : string;
+        value : string;
+    }
+    type payloads_t = {
+        name : string;
+        mime_type : string option;
+        buffer : string;
+    }
+    val drop : selector:string -> ?strict:bool -> ?position:Point.t -> ?payloads:payloads_t array -> ?local_paths:string array -> ?streams:WritableStream.t array -> ?data:data_t array -> timeout:float -> t -> unit
+
+    type button_t = [
+        | `Left
+        | `Right
+        | `Middle
+    ]
+    type modifiers_t = [
+        | `Alt
+        | `Control
+        | `Control_or_meta
+        | `Meta
+        | `Shift
+    ]
+    val dblclick : selector:string -> ?strict:bool -> ?force:bool -> ?modifiers:modifiers_t array -> ?position:Point.t -> ?delay:float -> ?button:button_t -> timeout:float -> ?trial:bool -> ?steps:int -> t -> unit
+    val dispatch_event : selector:string -> ?strict:bool -> type_:string -> event_init:SerializedArgument.t -> timeout:float -> t -> unit
+    val evaluate_expression : expression:string -> ?is_function:bool -> arg:SerializedArgument.t -> t -> SerializedValue.t
+    val evaluate_expression_handle : expression:string -> ?is_function:bool -> arg:SerializedArgument.t -> t -> JSHandle.t
+    val fill : selector:string -> ?strict:bool -> value:string -> ?force:bool -> timeout:float -> t -> unit
+    val focus : selector:string -> ?strict:bool -> timeout:float -> t -> unit
+    val frame_element : t -> ElementHandle.t
+    val resolve_selector : selector:string -> t -> string
+    val highlight : selector:string -> ?style:string -> t -> unit
+    val hide_highlight : selector:string -> t -> unit
+    val get_attribute : selector:string -> ?strict:bool -> name:string -> timeout:float -> t -> string option
+    val goto : url:string -> timeout:float -> ?wait_until:LifecycleEvent.t -> ?referer:string -> t -> Response.t option
+
+    type modifiers_t = [
+        | `Alt
+        | `Control
+        | `Control_or_meta
+        | `Meta
+        | `Shift
+    ]
+    val hover : selector:string -> ?strict:bool -> ?force:bool -> ?modifiers:modifiers_t array -> ?position:Point.t -> timeout:float -> ?trial:bool -> t -> unit
+    val inner_html : selector:string -> ?strict:bool -> timeout:float -> t -> string
+    val inner_text : selector:string -> ?strict:bool -> timeout:float -> t -> string
+    val input_value : selector:string -> ?strict:bool -> timeout:float -> t -> string
+    val is_checked : selector:string -> ?strict:bool -> timeout:float -> t -> bool
+    val is_disabled : selector:string -> ?strict:bool -> timeout:float -> t -> bool
+    val is_enabled : selector:string -> ?strict:bool -> timeout:float -> t -> bool
+    val is_hidden : selector:string -> ?strict:bool -> t -> bool
+    val is_visible : selector:string -> ?strict:bool -> t -> bool
+    val is_editable : selector:string -> ?strict:bool -> timeout:float -> t -> bool
+    val press : selector:string -> ?strict:bool -> key:string -> ?delay:float -> ?no_wait_after:bool -> timeout:float -> t -> unit
+    val query_selector : selector:string -> ?strict:bool -> t -> ElementHandle.t option
+    val query_selector_all : selector:string -> t -> ElementHandle.t array
+    val query_count : selector:string -> t -> int
+
+    type options_t = {
+        value_or_label : string option;
+        value : string option;
+        label : string option;
+        index : int option;
+    }
+    val select_option : selector:string -> ?strict:bool -> ?elements:ElementHandle.t array -> ?options:options_t array -> ?force:bool -> timeout:float -> t -> string array
+    val set_content : html:string -> timeout:float -> ?wait_until:LifecycleEvent.t -> t -> unit
+
+    type payloads_t = {
+        name : string;
+        mime_type : string option;
+        buffer : string;
+    }
+    val set_input_files : selector:string -> ?strict:bool -> ?payloads:payloads_t array -> ?local_directory:string -> ?directory_stream:WritableStream.t -> ?local_paths:string array -> ?streams:WritableStream.t array -> timeout:float -> t -> unit
+
+    type modifiers_t = [
+        | `Alt
+        | `Control
+        | `Control_or_meta
+        | `Meta
+        | `Shift
+    ]
+    val tap : selector:string -> ?strict:bool -> ?force:bool -> ?modifiers:modifiers_t array -> ?position:Point.t -> timeout:float -> ?trial:bool -> t -> unit
+    val text_content : selector:string -> ?strict:bool -> timeout:float -> t -> string option
+    val title : t -> string
+    val type_ : selector:string -> ?strict:bool -> text:string -> ?delay:float -> timeout:float -> t -> unit
+    val uncheck : selector:string -> ?strict:bool -> ?force:bool -> ?position:Point.t -> timeout:float -> ?trial:bool -> t -> unit
+    val wait_for_timeout : wait_timeout:float -> t -> unit
+    val wait_for_function : expression:string -> ?is_function:bool -> arg:SerializedArgument.t -> timeout:float -> ?polling_interval:float -> t -> JSHandle.t
+
+    type state_t = [
+        | `Attached
+        | `Detached
+        | `Visible
+        | `Hidden
+    ]
+    val wait_for_selector : selector:string -> ?strict:bool -> timeout:float -> ?state:state_t -> ?omit_return_value:bool -> t -> ElementHandle.t option
+
+    type expect_res_t = {
+        matches : bool;
+        received : received_t option;
+        timed_out : bool option;
+        error_message : string option;
+        log : string array option;
+    }
+    type received_t = {
+        value : SerializedValue.t option;
+        aria_snapshot : string option;
+    }
+    type pseudo_t = [
+        | `Before
+        | `After
+    ]
+    val expect : ?selector:string -> expression:string -> ?expression_arg:Yojson.t -> ?pseudo:pseudo_t -> ?expected_text:ExpectedTextValue.t array -> ?expected_number:float -> ?expected_value:SerializedArgument.t -> ?use_inner_text:bool -> is_not:bool -> timeout:float -> t -> expect_res_t
+and
+module Worker : sig
+    type t = {
+        url : string;
+        __internal_obj : obj
+    }
+    include EventTarget
+
+    val disconnect : ?reason:string -> t -> unit
+    val evaluate_expression : expression:string -> ?is_function:bool -> arg:SerializedArgument.t -> t -> SerializedValue.t
+    val evaluate_expression_handle : expression:string -> ?is_function:bool -> arg:SerializedArgument.t -> t -> JSHandle.t
+
+    type event_t = [
+        | `Console
+    ]
+    val update_subscription : event:event_t -> enabled:bool -> t -> unit
+and
+module Disposable : sig
+    type t
+
+    val dispose : t -> unit
+and
+module JSHandle : sig
+    type t = {
+        preview : string;
+        __internal_obj : obj
+    }
+    val dispose : t -> unit
+    val evaluate_expression : expression:string -> ?is_function:bool -> arg:SerializedArgument.t -> t -> SerializedValue.t
+    val evaluate_expression_handle : expression:string -> ?is_function:bool -> arg:SerializedArgument.t -> t -> JSHandle.t
+
+    type properties_t = {
+        name : string;
+        value : JSHandle.t;
+    }
+    val get_property_list : t -> properties_t array
+    val get_property : name:string -> t -> JSHandle.t
+    val json_value : t -> SerializedValue.t
+and
+module ElementHandle : sig
+    type t
+
+    include JSHandle
+
+    val eval_on_selector : selector:string -> ?strict:bool -> expression:string -> ?is_function:bool -> arg:SerializedArgument.t -> t -> SerializedValue.t
+    val eval_on_selector_all : selector:string -> expression:string -> ?is_function:bool -> arg:SerializedArgument.t -> t -> SerializedValue.t
+    val bounding_box : t -> Rect.t option
+    val check : ?force:bool -> ?position:Point.t -> timeout:float -> ?trial:bool -> t -> unit
+
+    type button_t = [
+        | `Left
+        | `Right
+        | `Middle
+    ]
+    type modifiers_t = [
+        | `Alt
+        | `Control
+        | `Control_or_meta
+        | `Meta
+        | `Shift
+    ]
+    val click : ?force:bool -> ?no_wait_after:bool -> ?modifiers:modifiers_t array -> ?position:Point.t -> ?delay:float -> ?button:button_t -> ?click_count:int -> timeout:float -> ?trial:bool -> ?steps:int -> t -> unit
+    val content_frame : t -> Frame.t option
+
+    type button_t = [
+        | `Left
+        | `Right
+        | `Middle
+    ]
+    type modifiers_t = [
+        | `Alt
+        | `Control
+        | `Control_or_meta
+        | `Meta
+        | `Shift
+    ]
+    val dblclick : ?force:bool -> ?modifiers:modifiers_t array -> ?position:Point.t -> ?delay:float -> ?button:button_t -> timeout:float -> ?trial:bool -> ?steps:int -> t -> unit
+    val dispatch_event : type_:string -> event_init:SerializedArgument.t -> t -> unit
+    val fill : value:string -> ?force:bool -> timeout:float -> t -> unit
+    val focus : t -> unit
+    val get_attribute : name:string -> t -> string option
+
+    type modifiers_t = [
+        | `Alt
+        | `Control
+        | `Control_or_meta
+        | `Meta
+        | `Shift
+    ]
+    val hover : ?force:bool -> ?modifiers:modifiers_t array -> ?position:Point.t -> timeout:float -> ?trial:bool -> t -> unit
+    val inner_html : t -> string
+    val inner_text : t -> string
+    val input_value : t -> string
+    val is_checked : t -> bool
+    val is_disabled : t -> bool
+    val is_editable : t -> bool
+    val is_enabled : t -> bool
+    val is_hidden : t -> bool
+    val is_visible : t -> bool
+    val owner_frame : t -> Frame.t option
+    val press : key:string -> ?delay:float -> timeout:float -> ?no_wait_after:bool -> t -> unit
+    val query_selector : selector:string -> ?strict:bool -> t -> ElementHandle.t option
+    val query_selector_all : selector:string -> t -> ElementHandle.t array
+
+    type mask_t = {
+        frame : Frame.t;
+        selector : string;
+    }
+    type scale_t = [
+        | `Css
+        | `Device
+    ]
+    type animations_t = [
+        | `Disabled
+        | `Allow
+    ]
+    type caret_t = [
+        | `Hide
+        | `Initial
+    ]
+    type type__t = [
+        | `Png
+        | `Jpeg
+    ]
+    val screenshot : timeout:float -> ?type:type__t -> ?quality:int -> ?omit_background:bool -> ?caret:caret_t -> ?animations:animations_t -> ?scale:scale_t -> ?mask:mask_t array -> ?mask_color:string -> ?style:string -> t -> string
+    val scroll_into_view_if_needed : timeout:float -> t -> unit
+
+    type options_t = {
+        value_or_label : string option;
+        value : string option;
+        label : string option;
+        index : int option;
+    }
+    val select_option : ?elements:ElementHandle.t array -> ?options:options_t array -> ?force:bool -> timeout:float -> t -> string array
+    val select_text : ?force:bool -> timeout:float -> t -> unit
+
+    type payloads_t = {
+        name : string;
+        mime_type : string option;
+        buffer : string;
+    }
+    val set_input_files : ?payloads:payloads_t array -> ?local_directory:string -> ?directory_stream:WritableStream.t -> ?local_paths:string array -> ?streams:WritableStream.t array -> timeout:float -> t -> unit
+
+    type modifiers_t = [
+        | `Alt
+        | `Control
+        | `Control_or_meta
+        | `Meta
+        | `Shift
+    ]
+    val tap : ?force:bool -> ?modifiers:modifiers_t array -> ?position:Point.t -> timeout:float -> ?trial:bool -> t -> unit
+    val text_content : t -> string option
+    val type_ : text:string -> ?delay:float -> timeout:float -> t -> unit
+    val uncheck : ?force:bool -> ?position:Point.t -> timeout:float -> ?trial:bool -> t -> unit
+
+    type state_t = [
+        | `Visible
+        | `Hidden
+        | `Stable
+        | `Enabled
+        | `Disabled
+        | `Editable
+    ]
+    val wait_for_element_state : state:state_t -> timeout:float -> t -> unit
+
+    type state_t = [
+        | `Attached
+        | `Detached
+        | `Visible
+        | `Hidden
+    ]
+    val wait_for_selector : selector:string -> ?strict:bool -> timeout:float -> ?state:state_t -> t -> ElementHandle.t option
+and
+module Request : sig
+    type t = {
+        frame : Frame.t option;
+        service_worker : Worker.t option;
+        url : string;
+        resource_type : string;
+        method_ : string;
+        post_data : string option;
+        headers : NameValue.t array;
+        is_navigation_request : bool;
+        redirected_from : Request.t option;
+        __internal_obj : obj
+    }
+    val response : t -> Response.t option
+    val raw_request_headers : t -> NameValue.t array
+and
+module Route : sig
+    type t = {
+        request : Request.t;
+        __internal_obj : obj
+    }
+    val redirect_navigation_request : url:string -> t -> unit
+    val abort : ?error_code:string -> t -> unit
+    val continue : ?url:string -> ?method:string -> ?headers:NameValue.t array -> ?post_data:string -> is_fallback:bool -> t -> unit
+    val fulfill : ?status:int -> ?headers:NameValue.t array -> ?body:string -> ?is_base64:bool -> ?fetch_response_uid:string -> t -> unit
+and
+module WebSocketRoute : sig
+    type t = {
+        url : string;
+        protocols : string array;
+        __internal_obj : obj
+    }
+    val connect : t -> unit
+    val ensure_opened : t -> unit
+    val send_to_page : message:string -> is_base64:bool -> t -> unit
+    val send_to_server : message:string -> is_base64:bool -> t -> unit
+    val close_page : ?code:int -> ?reason:string -> was_clean:bool -> t -> unit
+    val close_server : ?code:int -> ?reason:string -> was_clean:bool -> t -> unit
+and
+module Response : sig
+    type t = {
+        request : Request.t;
+        url : string;
+        status : int;
+        status_text : string;
+        headers : NameValue.t array;
+        timing : ResourceTiming.t;
+        from_service_worker : bool;
+        __internal_obj : obj
+    }
+    val body : t -> string
+    val security_details : t -> SecurityDetails.t option
+    val server_addr : t -> RemoteAddr.t option
+    val raw_response_headers : t -> NameValue.t array
+    val http_version : t -> string
+    val sizes : t -> RequestSizes.t
+and
+module WebSocket : sig
+    type t = {
+        url : string;
+        __internal_obj : obj
+    }
+    include EventTarget
+
+and
+module BindingCall : sig
+    type t = {
+        frame : Frame.t;
+        name : string;
+        args : SerializedValue.t array;
+        __internal_obj : obj
+    }
+    val reject : error:SerializedError.t -> t -> unit
+    val resolve : result:SerializedArgument.t -> t -> unit
+and
+module Debugger : sig
+    type t
+
+    include EventTarget
+
+    val request_pause : t -> unit
+    val resume : t -> unit
+    val next : t -> unit
+
+    type location_t = {
+        file : string;
+        line : int option;
+        column : int option;
+    }
+    val run_to : location:location_t -> t -> unit
+and
+module Dialog : sig
+    type t = {
+        page : Page.t option;
+        type_ : string;
+        message : string;
+        default_value : string;
+        __internal_obj : obj
+    }
+    val accept : ?prompt_text:string -> t -> unit
+    val dismiss : t -> unit
+and
+module Tracing : sig
+    type t
+
+    val tracing_start : ?name:string -> ?snapshots:bool -> ?screenshots:bool -> ?live:bool -> t -> unit
+    val tracing_start_chunk : ?name:string -> ?title:string -> t -> string
+
+    type location_t = {
+        file : string;
+        line : int option;
+        column : int option;
+    }
+    val tracing_group : name:string -> ?location:location_t -> t -> unit
+    val tracing_group_end : t -> unit
+
+    type tracing_stop_chunk_res_t = {
+        artifact : Artifact.t option;
+        entries : NameValue.t array option;
+    }
+    type mode_t = [
+        | `Archive
+        | `Discard
+        | `Entries
+    ]
+    val tracing_stop_chunk : mode:mode_t -> t -> tracing_stop_chunk_res_t
+    val tracing_stop : t -> unit
+    val har_start : ?page:Page.t -> options:RecordHarOptions.t -> t -> string
+    val har_export : ?har_id:string -> t -> Artifact.t
+and
+module Artifact : sig
+    type t = {
+        absolute_path : string;
+        __internal_obj : obj
+    }
+    val path_after_finished : t -> string
+    val save_as : path:string -> t -> unit
+    val save_as_stream : t -> Stream.t
+    val failure : t -> string option
+    val stream : t -> Stream.t
+    val cancel : t -> unit
+    val delete : t -> unit
+and
+module Stream : sig
+    type t
+
+    val read : ?size:int -> t -> string
+    val close : t -> unit
+and
+module WritableStream : sig
+    type t
+
+    val write : binary:string -> t -> unit
+    val close : t -> unit
+and
+module CDPSession : sig
+    type t
+
+    val send : method_:string -> ?params:Yojson.t -> t -> Yojson.t
+    val detach : t -> unit
+and
+module Android : sig
+    type t
+
+    val devices : ?host:string -> ?port:int -> ?omit_driver_install:bool -> t -> AndroidDevice.t array
+and
+module AndroidSocket : sig
+    type t
+
+    val write : data:string -> t -> unit
+    val close : t -> unit
+and
+module AndroidDevice : sig
+    type t = {
+        model : string;
+        serial : string;
+        __internal_obj : obj
+    }
+    include EventTarget
+
+
+    type state_t = [
+        | `Gone
+    ]
+    val wait : android_selector:AndroidSelector.t -> ?state:state_t -> timeout:float -> t -> unit
+    val fill : android_selector:AndroidSelector.t -> text:string -> timeout:float -> t -> unit
+    val tap : android_selector:AndroidSelector.t -> ?duration:float -> timeout:float -> t -> unit
+    val drag : android_selector:AndroidSelector.t -> dest:Point.t -> ?speed:float -> timeout:float -> t -> unit
+
+    type direction_t = [
+        | `Up
+        | `Down
+        | `Left
+        | `Right
+    ]
+    val fling : android_selector:AndroidSelector.t -> direction:direction_t -> ?speed:float -> timeout:float -> t -> unit
+    val long_tap : android_selector:AndroidSelector.t -> timeout:float -> t -> unit
+    val pinch_close : android_selector:AndroidSelector.t -> percent:float -> ?speed:float -> timeout:float -> t -> unit
+    val pinch_open : android_selector:AndroidSelector.t -> percent:float -> ?speed:float -> timeout:float -> t -> unit
+
+    type direction_t = [
+        | `Up
+        | `Down
+        | `Left
+        | `Right
+    ]
+    val scroll : android_selector:AndroidSelector.t -> direction:direction_t -> percent:float -> ?speed:float -> timeout:float -> t -> unit
+
+    type direction_t = [
+        | `Up
+        | `Down
+        | `Left
+        | `Right
+    ]
+    val swipe : android_selector:AndroidSelector.t -> direction:direction_t -> percent:float -> ?speed:float -> timeout:float -> t -> unit
+    val info : android_selector:AndroidSelector.t -> t -> AndroidElementInfo.t
+    val screenshot : t -> string
+    val input_type : text:string -> t -> unit
+    val input_press : key:string -> t -> unit
+    val input_tap : point:Point.t -> t -> unit
+    val input_swipe : segments:Point.t array -> steps:int -> t -> unit
+    val input_drag : from:Point.t -> to_:Point.t -> steps:int -> t -> unit
+
+    type proxy_t = {
+        server : string;
+        bypass : string option;
+        username : string option;
+        password : string option;
+    }
+    type service_workers_t = [
+        | `Allow
+        | `Block
+    ]
+    type record_video_t = {
+        dir : string option;
+        size : size_t option;
+        show_actions : show_actions_t option;
+    }
+    type show_actions_t = {
+        duration : float option;
+        position : position_t option;
+        font_size : int option;
+    }
+    type position_t = [
+        | `Top_left
+        | `Top
+        | `Top_right
+        | `Bottom_left
+        | `Bottom
+        | `Bottom_right
+    ]
+    type size_t = {
+        width : int;
+        height : int;
+    }
+    type contrast_t = [
+        | `No_preference
+        | `More
+        | `No_override
+    ]
+    type accept_downloads_t = [
+        | `Accept
+        | `Deny
+        | `Internal_browser_default
+    ]
+    type forced_colors_t = [
+        | `Active
+        | `None
+        | `No_override
+    ]
+    type reduced_motion_t = [
+        | `Reduce
+        | `No_preference
+        | `No_override
+    ]
+    type color_scheme_t = [
+        | `Dark
+        | `Light
+        | `No_preference
+        | `No_override
+    ]
+    type http_credentials_t = {
+        username : string;
+        password : string;
+        origin : string option;
+        send : send_t option;
+    }
+    type send_t = [
+        | `Always
+        | `Unauthorized
+    ]
+    type geolocation_t = {
+        longitude : float;
+        latitude : float;
+        accuracy : float option;
+    }
+    type client_certificates_t = {
+        origin : string;
+        cert : string option;
+        key : string option;
+        passphrase : string option;
+        pfx : string option;
+    }
+    type screen_t = {
+        width : int;
+        height : int;
+    }
+    type viewport_t = {
+        width : int;
+        height : int;
+    }
+    val launch_browser : ?no_default_viewport:bool -> ?viewport:viewport_t -> ?screen:screen_t -> ?ignore_https_errors:bool -> ?client_certificates:client_certificates_t array -> ?java_script_enabled:bool -> ?bypass_csp:bool -> ?user_agent:string -> ?locale:string -> ?timezone_id:string -> ?geolocation:geolocation_t -> ?permissions:string array -> ?extra_http_headers:NameValue.t array -> ?offline:bool -> ?http_credentials:http_credentials_t -> ?device_scale_factor:float -> ?is_mobile:bool -> ?has_touch:bool -> ?color_scheme:color_scheme_t -> ?reduced_motion:reduced_motion_t -> ?forced_colors:forced_colors_t -> ?accept_downloads:accept_downloads_t -> ?contrast:contrast_t -> ?base_url:string -> ?record_video:record_video_t -> ?strict_selectors:bool -> ?service_workers:service_workers_t -> ?selector_engines:SelectorEngine.t array -> ?test_id_attribute_name:string -> ?pkg:string -> ?args:string array -> ?proxy:proxy_t -> t -> BrowserContext.t
+    val open_ : command:string -> t -> AndroidSocket.t
+    val shell : command:string -> t -> string
+    val install_apk : file:string -> ?args:string array -> t -> unit
+    val push : file:string -> path:string -> ?mode:int -> t -> unit
+    val connect_to_web_view : socket_name:string -> t -> BrowserContext.t
+    val close : t -> unit
+and
+module JsonPipe : sig
+    type t
+
+    val send : message:Yojson.t -> t -> unit
+    val close : t -> unit
+end
