@@ -130,8 +130,7 @@ module Parser = struct
             make_opt is_opt t
         | _ -> failwith "Expected string or dict for type"
 
-    and parse_object env d =
-        let props_d = opt_dict "properties" d in
+    and parse_properties env props_d =
         let rec resolve_props d =
             List.concat_map (fun (k, v) ->
                 if String.starts_with ~prefix:"$mixin" k then
@@ -146,19 +145,22 @@ module Parser = struct
         let properties = List.map (fun (k, v) -> (k, parse_type env k v)) resolved_props in
         { Types.properties }
 
+    and parse_object env d =
+        parse_properties env (opt_dict "properties" d)
+
     let parse_command env name d =
         let title = opt_string "title" d in
-        let parameters = parse_object env (match List.assoc_opt "parameters" d with Some (`O p) -> [("properties", `O p)] | _ -> []) in
-        let returns = parse_object env (match List.assoc_opt "returns" d with Some (`O r) -> [("properties", `O r)] | _ -> []) in
+        let parameters = parse_properties env (opt_dict "parameters" d) in
+        let returns = parse_properties env (opt_dict "returns" d) in
         { Types.name; title; parameters; returns }
 
     let parse_event env name d =
-        let parameters = parse_object env (match List.assoc_opt "parameters" d with Some (`O p) -> [("properties", `O p)] | _ -> []) in
+        let parameters = parse_properties env (opt_dict "parameters" d) in
         { Types.name; parameters }
 
     let parse_initializer env d =
         match List.assoc_opt "initializer" d with
-        | Some (`O init) -> Some (parse_object env [("properties", `O init)])
+        | Some (`O init) -> Some (parse_properties env init)
         | _ -> None
 
     let parse_top_def env name d =
@@ -187,14 +189,8 @@ module Parser = struct
         | "mixin" -> None
         | _ -> failwithf "Unknown top-level type: %s" type_str
 
-    let read_file path =
-        let ic = open_in path in
-        let content = really_input_string ic (in_channel_length ic) in
-        close_in ic;
-        content
-
     let parse path =
-        let content = read_file path in
+        let content = In_channel.with_open_text path In_channel.input_all in
         let yaml = Yaml.of_string_exn content in
         let top_dict = get_dict yaml in
 
