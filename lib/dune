@@ -5,18 +5,14 @@
  (preprocess
   (pps ppx_deriving_yojson)))
 
-; (rule
-;  (targets api_v2.mli api_v2.ml)
-;  (deps %{workspace_root}/deps/playwright/packages/protocol/src/protocol.yml %{workspace_root}/tools/generate_api_v2.exe)
-;  (action
-;   (progn
-;    (with-stdout-to
-;     api_v2.mli
-;     (chdir
-;      %{workspace_root}
-;      (run tools/generate_api_v2.exe mli)))
-;    (with-stdout-to
-;     api_v2.ml
-;     (chdir
-;      %{workspace_root}
-;      (run tools/generate_api_v2.exe ml))))))
+(rule
+ (targets api_v2.mli api_v2.ml)
+ (deps ../deps/playwright/packages/protocol/src/protocol.yml)
+ (action
+  (progn
+   (with-stdout-to
+    api_v2.mli
+    (run %{exe:../tools/generate_api_v2.exe} mli %{deps}))
+   (with-stdout-to
+    api_v2.ml
+    (run %{exe:../tools/generate_api_v2.exe} ml %{deps})))))
