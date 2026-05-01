@@ -296,7 +296,7 @@ module Render = struct
             acc, sprintf "%s option" ty_name
     and object_ ty_name properties acc =
         let acc, fields = object_body properties acc in
-        let ty_body = sprintf "{\n%s\n    } [@@deriving yojson]" fields in
+        let ty_body = sprintf "{\n%s\n    } [@@deriving yojson {strict = false}]" fields in
         (ty_name, ty_body, ty_body) :: acc
     and enum_ ty_name (literals : string list) acc =
         let ctors_decl = literals |> List.map (fun literal -> sprintf "        | `%s" (to_ocaml_variant_name literal)) |> String.concat "\n" in
@@ -350,16 +350,16 @@ module Render = struct
                             )
                         )
                     in
-                    let local_type_defs = let ty_body = sprintf "{\n%s\n    __internal_obj : internal_obj;\n    } [@@deriving yojson]\n" (strip_attrs def_body) in ("Wrap", ty_body, ty_body) :: local_type_defs in
+                    let local_type_defs = let ty_body = sprintf "{\n%s\n    __internal_obj : internal_obj option; [@default None] [@yojson_drop_default ( = )]\n    } [@@deriving yojson {strict = false}]\n" (strip_attrs def_body) in ("Wrap", ty_body, ty_body) :: local_type_defs in
                     let local_type_def_mods =
                         local_type_defs |> List.mapi (fun i (ty_name, ty_body_sig, _ty_body_struct) ->
                             if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end\n" ty_name ty_body_sig
                             else sprintf "    and %s : sig type t = %s\n    end\n" ty_name ty_body_sig) |> String.concat "\n"
                     in
                     w "%s" local_type_def_mods;
-                    w "    type t = Wrap.t [@@deriving yojson]\n\n";
+                    w "    type t = Wrap.t [@@deriving yojson {strict = false}]\n\n";
                 | None ->
-                    w "    type t [@@deriving yojson]\n";
+                    w "    type t = {\n    __internal_obj : internal_obj option; [@default None] [@yojson_drop_default ( = )]\n    } [@@deriving yojson {strict = false}]\n";
             );
             w "\n";
             let rec get_all_commands iface =
@@ -409,15 +409,16 @@ module Render = struct
         let render (root : Types.root) = fun out_buf ->
             let w fmt = bprintf out_buf fmt in
             w "[@@@ocaml.warning \"-30-39-32\"]\n\n";
-            w "type internal_obj\n";
+            (* w "type internal_obj\n"; *)
+            w "type internal_obj = { conn: Connection.t; guid: string }\n";
             w "type any = Yojson.Safe.t\n";
             w "type json = Yojson.Safe.t\n\n";
-            w "module Channel : sig type t = { guid: string } [@@deriving yojson] end\n";
+            w "module Channel : sig type t = { guid: string } [@@deriving yojson {strict = false}] end\n";
             root.top_defs |> List.iter (fun (name, def) ->
                 let local_type_defs, def_body = match def with
                     | Types.Object {properties} ->
                         let local_type_defs, fields = object_body properties [] in
-                        let ty_body = sprintf "{\n%s\n    } [@@deriving yojson]" fields in
+                        let ty_body = sprintf "{\n%s\n    } [@@deriving yojson {strict = false}]" fields in
                         local_type_defs, ty_body
                     | Types.Enum {literals} ->
                         let local_type_defs, ctors = enum_body literals [] in
@@ -445,7 +446,7 @@ module Render = struct
                         else sprintf "    and %s : sig type t = %s\n    end\n" ty_name ty_body_sig) |> String.concat "\n"
                 in
                 w "%s" local_type_def_mods;
-                w "    type t = Wrap.t [@@deriving yojson]\n\n";
+                w "    type t = Wrap.t [@@deriving yojson {strict = false}]\n\n";
                 w "end\n\n";
             );
             List.hd root.interfaces |> (fun (name, iface) ->
@@ -475,16 +476,16 @@ module Render = struct
                             )
                         )
                     in
-                    let local_type_defs = let ty_body = sprintf "{\n%s\n    __internal_obj : internal_obj;\n    } [@@deriving yojson]\n" (strip_attrs def_body) in ("Wrap", ty_body, ty_body) :: local_type_defs in
+                    let local_type_defs = let ty_body = sprintf "{\n%s\n    __internal_obj : internal_obj option; [@default None] [@yojson_drop_default ( = )]\n    } [@@deriving yojson {strict = false}]\n" (strip_attrs def_body) in ("Wrap", ty_body, ty_body) :: local_type_defs in
                     let local_type_def_mods =
                         local_type_defs |> List.mapi (fun i (ty_name, ty_body_sig, ty_body_struct) ->
                             if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct
                             else sprintf "    and %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct) |> String.concat "\n"
                     in
                     w "%s" local_type_def_mods;
-                    w "    type t = Wrap.t [@@deriving yojson]\n\n";
+                    w "    type t = Wrap.t [@@deriving yojson {strict = false}]\n\n";
                 | None ->
-                    w "    type t = { __internal_obj : internal_obj [@default {conn = Obj.magic (); guid = \"\"}] } [@@deriving yojson {strict = false}]\n";
+                    w "    type t = {\n    __internal_obj : internal_obj option; [@default None] [@yojson_drop_default ( = )]\n    } [@@deriving yojson {strict = false}]\n";
             );
             w "\n";
             let rec get_all_commands iface =
@@ -573,14 +574,14 @@ module Render = struct
                     | Types.FloatType -> "Yojson.Safe.Util.to_float"
                     | Types.BooleanType -> "Yojson.Safe.Util.to_bool"
                     | Types.BinaryType -> "(fun v -> Base64.decode_exn (Yojson.Safe.Util.to_string v))"
-                    | Types.JsonType -> "(fun v -> match json_of_yojson v with Ok x -> x | Error e -> failwith e)"
-                    | Types.AnyType -> "(fun v -> match any_of_yojson v with Ok x -> x | Error e -> failwith e)"
-                    | Types.TypeRef t -> sprintf "(fun v -> match %s.of_yojson v with Ok x -> x | Error e -> failwith e)" t
+                    | Types.JsonType -> "(fun v -> match json_of_yojson v with Ok x -> x | Error e -> print_endline \"Types.JsonType\"; failwith e)"
+                    | Types.AnyType -> "(fun v -> match any_of_yojson v with Ok x -> x | Error e -> print_endline \"Types.AnyType\"; failwith e)"
+                    | Types.TypeRef t -> sprintf "(fun v -> match %s.of_yojson v with Ok x -> x | Error e -> print_endline \"Types.TypeRef\"; print_endline \"%s\"; print_endline (Yojson.Safe.to_string v); failwith e)" t t
                     | Types.ObjectType _ | Types.EnumType _ ->
                         if String.ends_with ~suffix:".t" ty_name then
-                            sprintf "(fun v -> match %s.of_yojson v with Ok x -> x | Error e -> failwith e)" (String.sub ty_name 0 (String.length ty_name - 2))
+                            sprintf "(fun v -> match %s.of_yojson v with Ok x -> x | Error e -> print_endline \"Types.ObjectType 1\"; failwith e)" (String.sub ty_name 0 (String.length ty_name - 2))
                         else
-                            sprintf "(fun v -> match %s_of_yojson v with Ok x -> x | Error e -> failwith e)" ty_name
+                            sprintf "(fun v -> match %s_of_yojson v with Ok x -> x | Error e -> print_endline \"Types.ObjectType 2\"; failwith e)" ty_name
                 in
 
                 let assoc_list = args |> List.filter_map (fun (orig_name, name, ty_name, is_opt) ->
@@ -613,7 +614,7 @@ module Render = struct
 
                 w "    let %s %s : %s =\n" (to_ocaml_name cmd.name) args_args res_t;
                 w "        let params = %s in\n" params;
-                w "        match Connection.send_message t.__internal_obj.conn ~guid:t.__internal_obj.guid ~method_:\"%s\" ~params with\n" cmd.name;
+                w "        match Connection.send_message (Option.get t.__internal_obj).conn ~guid:(Option.get t.__internal_obj).guid ~method_:\"%s\" ~params with\n" cmd.name;
                 w "        | Ok res -> %s\n" res_parser;
                 w "        | Error e -> failwith e\n";
             )
@@ -622,15 +623,15 @@ module Render = struct
             let w fmt = bprintf out_buf fmt in
             w "[@@@ocaml.warning \"-30-39-32\"]\n\n";
             w "type internal_obj = { conn: Connection.t; guid: string }\n";
-            w "let internal_obj_to_yojson _ = `Null\nlet internal_obj_of_yojson _ = Error \"<probably should never be called>\"\n";
-            w "type any = Yojson.Safe.t [@@deriving yojson]\n";
-            w "type json = Yojson.Safe.t [@@deriving yojson]\n";
-            w "module Channel = struct type t = { guid: string } [@@deriving yojson] end\n";
+            w "let internal_obj_to_yojson _ = failwith \"internal_obj_to_yojson called\"\nlet internal_obj_of_yojson _ = failwith \"internal_obj_of_yojson: <probably should never be called>\"\n";
+            w "type any = Yojson.Safe.t [@@deriving yojson {strict = false}]\n";
+            w "type json = Yojson.Safe.t [@@deriving yojson {strict = false}]\n";
+            w "module Channel = struct type t = { guid: string } [@@deriving yojson {strict = false}] end\n";
             root.top_defs |> List.iter (fun (name, def) ->
                 let local_type_defs, def_body_for_sig, def_body_for_struct = match def with
                     | Types.Object {properties} ->
                         let local_type_defs, fields = object_body properties [] in
-                        let def_body = sprintf "{\n%s\n    } [@@deriving yojson]" fields in
+                        let def_body = sprintf "{\n%s\n    } [@@deriving yojson {strict = false}]" fields in
                         local_type_defs, def_body, def_body
                     | Types.Enum {literals} ->
                         let ctors_decl = literals |> List.map (fun literal -> sprintf "        | `%s [@name \"%s\"]" (to_ocaml_variant_name literal) literal) |> String.concat "\n" in
