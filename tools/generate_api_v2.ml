@@ -336,7 +336,7 @@ module Render = struct
     let strip_attrs code = code
 
     module Sig = struct
-        let interface interfaces (interface : Types.interface_) = fun out_buf ->
+        let interface interfaces interface_name (interface : Types.interface_) = fun out_buf ->
             let w fmt = bprintf out_buf fmt in
             let local_defs_names = ref [] in
             interface.initializer_ |> (function
@@ -350,16 +350,28 @@ module Render = struct
                             )
                         )
                     in
-                    let local_type_defs = let ty_body = sprintf "{\n%s\n    __internal_obj : internal_obj option; [@default None] [@yojson_drop_default ( = )]\n    } [@@deriving yojson {strict = false}]\n" (strip_attrs def_body) in ("Wrap", ty_body, ty_body) :: local_type_defs in
+                    let local_type_defs =
+                        let ty_body = sprintf "{\n%s\n    } [@@deriving yojson {strict = false}]\n" def_body in
+                        ("Initializer", ty_body, ty_body) :: local_type_defs
+                    in
                     let local_type_def_mods =
                         local_type_defs |> List.mapi (fun i (ty_name, ty_body_sig, _ty_body_struct) ->
                             if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end\n" ty_name ty_body_sig
                             else sprintf "    and %s : sig type t = %s\n    end\n" ty_name ty_body_sig) |> String.concat "\n"
                     in
                     w "%s" local_type_def_mods;
-                    w "    type t = Wrap.t [@@deriving yojson {strict = false}]\n\n";
+                    w "    type %s_t\n" (to_ocaml_name interface_name);
+                    w "    type t = %s_t obj\n\n" (to_ocaml_name interface_name);
+
+                    w "    (* Initializer getters *)\n";
+                    properties |> List.iter (fun (field_name, ty) ->
+                        let _, ty_name = inline_type_ field_name ty [] in
+                        let field_name = to_ocaml_name field_name in
+                        w "    val %s : t -> %s\n" field_name ty_name
+                    );
                 | None ->
-                    w "    type t = {\n    __internal_obj : internal_obj option; [@default None] [@yojson_drop_default ( = )]\n    } [@@deriving yojson {strict = false}]\n";
+                    w "    type %s_t\n" (to_ocaml_name interface_name);
+                    w "    type t = %s_t obj\n\n" (to_ocaml_name interface_name);
             );
             w "\n";
             let rec get_all_commands iface =
@@ -372,6 +384,7 @@ module Render = struct
                 in
                 base_cmds @ iface.Types.commands
             in
+            w "    (* Commands *)\n";
             get_all_commands interface |> List.iter (fun (cmd : Types.command) ->
                 let local_type_defs, args = args_types cmd.parameters.properties in
                 let args_sig = args |> List.map (fun (_, name, ty, is_opt) -> if is_opt then sprintf "?%s:%s" name ty else sprintf "%s:%s" name ty) |> String.concat " -> " in
@@ -410,7 +423,7 @@ module Render = struct
             let w fmt = bprintf out_buf fmt in
             w "[@@@ocaml.warning \"-30-39-32\"]\n\n";
             (* w "type internal_obj\n"; *)
-            w "type internal_obj = { conn: Connection.t; guid: string }\n";
+            w "type 'a obj = { conn: Connection.t; guid: string }\n";
             w "type any = Yojson.Safe.t\n";
             w "type json = Yojson.Safe.t\n\n";
             w "module Channel : sig type t = { guid: string } [@@deriving yojson {strict = false}] end\n";
@@ -451,18 +464,18 @@ module Render = struct
             );
             List.hd root.interfaces |> (fun (name, iface) ->
                 w "module rec %s : sig\n" name;
-                interface root.interfaces iface out_buf;
+                interface root.interfaces name iface out_buf;
                 w "end\n"
             );
             List.tl root.interfaces |> List.iter (fun (name, iface) ->
                 w "and %s : sig\n" name;
-                interface root.interfaces iface out_buf;
+                interface root.interfaces name iface out_buf;
                 w "end\n"
             )
     end
 
     module Mod = struct
-        let interface interfaces (interface : Types.interface_) = fun out_buf ->
+        let interface interfaces interface_name (interface : Types.interface_) = fun out_buf ->
             let w fmt = bprintf out_buf fmt in
             let local_defs_names = ref [] in
             interface.initializer_ |> (function
@@ -476,16 +489,35 @@ module Render = struct
                             )
                         )
                     in
-                    let local_type_defs = let ty_body = sprintf "{\n%s\n    __internal_obj : internal_obj option; [@default None] [@yojson_drop_default ( = )]\n    } [@@deriving yojson {strict = false}]\n" (strip_attrs def_body) in ("Wrap", ty_body, ty_body) :: local_type_defs in
+                    let local_type_defs =
+                        let ty_body = sprintf "{\n%s\n    } [@@deriving yojson {strict = false}]\n" def_body in
+                        ("Initializer", ty_body, ty_body) :: local_type_defs
+                    in
                     let local_type_def_mods =
                         local_type_defs |> List.mapi (fun i (ty_name, ty_body_sig, ty_body_struct) ->
                             if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct
-                            else sprintf "    and %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct) |> String.concat "\n"
+                            else sprintf "    and %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct
+                        ) |> String.concat "\n"
                     in
                     w "%s" local_type_def_mods;
-                    w "    type t = Wrap.t [@@deriving yojson {strict = false}]\n\n";
+                    w "    type %s_t\n" (to_ocaml_name interface_name);
+                    w "    type t = %s_t obj\n\n" (to_ocaml_name interface_name);
+
+                    w "    (* Initializer getters *)\n";
+                    properties |> List.iter (fun (field_name, ty) ->
+                        let _, ty_name = inline_type_ field_name ty [] in
+                        let field_name = to_ocaml_name field_name in
+                        w "    let %s t =\n" field_name;
+                        w "    match Hashtbl.find_opt t.conn.objects t.guid with";
+                        w "    | Some obj ->";
+                        w "        let open Yojson.Safe.Util in";
+                        w "        (try Some ({ conn = t.conn; guid = member \"%s\" obj.initializer_ |> member \"guid\" |> to_string } : %s)" field_name ty_name;
+                        w "        with _ -> None)";
+                        w "    | None -> failwith \"Object not found in connection\"";
+                    );
                 | None ->
-                    w "    type t = {\n    __internal_obj : internal_obj option; [@default None] [@yojson_drop_default ( = )]\n    } [@@deriving yojson {strict = false}]\n";
+                    w "    type %s_t\n" (to_ocaml_name interface_name);
+                    w "    type t = %s_t obj\n\n" (to_ocaml_name interface_name);
             );
             w "\n";
             let rec get_all_commands iface =
@@ -622,7 +654,7 @@ module Render = struct
         let render (root : Types.root) = fun out_buf ->
             let w fmt = bprintf out_buf fmt in
             w "[@@@ocaml.warning \"-30-39-32\"]\n\n";
-            w "type internal_obj = { conn: Connection.t; guid: string }\n";
+            w "type 'a obj = { conn: Connection.t; guid: string }\n";
             w "let internal_obj_to_yojson _ = failwith \"internal_obj_to_yojson called\"\nlet internal_obj_of_yojson _ = failwith \"internal_obj_of_yojson: <probably should never be called>\"\n";
             w "type any = Yojson.Safe.t [@@deriving yojson {strict = false}]\n";
             w "type json = Yojson.Safe.t [@@deriving yojson {strict = false}]\n";
@@ -661,7 +693,8 @@ module Render = struct
                 let local_type_def_mods =
                     local_type_defs |> List.mapi (fun i (ty_name, ty_body_sig, ty_body_struct) ->
                         if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct
-                        else sprintf "    and %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct) |> String.concat "\n"
+                        else sprintf "    and %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct
+                    ) |> String.concat "\n"
                 in
                 w "%s" local_type_def_mods;
                 w "    type t = Wrap.t\n    [@@deriving yojson {strict = false}]\n    \n";
@@ -669,16 +702,16 @@ module Render = struct
             );
             List.hd root.interfaces |> (fun (name, iface) ->
                 w "module rec %s : sig\n" name;
-                Sig.interface root.interfaces iface out_buf;
+                Sig.interface root.interfaces name iface out_buf;
                 w "end = struct\n";
-                interface root.interfaces iface out_buf;
+                interface root.interfaces name iface out_buf;
                 w "end\n"
             );
             List.tl root.interfaces |> List.iter (fun (name, iface) ->
                 w "and %s : sig\n" name;
-                Sig.interface root.interfaces iface out_buf;
+                Sig.interface root.interfaces name iface out_buf;
                 w "end = struct\n";
-                interface root.interfaces iface out_buf;
+                interface root.interfaces name iface out_buf;
                 w "end\n"
             )
     end
