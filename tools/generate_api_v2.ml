@@ -277,8 +277,8 @@ module Render = struct
         | FloatType -> acc, "float"
         | BooleanType -> acc, "bool"
         | BinaryType -> acc, "string"
-        | JsonType -> acc, "Yojson.t"
-        | AnyType -> acc, "Yojson.t"
+                | JsonType -> acc, "Yojson.Safe.t"
+                | AnyType -> acc, "Yojson.Safe.t"
         | ObjectType {properties} ->
             let ty_name = sprintf "%s_t" (to_ocaml_name name) in
             (object_ ty_name properties acc), ty_name
@@ -324,30 +324,52 @@ module Render = struct
     let args_types properties =
         properties |> List.fold_left_map (fun acc (name, ty) ->
             let acc, ty_name, is_opt = arg_type name ty acc in
-            let name = if is_opt then sprintf "?%s" name else name in
-            acc, (to_ocaml_name name, ty_name)
+            let safe_name = to_ocaml_name name in
+            let name_label = if is_opt then sprintf "?%s" safe_name else safe_name in
+            acc, (name_label, ty_name)
         ) []
 
     module Sig = struct
-        let interface (interface : Types.interface_) = fun out_buf ->
+        let interface root (interface : Types.interface_) = fun out_buf ->
             let w fmt = bprintf out_buf fmt in
+            let emitted_types = Hashtbl.create 10 in
+            let emit_local_defs defs =
+                let new_defs = defs |> List.filter (fun def ->
+                    let name = try Re.Pcre.get_substring (Re.Pcre.exec ~rex:(Re.Pcre.regexp "^    (?:and|type) ([a-zA-Z_0-9]+) =") def) 1 with _ -> "" in
+                    if name = "" then true
+                    else if Hashtbl.mem emitted_types name then false
+                    else (Hashtbl.add emitted_types name (); true)
+                ) in
+                let new_defs = match List.rev new_defs with
+                    | hd :: tl -> (Re.replace_string (Re.Pcre.regexp "^    (?:and|type)") ~by:"    type" hd) :: tl
+                    | [] -> []
+                in
+                if new_defs <> [] then (
+                    w "%s\n" (new_defs |> String.concat "\n");
+                )
+            in
+
             interface.initializer_ |> (function
                 | Some {Types.properties} ->
-                    (* Turns out some of the local_type_defs might be mutually recursive with `type t`. TODO: handle this case. *)
                     let local_type_defs, def_body = object_body properties [] in
-                    if local_type_defs <> [] then (
-                        w "%s\n" (local_type_defs |> String.concat "\n");
-                    );
-                    w "    type t = {\n%s\n%s\n    }" def_body "        __internal_obj : obj";
+                    emit_local_defs local_type_defs;
+                    w "    type t = {\n%s\n%s\n    }" def_body "        __internal_obj : Obj.t";
                 | None ->
                     w "    type t\n";
             );
             w "\n";
-            interface.extends |> Option.iter (
-                w "    include %s\n\n"
-            );
-            interface.commands |> List.iter (fun (cmd : Types.command) ->
-                (* Turns out some `local_type_defs` are duplicated among commands in one module, or even across different modules. TODO: Handle this. *)
+            
+            let rec get_all_commands iface =
+                let base_cmds = match iface.Types.extends with
+                    | Some base_name -> 
+                        (match List.assoc_opt base_name root.Types.interfaces with
+                        | Some base_iface -> get_all_commands base_iface
+                        | None -> [])
+                    | None -> []
+                in
+                base_cmds @ iface.Types.commands
+            in
+            get_all_commands interface |> List.iter (fun (cmd : Types.command) ->
                 let local_type_defs, args = args_types cmd.parameters.properties in
                 let args = args |> List.map (fun (name, ty) -> sprintf "%s:%s" name ty) |> String.concat " -> " in
                 let local_type_defs, res_t = match cmd.returns.properties with
@@ -357,53 +379,48 @@ module Render = struct
                         let ty_name = sprintf "%s_res_t" (to_ocaml_name cmd.name) in
                         object_ ty_name properties local_type_defs, ty_name
                 in
-                if local_type_defs <> [] then (
-                    w "\n";
-                    w "%s\n" (local_type_defs |> String.concat "\n");
-                );
+                if local_type_defs <> [] then w "\n";
+                emit_local_defs local_type_defs;
                 let args = if args <> "" then sprintf "%s -> t" args else "t" in
                 w "    val %s : %s -> %s\n" (to_ocaml_name cmd.name) args res_t;
             )
-            (* I commented the following because it turns out that `wait_for_*` functions are already defined as commands in Playwright API. And we don't need to artificially create them. However, I'm not sure what `events` are for then. *)
-            (* interface.events |> List.iter Types.(fun ev ->
-                let local_type_defs, ev_ty_name =
-                    if ev.parameters.properties <> [] then
-                        let ev_ty_name = sprintf "%s_event_t" (to_ocaml_name ev.name) in
-                        let local_type_defs = object_ ev_ty_name ev.parameters.properties [] in
-                        local_type_defs, ev_ty_name
-                    else
-                        [], "unit"
-                in
-                if local_type_defs <> [] then (
-                    w "%s\n" (local_type_defs |> String.concat "\n");
-                );
-                w "    val on_%s : (%s -> unit) -> unit\n" (to_ocaml_name ev.name) ev_ty_name;
-                w "    val wait_for_%s : (?predicate : %s -> bool) -> %s\n" (to_ocaml_name ev.name) ev_ty_name ev_ty_name;
-            ) *)
+
         let render (root : Types.root) = fun out_buf ->
             let w fmt = bprintf out_buf fmt in
+            
+            w "[@@@ocaml.warning \"-30\"]\n\n";
+            w "module rec Channel : sig type t = Obj.t end\n\n";
+            let is_first = ref true in
             root.top_defs |> List.iter (fun (name, def) ->
                 let local_type_defs, def_body = match def with
                     | Types.Object {properties} -> object_body properties []
                     | Types.Enum {literals} -> enum_body literals []
                 in
-                w "module %s : sig\n" name;
-                if local_type_defs <> [] then (
-                    w "%s\n" (local_type_defs |> String.concat "\n");
+                if !is_first then (
+                    w "module rec %s : sig\n" name;
+                    is_first := false;
+                ) else (
+                    w "and %s : sig\n" name;
                 );
-                w "    type t = {\n%s\n    }\n" def_body;
+                (match def with
+                | Types.Object _ -> w "    type t = {\n%s\n    }\n" def_body
+                | Types.Enum _ -> w "    type t = [\n%s\n    ]\n" def_body);
+                if local_type_defs <> [] then (
+                    let defs = local_type_defs |> List.rev |> List.map (fun d -> Re.replace_string (Re.Pcre.regexp "^    (?:and|type)") ~by:"    and" d) in
+                    w "%s\n" (defs |> String.concat "\n");
+                );
                 w "end\n\n";
             );
             List.hd root.interfaces |> (fun (name, iface) ->
                 w "module rec %s : sig\n" name;
-                interface iface out_buf
+                interface root iface out_buf;
+                w "end\n"
             );
             List.tl root.interfaces |> List.iteri (fun i (name, iface) ->
-                w "and\n";
-                w "module %s : sig\n" name;
-                interface iface out_buf;
-            );
-            w "end\n";
+                w "and %s : sig\n" name;
+                interface root iface out_buf;
+                w "end\n"
+            )
     end
 end
 
