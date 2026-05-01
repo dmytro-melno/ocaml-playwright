@@ -1,17 +1,22 @@
 (library
  (name playwright)
  (public_name playwright)
- (modules_without_implementation api_v2)
  (libraries yojson eio unix base64)
  (preprocess
   (pps ppx_deriving_yojson)))
 
 (rule
- (target api_v2.mli)
- (deps ../deps/playwright/packages/protocol/src/protocol.yml)
+ (targets api_v2.mli api_v2.ml)
+ (deps ../deps/playwright/packages/protocol/src/protocol.yml ../tools/generate_api_v2.exe)
  (action
-  (with-stdout-to
-   %{target}
-   (chdir
-    %{workspace_root}
-    (run tools/generate_api_v2.exe)))))
+  (progn
+   (with-stdout-to
+    api_v2.mli
+    (chdir
+     %{workspace_root}
+     (run tools/generate_api_v2.exe mli)))
+   (with-stdout-to
+    api_v2.ml
+    (chdir
+     %{workspace_root}
+     (run tools/generate_api_v2.exe ml))))))
