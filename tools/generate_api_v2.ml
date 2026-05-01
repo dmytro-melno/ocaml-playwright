@@ -215,9 +215,6 @@ module Parser = struct
         Types.{ top_defs; interfaces }
 end
 
-
-
-
 module Render = struct
     open Printf
 
@@ -284,7 +281,7 @@ module Render = struct
         (ty_name, sprintf "{\n%s\n    }" fields) :: acc
     and enum_ ty_name (literals : string list) acc =
         let ctors_decl = literals |> List.map (fun literal -> sprintf "        | `%s [@name \"%s\"]" (to_ocaml_variant_name literal) literal) |> String.concat "\n" in
-        (ty_name, sprintf "[\n%s\n    ] [@@deriving yojson]\n" ctors_decl) :: acc
+        (ty_name, sprintf "[\n%s\n    ]" ctors_decl) :: acc
     and object_body properties acc =
         let acc, fields =
             properties |> List.fold_left_map (fun acc (name, ty) ->
@@ -330,10 +327,14 @@ module Render = struct
                             )
                         )
                     in
-                    w "    type t = {\n%s\n%s\n    }\n    [@@deriving yojson {strict = false}]\n\n" (strip_attrs def_body) "        __internal_obj : obj";
-                    w "%s\n" ((local_type_defs |> List.map (fun (ty_name, ty_body) -> sprintf "\n    and %s = %s" ty_name (strip_attrs ty_body)) |> String.concat ""))
+                    w "    type t = {\n%s\n%s\n    }\n\n" (strip_attrs def_body) "        __internal_obj : obj";
+                    w "%s\n" ((local_type_defs |> List.map (fun (ty_name, ty_body) -> sprintf "\n    and %s = %s" ty_name (strip_attrs ty_body)) |> String.concat ""));
+                    w "    val to_yojson : t -> Yojson.Safe.t\n";
+                    w "    val of_yojson : Yojson.Safe.t -> t Ppx_deriving_yojson_runtime.error_or\n"
                 | None ->
-                    w "    type t [@@deriving yojson]\n";
+                    w "    type t\n";
+                    w "    val to_yojson : t -> Yojson.Safe.t\n";
+                    w "    val of_yojson : Yojson.Safe.t -> t Ppx_deriving_yojson_runtime.error_or\n"
             );
             w "\n";
             let rec get_all_commands iface =
@@ -406,7 +407,9 @@ module Render = struct
                 in
                 w "module %s : sig\n" name;
                 let and_defs = local_type_defs |> List.map (fun (ty_name, ty_body) -> sprintf "\n    and %s = %s" ty_name ty_body) |> String.concat "" in
-                w "    type t = %s\n    [@@deriving yojson {strict = false}]\n    %s\n" def_body and_defs;
+                w "    type t = %s\n    %s\n" def_body and_defs;
+                w "    val to_yojson : t -> Yojson.Safe.t\n";
+                w "    val of_yojson : Yojson.Safe.t -> t Ppx_deriving_yojson_runtime.error_or\n";
                 w "end\n\n";
             );
             List.hd root.interfaces |> (fun (name, iface) ->
@@ -487,75 +490,14 @@ module Render = struct
                 ) |> String.concat " " in
 
                 let args_args = if args_args <> "" then sprintf "%s (t:t)" args_args else "(t:t)" in
+                let params = "Obj.magic \"<unimplemented>\"" in
+                let res_parser = "Obj.magic \"<unimplemented>\"" in
 
-                let rec get_encoder ty ty_name =
-                    match ty with
-                    | Types.Optional inner ->
-                        sprintf "(fun v -> match v with Some x -> (%s) x | None -> `Null)" (get_encoder inner ty_name)
-                    | Types.ArrayType {of_type} ->
-                        let inner_ty_name = if String.ends_with ~suffix:" array" ty_name then String.sub ty_name 0 (String.length ty_name - 6) else ty_name in
-                        sprintf "(fun l -> `List (List.map (%s) (Array.to_list l)))" (get_encoder of_type inner_ty_name)
-                    | Types.StringType -> "fun s -> `String s"
-                    | Types.IntType -> "fun i -> `Int i"
-                    | Types.FloatType -> "fun f -> `Float f"
-                    | Types.BooleanType -> "fun b -> `Bool b"
-                    | Types.BinaryType -> "fun s -> `String (Base64.encode_exn s)"
-                    | Types.JsonType -> "json_to_yojson"
-                    | Types.AnyType -> "any_to_yojson"
-                    | Types.TypeRef t -> sprintf "%s.to_yojson" t
-                    | Types.ObjectType _ | Types.EnumType _ -> sprintf "%s_to_yojson" ty_name
-                in
-
-                let rec get_decoder ty ty_name =
-                    match ty with
-                    | Types.Optional inner ->
-                        sprintf "(fun v -> match v with `Null -> Ok None | _ -> match (%s) v with Ok r -> Ok (Some r) | Error e -> Error e)" (get_decoder inner ty_name)
-                    | Types.ArrayType {of_type} ->
-                        let inner_ty_name = if String.ends_with ~suffix:" array" ty_name then String.sub ty_name 0 (String.length ty_name - 6) else ty_name in
-                        sprintf "(fun v -> try Ok (Array.of_list (List.map (fun item -> match (%s) item with Ok r -> r | Error e -> failwith e) (Yojson.Safe.Util.to_list v))) with Failure e -> Error e)" (get_decoder of_type inner_ty_name)
-                    | Types.StringType -> "fun v -> Ok (Yojson.Safe.Util.to_string v)"
-                    | Types.IntType -> "fun v -> Ok (Yojson.Safe.Util.to_int v)"
-                    | Types.FloatType -> "fun v -> Ok (Yojson.Safe.Util.to_float v)"
-                    | Types.BooleanType -> "fun v -> Ok (Yojson.Safe.Util.to_bool v)"
-                    | Types.BinaryType -> "fun v -> Ok (Base64.decode_exn (Yojson.Safe.Util.to_string v))"
-                    | Types.JsonType -> "json_of_yojson"
-                    | Types.AnyType -> "any_of_yojson"
-                    | Types.TypeRef t -> sprintf "%s.of_yojson" t
-                    | Types.ObjectType _ | Types.EnumType _ -> sprintf "%s_of_yojson" ty_name
-                in
-
-                let assoc_list = args |> List.filter_map (fun (orig_name, name, ty_name, is_opt) ->
-                    let ty = List.assoc orig_name cmd.parameters.properties in
-                    let _is_opt_inner, ty = match ty with | Types.Optional ty -> true, ty | ty -> false, ty in
-                    let base_encoder = get_encoder ty ty_name in
-
-                    if is_opt then
-                        Some (sprintf "        (match %s with | Some v -> [(\"%s\", (%s) v)] | None -> []);" name orig_name base_encoder)
-                    else
-                        Some (sprintf "        [\"%s\", (%s) %s];" orig_name base_encoder name)
-                ) |> String.concat "\n" in
-
-                let params = if args = [] then "`Assoc []" else sprintf "`Assoc (List.concat [\n%s\n    ])" assoc_list in
-
-                let res_parser = match cmd.returns.properties with
-                    | [] -> "Ok ()"
-                    | [name, ty] ->
-                        let is_opt, ty = match ty with | Types.Optional ty -> true, ty | ty -> false, ty in
-                        let _, ty_name = inline_type_ name ty [] in
-                        let base_decoder = get_decoder ty ty_name in
-                        if is_opt then
-                            sprintf "(match Yojson.Safe.Util.member \"%s\" res with | `Null -> Ok None | v -> match (%s) v with Ok r -> Ok (Some r) | Error e -> Error e)" name base_decoder
-                        else
-                            sprintf "(match Yojson.Safe.Util.member \"%s\" res with | `Null -> Error \"%s is null\" | v -> (%s) v)" name name base_decoder
-                    | _properties -> sprintf "%s_of_yojson res" res_t
-                in
-
-
-                w "    let %s %s : (%s, string) result =\n" (to_ocaml_name cmd.name) args_args res_t;
+                w "    let %s %s : %s =\n" (to_ocaml_name cmd.name) args_args res_t;
                 w "        let params = %s in\n" params;
                 w "        match Connection.send_message t.__internal_obj.conn ~guid:t.__internal_obj.guid ~method_:\"%s\" ~params with\n" cmd.name;
                 w "        | Ok res -> %s\n" res_parser;
-                w "        | Error e -> Error e\n";
+                w "        | Error e -> failwith e\n";
             )
 
         let render (root : Types.root) = fun out_buf ->
