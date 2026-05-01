@@ -389,30 +389,14 @@ module Render = struct
                 let args = if args <> "" then sprintf "%s -> t" args else "t" in
                 w "    val %s : %s -> %s\n" (to_ocaml_name cmd.name) args res_t;
             )
-            (* I commented the following because it turns out that `wait_for_*` functions are already defined as commands in Playwright API. And we don't need to artificially create them. However, I'm not sure what `events` are for then. *)
-            (* interface.events |> List.iter Types.(fun ev ->
-                let local_type_defs, ev_ty_name =
-                    if ev.parameters.properties <> [] then
-                        let ev_ty_name = sprintf "%s_event_t" (to_ocaml_name ev.name) in
-                        let local_type_defs = object_ ev_ty_name ev.parameters.properties [] in
-                        local_type_defs, ev_ty_name
-                    else
-                        [], "unit"
-                in
-                if local_type_defs <> [] then (
-                    w "%s\n" (local_type_defs |> String.concat "\n");
-                );
-                w "    val on_%s : (%s -> unit) -> unit\n" (to_ocaml_name ev.name) ev_ty_name;
-                w "    val wait_for_%s : (?predicate : %s -> bool) -> %s\n" (to_ocaml_name ev.name) ev_ty_name ev_ty_name;
-            ) *)
+            (* It turns out that `wait_for_*` functions are already defined as commands in Playwright API. And we don't need to artificially create them. However, I'm not sure what `events` are for then. *)
         let render (root : Types.root) = fun out_buf ->
             let w fmt = bprintf out_buf fmt in
-            (* w "[@@@ocaml.warning \"-30\"]\n\n"; *)
-            (* w "type obj = { conn: Connection.t; guid: string }\n"; *)
-            w "type obj = { (* conn: Connection.t; *) guid: string }\n";
-            w "module Channel : sig type t = { guid: string } [@@deriving yojson] end\n";
+            w "[@@@ocaml.warning \"-30\"]\n\n";
+            w "type obj = { conn: Connection.t; guid: string }\n";
             w "type any = Yojson.Safe.t\n";
             w "type json = Yojson.Safe.t\n\n";
+            w "module Channel : sig type t = { guid: string } [@@deriving yojson] end\n";
             root.top_defs |> List.iter (fun (name, def) ->
                 let local_type_defs, def_body = match def with
                     | Types.Object {properties} ->
