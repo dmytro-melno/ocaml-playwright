@@ -7,7 +7,7 @@
 
 (rule
  (targets api_v2.mli api_v2.ml)
- (deps ../deps/playwright/packages/protocol/src/protocol.yml ../tools/generate_api_v2.exe)
+ (deps %{workspace_root}/deps/playwright/packages/protocol/src/protocol.yml %{workspace_root}/tools/generate_api_v2.exe)
  (action
   (progn
    (with-stdout-to

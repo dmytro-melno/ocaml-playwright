@@ -1,5 +1,2 @@
 
-type a = { a : int }
-and b = [ `Foo [@name "foo"] ]
-[@@deriving yojson]
-let () = ()
+type obj = { conn: int; guid: string } [@@deriving yojson]
