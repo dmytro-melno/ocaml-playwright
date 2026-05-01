@@ -252,7 +252,22 @@ module Render = struct
         if s.[0] >= '0' && s.[0] <= '9' then "V_" ^ s else
         String.capitalize_ascii s
 
-    let rec inline_type_ name ty (acc : (string * string) list) : (string * string) list * string =
+    let make_yojson_functions_for_variant literals =
+        let yojson_sigs = "    val of_yojson : Yojson.Safe.t -> (t, string) result\n    val to_yojson : t -> Yojson.Safe.t" in
+        let out_buf = Buffer.create 0x100 in
+        let w fmt = bprintf out_buf fmt in
+        w "    let to_yojson = function\n";
+        literals |> List.iter (fun lit ->
+            w "        | `%s -> `String \"%s\"" (to_ocaml_variant_name lit) lit
+        );
+        w "    let of_yojson = function\n";
+        literals |> List.iter (fun lit ->
+            w "        | `String \"%s\" -> Ok `%s" lit (to_ocaml_variant_name lit)
+        );
+        w "        | _ -> Error \"invalid variant\"";
+        yojson_sigs, Buffer.contents out_buf
+
+    let rec inline_type_ name ty (acc : (string * string * string) list) : (string * string * string) list * string =
         let open Types in
         match ty with
         | StringType -> acc, "string"
@@ -281,10 +296,14 @@ module Render = struct
             acc, sprintf "%s option" ty_name
     and object_ ty_name properties acc =
         let acc, fields = object_body properties acc in
-        (ty_name, sprintf "{\n%s\n    } [@@deriving yojson]" fields) :: acc
+        let ty_body = sprintf "{\n%s\n    } [@@deriving yojson]" fields in
+        (ty_name, ty_body, ty_body) :: acc
     and enum_ ty_name (literals : string list) acc =
-        let ctors_decl = literals |> List.map (fun literal -> sprintf "        | `%s [@name \"%s\"]" (to_ocaml_variant_name literal) literal) |> String.concat "\n" in
-        (ty_name, sprintf "[\n%s\n    ] [@@deriving yojson]" ctors_decl) :: acc
+        let ctors_decl = literals |> List.map (fun literal -> sprintf "        | `%s" (to_ocaml_variant_name literal)) |> String.concat "\n" in
+        let yojson_sigs, yojson_defs = make_yojson_functions_for_variant literals in
+        let ty_body_sig = sprintf "[\n%s\n    ]\n%s\n" ctors_decl yojson_sigs in
+        let ty_body_struct = sprintf "[\n%s\n    ]\n%s\n" ctors_decl yojson_defs in
+        (ty_name, ty_body_sig, ty_body_struct) :: acc
     and object_body properties acc =
         let acc, fields =
             properties |> List.fold_left_map (fun acc (name, ty) ->
@@ -324,18 +343,18 @@ module Render = struct
                 | Some {Types.properties} ->
                     let local_type_defs, def_body = object_body properties [] in
                     let local_type_defs =
-                        local_type_defs |> List.filter_map (fun (ty_name, ty_body) ->
+                        local_type_defs |> List.filter_map (fun (ty_name, ty_body_sig, ty_body_struct) ->
                             if List.mem ty_name !local_defs_names then None else (
                                 local_defs_names := ty_name :: !local_defs_names;
-                                Some (ty_name, ty_body)
+                                Some (ty_name, ty_body_sig, ty_body_struct)
                             )
                         )
                     in
-                    let local_type_defs = ("Wrap", sprintf "{\n%s\n    __internal_obj : internal_obj;\n    } [@@deriving yojson]\n" (strip_attrs def_body)) :: local_type_defs in
+                    let local_type_defs = let ty_body = sprintf "{\n%s\n    __internal_obj : internal_obj;\n    } [@@deriving yojson]\n" (strip_attrs def_body) in ("Wrap", ty_body, ty_body) :: local_type_defs in
                     let local_type_def_mods =
-                        local_type_defs |> List.mapi (fun i (ty_name, ty_body) ->
-                            if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end\n" ty_name (strip_attrs ty_body)
-                            else sprintf "    and %s : sig type t = %s\n    end\n" ty_name (strip_attrs ty_body)) |> String.concat "\n"
+                        local_type_defs |> List.mapi (fun i (ty_name, ty_body_sig, _ty_body_struct) ->
+                            if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end\n" ty_name ty_body_sig
+                            else sprintf "    and %s : sig type t = %s\n    end\n" ty_name ty_body_sig) |> String.concat "\n"
                     in
                     w "%s" local_type_def_mods;
                     w "    type t = Wrap.t [@@deriving yojson]\n\n";
@@ -364,21 +383,21 @@ module Render = struct
                     | properties ->
                         let ty_name = sprintf "%sResult" (String.capitalize_ascii cmd.name) in
                         let acc, fields = object_body properties local_type_defs in
-                        let local_type_defs = (ty_name, sprintf "{\n%s\n    } [@@deriving yojson {strict = false}]" fields) :: acc in
+                        let local_type_defs = let ty_body = sprintf "{\n%s\n    } [@@deriving yojson {strict = false}]" fields in (ty_name, ty_body, ty_body) :: acc in
                         local_type_defs, (sprintf "%s.t" ty_name)
                 in
                 let local_type_defs =
-                    local_type_defs |> List.filter_map (fun (ty_name, ty_body) ->
+                    local_type_defs |> List.filter_map (fun (ty_name, ty_body_sig, ty_body_struct) ->
                         if List.mem ty_name !local_defs_names then None else (
                             local_defs_names := ty_name :: !local_defs_names;
-                            Some (ty_name, ty_body)
+                            Some (ty_name, ty_body_sig, ty_body_struct)
                         )
                     )
                 in
                 let local_type_def_mods =
-                    local_type_defs |> List.mapi (fun i (ty_name, ty_body) ->
-                        if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end\n" ty_name (strip_attrs ty_body)
-                        else sprintf "    and %s : sig type t = %s\n    end\n" ty_name (strip_attrs ty_body)) |> String.concat "\n"
+                    local_type_defs |> List.mapi (fun i (ty_name, ty_body_sig, _ty_body_struct) ->
+                        if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end\n" ty_name ty_body_sig
+                        else sprintf "    and %s : sig type t = %s\n    end\n" ty_name ty_body_sig) |> String.concat "\n"
                 in
                 if local_type_defs <> [] then (
                     w "\n";
@@ -398,30 +417,32 @@ module Render = struct
                 let local_type_defs, def_body = match def with
                     | Types.Object {properties} ->
                         let local_type_defs, fields = object_body properties [] in
-                        local_type_defs, sprintf "{\n%s\n    } [@@deriving yojson]" fields
+                        let ty_body = sprintf "{\n%s\n    } [@@deriving yojson]" fields in
+                        local_type_defs, ty_body
                     | Types.Enum {literals} ->
                         let local_type_defs, ctors = enum_body literals [] in
-                        local_type_defs, sprintf "[\n%s\n    ] [@@deriving yojson]" ctors
+                        let yojson_sigs, _yojson_defs = make_yojson_functions_for_variant literals in
+                        let ty_body_sig = sprintf "[\n%s\n    ]\n%s\n" ctors yojson_sigs in
+                        local_type_defs, ty_body_sig
                 in
                 let def_body = def_body |> Re.replace_string (Re.compile @@ Re.str (sprintf "%s.t" name)) ~by:"t" in
-                let def_body = strip_attrs def_body in
                 let local_defs_names = ref [] in
                 let local_type_defs =
-                    local_type_defs |> List.filter_map (fun (ty_name, ty_body) ->
+                    local_type_defs |> List.filter_map (fun (ty_name, ty_body_sig, _ty_body_struct) ->
                         if List.mem ty_name !local_defs_names then None else (
                             local_defs_names := ty_name :: !local_defs_names;
-                            Some (ty_name, ty_body)
+                            Some (ty_name, ty_body_sig)
                         )
                     )
-                    |> List.map (fun (ty_name, ty_body) -> ty_name, Re.replace_string (Re.compile @@ Re.str (sprintf "%s.t" name)) ~by:"Wrap.t" ty_body)
-                    |> List.map (fun (ty_name, ty_body) -> ty_name, strip_attrs ty_body)
+                    |> List.map (fun (ty_name, ty_body_sig) -> ty_name, Re.replace_string (Re.compile @@ Re.str (sprintf "%s.t" name)) ~by:"Wrap.t" ty_body_sig)
+                    |> List.map (fun (ty_name, ty_body_sig) -> ty_name, strip_attrs ty_body_sig)
                 in
                 w "module %s : sig\n" name;
-                let local_type_defs = ("Wrap", strip_attrs def_body) :: local_type_defs in
+                let local_type_defs = ("Wrap", def_body) :: local_type_defs in
                 let local_type_def_mods =
-                    local_type_defs |> List.mapi (fun i (ty_name, ty_body) ->
-                        if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end\n" ty_name (strip_attrs ty_body)
-                        else sprintf "    and %s : sig type t = %s\n    end\n" ty_name (strip_attrs ty_body)) |> String.concat "\n"
+                    local_type_defs |> List.mapi (fun i (ty_name, ty_body_sig) ->
+                        if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end\n" ty_name ty_body_sig
+                        else sprintf "    and %s : sig type t = %s\n    end\n" ty_name ty_body_sig) |> String.concat "\n"
                 in
                 w "%s" local_type_def_mods;
                 w "    type t = Wrap.t [@@deriving yojson]\n\n";
@@ -447,18 +468,18 @@ module Render = struct
                 | Some {Types.properties} ->
                     let local_type_defs, def_body = object_body properties [] in
                     let local_type_defs =
-                        local_type_defs |> List.filter_map (fun (ty_name, ty_body) ->
+                        local_type_defs |> List.filter_map (fun (ty_name, ty_body_sig, ty_body_struct) ->
                             if List.mem ty_name !local_defs_names then None else (
                                 local_defs_names := ty_name :: !local_defs_names;
-                                Some (ty_name, ty_body)
+                                Some (ty_name, ty_body_sig, ty_body_struct)
                             )
                         )
                     in
-                    let local_type_defs = ("Wrap", sprintf "{\n%s\n    __internal_obj : internal_obj;\n    } [@@deriving yojson]\n" (strip_attrs def_body)) :: local_type_defs in
+                    let local_type_defs = let ty_body = sprintf "{\n%s\n    __internal_obj : internal_obj;\n    } [@@deriving yojson]\n" (strip_attrs def_body) in ("Wrap", ty_body, ty_body) :: local_type_defs in
                     let local_type_def_mods =
-                        local_type_defs |> List.mapi (fun i (ty_name, ty_body) ->
-                            if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name (strip_attrs ty_body) (strip_attrs ty_body)
-                            else sprintf "    and %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name (strip_attrs ty_body) (strip_attrs ty_body)) |> String.concat "\n"
+                        local_type_defs |> List.mapi (fun i (ty_name, ty_body_sig, ty_body_struct) ->
+                            if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct
+                            else sprintf "    and %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct) |> String.concat "\n"
                     in
                     w "%s" local_type_def_mods;
                     w "    type t = Wrap.t [@@deriving yojson]\n\n";
@@ -487,22 +508,23 @@ module Render = struct
                     | properties ->
                         let ty_name = sprintf "%sResult" (String.capitalize_ascii cmd.name) in
                         let acc, fields = object_body properties local_type_defs in
-                        let local_type_defs = (ty_name, sprintf "{\n%s\n    } [@@deriving yojson {strict = false}]" fields) :: acc in
+                        let ty_body = sprintf "{\n%s\n    } [@@deriving yojson {strict = false}]" fields in
+                        let local_type_defs = (ty_name, ty_body, ty_body) :: acc in
                         local_type_defs, (sprintf "%s.t" ty_name)
                 in
 
                 let local_type_defs =
-                    local_type_defs |> List.filter_map (fun (ty_name, ty_body) ->
+                    local_type_defs |> List.filter_map (fun (ty_name, ty_body_sig, ty_body_struct) ->
                         if List.mem ty_name !local_defs_names then None else (
                             local_defs_names := ty_name :: !local_defs_names;
-                            Some (ty_name, ty_body)
+                            Some (ty_name, ty_body_sig, ty_body_struct)
                         )
                     )
                 in
                 let local_type_def_mods =
-                    local_type_defs |> List.mapi (fun i (ty_name, ty_body) ->
-                        if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name (strip_attrs ty_body) (strip_attrs ty_body)
-                        else sprintf "    and %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name (strip_attrs ty_body) (strip_attrs ty_body)) |> String.concat "\n"
+                    local_type_defs |> List.mapi (fun i (ty_name, ty_body_sig, ty_body_struct) ->
+                        if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct
+                        else sprintf "    and %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct) |> String.concat "\n"
                 in
                 if local_type_defs <> [] then (
                     w "\n";
@@ -605,31 +627,40 @@ module Render = struct
             w "type json = Yojson.Safe.t [@@deriving yojson]\n";
             w "module Channel = struct type t = { guid: string } [@@deriving yojson] end\n";
             root.top_defs |> List.iter (fun (name, def) ->
-                let local_type_defs, def_body = match def with
+                let local_type_defs, def_body_for_sig, def_body_for_struct = match def with
                     | Types.Object {properties} ->
                         let local_type_defs, fields = object_body properties [] in
-                        local_type_defs, sprintf "{\n%s\n    } [@@deriving yojson]" fields
+                        let def_body = sprintf "{\n%s\n    } [@@deriving yojson]" fields in
+                        local_type_defs, def_body, def_body
                     | Types.Enum {literals} ->
                         let ctors_decl = literals |> List.map (fun literal -> sprintf "        | `%s [@name \"%s\"]" (to_ocaml_variant_name literal) literal) |> String.concat "\n" in
-                        [], sprintf "[\n%s\n    ] [@@deriving yojson]" ctors_decl
+                        let yojson_sigs, yojson_defs = make_yojson_functions_for_variant literals in
+                        let ty_body_sig = sprintf "[\n%s\n    ]\n%s\n" ctors_decl yojson_sigs in
+                        let ty_body_struct = sprintf "[\n%s\n    ]\n%s\n" ctors_decl yojson_defs in
+                        [], ty_body_sig, ty_body_struct
                 in
-                let def_body = def_body |> Re.replace_string (Re.compile @@ Re.str (sprintf "%s.t" name)) ~by:"t" in
+                let def_body_for_sig = def_body_for_sig |> Re.replace_string (Re.compile @@ Re.str (sprintf "%s.t" name)) ~by:"t" in
+                let def_body_for_struct = def_body_for_struct |> Re.replace_string (Re.compile @@ Re.str (sprintf "%s.t" name)) ~by:"t" in
                 let local_defs_names = ref [] in
                 let local_type_defs =
-                    local_type_defs |> List.filter_map (fun (ty_name, ty_body) ->
+                    local_type_defs |> List.filter_map (fun (ty_name, ty_body_sig, ty_body_struct) ->
                         if List.mem ty_name !local_defs_names then None else (
                             local_defs_names := ty_name :: !local_defs_names;
-                            Some (ty_name, ty_body)
+                            Some (ty_name, ty_body_sig, ty_body_struct)
                         )
                     )
-                    |> List.map (fun (ty_name, ty_body) -> ty_name, Re.replace_string (Re.compile @@ Re.str (sprintf "%s.t" name)) ~by:"Wrap.t" ty_body)
+                    |> List.map (fun (ty_name, ty_body_sig, ty_body_struct) ->
+                        ty_name,
+                        Re.replace_string (Re.compile @@ Re.str (sprintf "%s.t" name)) ~by:"Wrap.t" ty_body_sig,
+                        Re.replace_string (Re.compile @@ Re.str (sprintf "%s.t" name)) ~by:"Wrap.t" ty_body_struct
+                    )
                 in
                 w "module %s = struct\n" name;
-                let local_type_defs = ("Wrap", strip_attrs def_body) :: local_type_defs in
+                let local_type_defs = ("Wrap", def_body_for_sig, def_body_for_struct) :: local_type_defs in
                 let local_type_def_mods =
-                    local_type_defs |> List.mapi (fun i (ty_name, ty_body) ->
-                        if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name (strip_attrs ty_body) (strip_attrs ty_body)
-                        else sprintf "    and %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name (strip_attrs ty_body) (strip_attrs ty_body)) |> String.concat "\n"
+                    local_type_defs |> List.mapi (fun i (ty_name, ty_body_sig, ty_body_struct) ->
+                        if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct
+                        else sprintf "    and %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct) |> String.concat "\n"
                 in
                 w "%s" local_type_def_mods;
                 w "    type t = Wrap.t\n    [@@deriving yojson {strict = false}]\n    \n";
