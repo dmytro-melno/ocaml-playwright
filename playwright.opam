@@ -9,7 +9,8 @@ bug-reports: "https://github.com/dmytrom/ocaml-playwright/issues"
 depends: [
   "ocaml" {>= "5.0.0"}
   "dune" {>= "3.10"}
-  "eio_unix"
+  "eio"
+  "eio_linux"
   "yojson"
   "ppx_deriving_yojson"
   "yaml"
