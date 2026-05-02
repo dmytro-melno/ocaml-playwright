@@ -332,9 +332,6 @@ module Render = struct
             acc, (name, ocaml_name, ty_name, is_opt)
         ) []
 
-    (* let strip_attrs code = Re.replace_string (Re.Pcre.regexp " \\[@.*?\\]") ~by:"" code *)
-    let strip_attrs code = code
-
     module Sig = struct
         let interface interfaces interface_name (interface : Types.interface_) = fun out_buf ->
             let w fmt = bprintf out_buf fmt in
@@ -546,7 +543,6 @@ module Render = struct
             let w fmt = bprintf out_buf fmt in
             w "[@@@ocaml.warning \"-30-39-32\"]\n\n";
             w "exception Error of string\n\n";
-            (* w "type internal_obj\n"; *)
             w "type 'a obj = { conn: Connection.t; guid: string }\n";
             w "type any = Yojson.Safe.t\n";
             w "type json = Yojson.Safe.t\n\n";
@@ -573,7 +569,7 @@ module Render = struct
                         )
                     )
                     |> List.map (fun (ty_name, ty_body_sig) -> ty_name, Re.replace_string (Re.compile @@ Re.str (sprintf "%s.t" name)) ~by:"Wrap.t" ty_body_sig)
-                    |> List.map (fun (ty_name, ty_body_sig) -> ty_name, strip_attrs ty_body_sig)
+                    |> List.map (fun (ty_name, ty_body_sig) -> ty_name, ty_body_sig)
                 in
                 w "module %s : sig\n" name;
                 let local_type_defs = ("Wrap", def_body) :: local_type_defs in
@@ -833,18 +829,18 @@ module Render = struct
                     | Types.FloatType -> "Yojson.Safe.Util.to_float"
                     | Types.BooleanType -> "Yojson.Safe.Util.to_bool"
                     | Types.BinaryType -> "(fun v -> Base64.decode_exn (Yojson.Safe.Util.to_string v))"
-                    | Types.JsonType -> "(fun v -> match json_of_yojson v with Ok x -> x | Error e -> print_endline \"Types.JsonType\"; failwith e)"
-                    | Types.AnyType -> "(fun v -> match any_of_yojson v with Ok x -> x | Error e -> print_endline \"Types.AnyType\"; failwith e)"
+                    | Types.JsonType -> "(fun v -> match json_of_yojson v with Ok x -> x | Error e -> failwith e)"
+                    | Types.AnyType -> "(fun v -> match any_of_yojson v with Ok x -> x | Error e -> failwith e)"
                     | Types.TypeRef t ->
                         if List.mem_assoc t interfaces then
                             sprintf "(fun v -> let guid = Yojson.Safe.Util.member \"guid\" v |> Yojson.Safe.Util.to_string in ({ conn = t.conn; guid } : %s.t))" t
                         else
-                            sprintf "(fun v -> match %s.of_yojson v with Ok x -> x | Error e -> print_endline \"Types.TypeRef\"; print_endline \"%s\"; print_endline (Yojson.Safe.to_string v); failwith e)" t t
+                            sprintf "(fun v -> match %s.of_yojson v with Ok x -> x | Error e -> failwith e)" t
                     | Types.ObjectType _ | Types.EnumType _ ->
                         if String.ends_with ~suffix:".t" ty_name then
-                            sprintf "(fun v -> match %s.of_yojson v with Ok x -> x | Error e -> print_endline \"Types.ObjectType 1\"; failwith e)" (String.sub ty_name 0 (String.length ty_name - 2))
+                            sprintf "(fun v -> match %s.of_yojson v with Ok x -> x | Error e -> failwith e)" (String.sub ty_name 0 (String.length ty_name - 2))
                         else
-                            sprintf "(fun v -> match %s_of_yojson v with Ok x -> x | Error e -> print_endline \"Types.ObjectType 2\"; failwith e)" ty_name
+                            sprintf "(fun v -> match %s_of_yojson v with Ok x -> x | Error e -> failwith e)" ty_name
                 in
 
                 let assoc_list =
