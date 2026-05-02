@@ -54,14 +54,17 @@ let dispatch (t : t) (msg : Yojson.Safe.t) =
        Hashtbl.remove t.callbacks id;
        let error = member "error" msg in
        if error <> `Null then
-         let error_msg = 
-           match Protocol.serialized_error_of_yojson error with
-           | Ok se -> 
-               (match se.Protocol.error with
-                | Some e -> 
-                    Printf.sprintf "%s: %s\n%s" e.Protocol.name e.Protocol.message (Option.value ~default:"" e.Protocol.stack)
-                | None -> Yojson.Safe.to_string error)
-           | Error _ -> Yojson.Safe.to_string error
+         let error_msg =
+           let open Yojson.Safe.Util in
+           try
+              (* Api.SerializedError *)
+             let e = member "error" error in
+             if e = `Null then Yojson.Safe.to_string error else
+             let name = member "name" e |> to_string in
+             let message = member "message" e |> to_string in
+             let stack = member "stack" e |> to_string_option in
+             Printf.sprintf "%s: %s\n%s" name message (Option.value ~default:"" stack)
+           with _ -> Yojson.Safe.to_string error
          in
          Promise.resolve resolver (Error error_msg)
        else
@@ -116,7 +119,7 @@ let add_listener (conn : t) guid event_name cb =
       in
       Hashtbl.replace obj.events event_name (cbs @ [(id, cb)]);
       id
-  | None -> 
+  | None ->
       Printf.eprintf "Cannot add event listener to unknown object %s\n%!" guid;
       -1
 

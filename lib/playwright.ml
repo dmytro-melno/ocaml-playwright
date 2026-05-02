@@ -2,7 +2,6 @@
 module Transport = Transport
 module Driver = Driver
 module Connection = Connection
-module Protocol = Protocol
 include Api
 
 let instances = Hashtbl.create 1
