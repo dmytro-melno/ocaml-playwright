@@ -31,7 +31,7 @@ let () =
       
       Printf.printf "Launching browser...\n%!";
       (try
-         let browser = Playwright.Browser_type.launch ~executable_path:"/usr/bin/chromium" ~headless:true ~timeout:0.0 chromium in
+         let browser = Playwright.BrowserType.launch ~executable_path:"/usr/bin/chromium" ~headless:true ~timeout:0.0 chromium in
          Printf.printf "Browser launched! GUID: %s\n%!" browser.guid;
          
          Printf.printf "Creating new context...\n%!";
@@ -39,7 +39,7 @@ let () =
          Printf.printf "Context created! GUID: %s\n%!" ctx.guid;
          
          Printf.printf "Creating new page...\n%!";
-         let page = Playwright.Browser_context.new_page ctx in
+         let page = Playwright.BrowserContext.new_page ctx in
          Printf.printf "Page created! GUID: %s\n%!" page.guid;
          
          let page_obj_opt = Hashtbl.find_opt conn.objects page.guid in

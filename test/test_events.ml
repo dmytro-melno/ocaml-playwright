@@ -7,14 +7,14 @@ let () =
   let chromium = Playwright.Playwright.chromium playwright in
 
   try
-    let browser = Playwright.Browser_type.launch ~executable_path:"/usr/bin/chromium" ~headless:true ~timeout:0.0 chromium in
+    let browser = Playwright.BrowserType.launch ~executable_path:"/usr/bin/chromium" ~headless:true ~timeout:0.0 chromium in
     let ctx = Playwright.Browser.new_context browser in
 
-    Playwright.Browser_context.on_page ctx (fun ev ->
-      Printf.printf "Intercepted page event! New page GUID: %s\n%!" ev.Playwright.Protocol.page.guid
+    Playwright.BrowserContext.on_page ctx (fun ev ->
+      Printf.printf "Intercepted page event! New page GUID: %s\n%!" ev.page.guid
     );
 
-    let _page = Playwright.Browser_context.new_page ctx in
+    let _page = Playwright.BrowserContext.new_page ctx in
 
     Eio.Time.sleep (Eio.Stdenv.clock env) 1.0;
 

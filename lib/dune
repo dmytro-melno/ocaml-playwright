@@ -1,3 +1,4 @@
+
 (library
  (name playwright)
  (public_name playwright)
@@ -6,13 +7,13 @@
   (pps ppx_deriving_yojson)))
 
 (rule
- (targets api_v2.mli api_v2.ml)
+ (targets api.mli api.ml)
  (deps ../deps/playwright/packages/protocol/src/protocol.yml)
  (action
   (progn
    (with-stdout-to
-    api_v2.mli
+    api.mli
     (run %{exe:../tools/generate_api_v2.exe} mli %{deps}))
    (with-stdout-to
-    api_v2.ml
+    api.ml
     (run %{exe:../tools/generate_api_v2.exe} ml %{deps})))))

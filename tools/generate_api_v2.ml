@@ -360,18 +360,30 @@ module Render = struct
                             else sprintf "    and %s : sig type t = %s\n    end\n" ty_name ty_body_sig) |> String.concat "\n"
                     in
                     w "%s" local_type_def_mods;
+
                     w "    type %s_t\n" (to_ocaml_name interface_name);
-                    w "    type t = %s_t obj\n\n" (to_ocaml_name interface_name);
+                    w "    type t = %s_t obj\n" (to_ocaml_name interface_name);
+                    w "    val to_yojson : t -> Yojson.Safe.t\n";
+                    w "    val of_yojson : Yojson.Safe.t -> (t, string) result\n\n";
+
 
                     w "    (* Initializer getters *)\n";
                     properties |> List.iter (fun (field_name, ty) ->
-                        let _, ty_name = inline_type_ field_name ty [] in
-                        let field_name = to_ocaml_name field_name in
-                        w "    val %s : t -> %s\n" field_name ty_name
+                        let is_opt, ty_inner = match ty with | Types.Optional ty -> true, ty | ty -> false, ty in
+                        match ty_inner with
+                        | Types.TypeRef t when List.mem_assoc t interfaces ->
+                            let field_name_ocaml = to_ocaml_name field_name in
+                            let ty_name_out = if is_opt then sprintf "%s.t option" t else sprintf "%s.t" t in
+                            w "    val %s : t -> %s\n" field_name_ocaml ty_name_out
+                        | _ -> ()
                     );
                 | None ->
+
                     w "    type %s_t\n" (to_ocaml_name interface_name);
-                    w "    type t = %s_t obj\n\n" (to_ocaml_name interface_name);
+                    w "    type t = %s_t obj\n" (to_ocaml_name interface_name);
+                    w "    val to_yojson : t -> Yojson.Safe.t\n";
+                    w "    val of_yojson : Yojson.Safe.t -> (t, string) result\n\n";
+
             );
             w "\n";
             let rec get_all_commands iface =
@@ -384,6 +396,56 @@ module Render = struct
                 in
                 base_cmds @ iface.Types.commands
             in
+            let rec get_all_events iface =
+                let base_events = match iface.Types.extends with
+                    | Some base_name ->
+                        (match List.assoc_opt base_name interfaces with
+                        | Some base_iface -> get_all_events base_iface
+                        | None -> [])
+                    | None -> []
+                in
+                base_events @ iface.Types.events
+            in
+            w "    (* Events *)\n";
+            get_all_events interface |> List.iter (fun (ev : Types.event) ->
+                let fn_name = "on_" ^ to_ocaml_name ev.name in
+                let wait_fn_name = "wait_for_" ^ to_ocaml_name ev.name in
+
+                let local_type_defs, args = args_types ev.parameters.properties in
+                let has_params = (List.length args > 0) in
+
+                if has_params then begin
+                    let ty_name = sprintf "%sEvent" (String.capitalize_ascii ev.name) in
+                    let local_type_defs, fields = object_body ev.parameters.properties local_type_defs in
+                    let ty_body = sprintf "{\n%s\n    } [@@deriving yojson {strict = false}]" fields in
+                    let local_type_defs = (ty_name, ty_body, ty_body) :: local_type_defs in
+
+                    let local_type_defs =
+                        local_type_defs |> List.filter_map (fun (ty_name, ty_body_sig, ty_body_struct) ->
+                            if List.mem ty_name !local_defs_names then None else (
+                                local_defs_names := ty_name :: !local_defs_names;
+                                Some (ty_name, ty_body_sig, ty_body_struct)
+                            )
+                        )
+                    in
+
+                    let local_type_def_mods =
+                        local_type_defs |> List.mapi (fun i (ty_name, ty_body_sig, _ty_body_struct) ->
+                            if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end\n" ty_name ty_body_sig
+                            else sprintf "    and %s : sig type t = %s\n    end\n" ty_name ty_body_sig) |> String.concat "\n"
+                    in
+                    if local_type_defs <> [] then (
+                        w "\n%s\n" local_type_def_mods;
+                    );
+
+                    let arg_ty_name = sprintf "%s.t" ty_name in
+                    w "    val %s : t -> (%s -> unit) -> unit\n" fn_name arg_ty_name;
+                    w "    val %s : ?predicate:(%s -> bool) -> t -> %s\n" wait_fn_name arg_ty_name arg_ty_name;
+                end else begin
+                    w "    val %s : t -> (unit -> unit) -> unit\n" fn_name;
+                    w "    val %s : t -> unit\n" wait_fn_name;
+                end
+            );
             w "    (* Commands *)\n";
             get_all_commands interface |> List.iter (fun (cmd : Types.command) ->
                 let local_type_defs, args = args_types cmd.parameters.properties in
@@ -422,6 +484,7 @@ module Render = struct
         let render (root : Types.root) = fun out_buf ->
             let w fmt = bprintf out_buf fmt in
             w "[@@@ocaml.warning \"-30-39-32\"]\n\n";
+            w "exception Error of string\n\n";
             (* w "type internal_obj\n"; *)
             w "type 'a obj = { conn: Connection.t; guid: string }\n";
             w "type any = Yojson.Safe.t\n";
@@ -500,26 +563,119 @@ module Render = struct
                         ) |> String.concat "\n"
                     in
                     w "%s" local_type_def_mods;
+
                     w "    type %s_t\n" (to_ocaml_name interface_name);
-                    w "    type t = %s_t obj\n\n" (to_ocaml_name interface_name);
+                    w "    type t = %s_t obj\n" (to_ocaml_name interface_name);
+                    w "    let to_yojson (t:t) = `Assoc [(\"guid\", `String t.guid)]\n";
+                    w "    let of_yojson _ = Result.Error \"of_yojson not implemented for obj\"\n\n";
+
 
                     w "    (* Initializer getters *)\n";
                     properties |> List.iter (fun (field_name, ty) ->
-                        let _, ty_name = inline_type_ field_name ty [] in
-                        let field_name = to_ocaml_name field_name in
-                        w "    let %s t =\n" field_name;
-                        w "    match Hashtbl.find_opt t.conn.objects t.guid with";
-                        w "    | Some obj ->";
-                        w "        let open Yojson.Safe.Util in";
-                        w "        (try Some ({ conn = t.conn; guid = member \"%s\" obj.initializer_ |> member \"guid\" |> to_string } : %s)" field_name ty_name;
-                        w "        with _ -> None)";
-                        w "    | None -> failwith \"Object not found in connection\"";
+                        let is_opt, ty_inner = match ty with | Types.Optional ty -> true, ty | ty -> false, ty in
+                        match ty_inner with
+                        | Types.TypeRef t when List.mem_assoc t interfaces ->
+                            let field_name_ocaml = to_ocaml_name field_name in
+                            w "    let %s t =\n" field_name_ocaml;
+                            w "    match Hashtbl.find_opt t.conn.objects t.guid with\n";
+                            w "    | Some obj ->\n";
+                            w "        let open Yojson.Safe.Util in\n";
+                            if is_opt then begin
+                                w "        (try Some ({ conn = t.conn; guid = member \"%s\" obj.initializer_ |> member \"guid\" |> to_string } : %s.t)\n" field_name t;
+                                w "        with _ -> None)\n";
+                            end else begin
+                                w "        (try ({ conn = t.conn; guid = member \"%s\" obj.initializer_ |> member \"guid\" |> to_string } : %s.t)\n" field_name t;
+                                w "        with _ -> failwith \"Missing required initializer property %s\")\n" field_name;
+                            end;
+                            w "    | None -> failwith \"Object not found in connection\"\n";
+                        | _ -> ()
                     );
                 | None ->
+
                     w "    type %s_t\n" (to_ocaml_name interface_name);
-                    w "    type t = %s_t obj\n\n" (to_ocaml_name interface_name);
+                    w "    type t = %s_t obj\n" (to_ocaml_name interface_name);
+                    w "    let to_yojson (t:t) = `Assoc [(\"guid\", `String t.guid)]\n";
+                    w "    let of_yojson _ = Result.Error \"of_yojson not implemented for obj\"\n\n";
+
             );
             w "\n";
+            let rec get_all_events iface =
+                let base_events = match iface.Types.extends with
+                    | Some base_name ->
+                        (match List.assoc_opt base_name interfaces with
+                        | Some base_iface -> get_all_events base_iface
+                        | None -> [])
+                    | None -> []
+                in
+                base_events @ iface.Types.events
+            in
+            get_all_events interface |> List.iter (fun (ev : Types.event) ->
+                let fn_name = "on_" ^ to_ocaml_name ev.name in
+                let wait_fn_name = "wait_for_" ^ to_ocaml_name ev.name in
+
+                let local_type_defs, args = args_types ev.parameters.properties in
+                let has_params = (List.length args > 0) in
+
+                if has_params then begin
+                    let ty_name = sprintf "%sEvent" (String.capitalize_ascii ev.name) in
+                    let local_type_defs, fields = object_body ev.parameters.properties local_type_defs in
+                    let local_type_defs = let ty_body = sprintf "{\n%s\n    } [@@deriving yojson {strict = false}]" fields in (ty_name, ty_body, ty_body) :: local_type_defs in
+
+                    let local_type_defs =
+                        local_type_defs |> List.filter_map (fun (ty_name, ty_body_sig, ty_body_struct) ->
+                            if List.mem ty_name !local_defs_names then None else (
+                                local_defs_names := ty_name :: !local_defs_names;
+                                Some (ty_name, ty_body_sig, ty_body_struct)
+                            )
+                        )
+                    in
+
+                    let local_type_def_mods =
+                        local_type_defs |> List.mapi (fun i (ty_name, ty_body_sig, ty_body_struct) ->
+                            if i = 0 then sprintf "    module rec %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct
+                            else sprintf "    and %s : sig type t = %s\n    end = struct type t = %s\n    end\n" ty_name ty_body_sig ty_body_struct) |> String.concat "\n"
+                    in
+                    if local_type_defs <> [] then (
+                        w "\n%s\n" local_type_def_mods;
+                    );
+
+                    let arg_ty_name = sprintf "%s" ty_name in
+
+                    w "    let %s (t : t) cb =\n" fn_name;
+                    w "        let _id = Connection.add_listener t.conn t.guid \"%s\" (fun msg ->\n" ev.name;
+                    w "            match %s.of_yojson msg with\n" arg_ty_name;
+                    w "            | Ok ev -> cb ev\n";
+                    w "            | Error _ -> ()\n";
+                    w "        ) in ()\n\n";
+
+                    w "    let %s ?predicate (t : t) =\n" wait_fn_name;
+                    w "        let p, r = Eio.Promise.create () in\n";
+                    w "        let id = ref (-1) in\n";
+                    w "        id := Connection.add_listener t.conn t.guid \"%s\" (fun msg ->\n" ev.name;
+                    w "            match %s.of_yojson msg with\n" arg_ty_name;
+                    w "            | Ok ev ->\n";
+                    w "                let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in\n";
+                    w "                if is_match then begin\n";
+                    w "                    Connection.remove_listener t.conn t.guid \"%s\" !id;\n" ev.name;
+                    w "                    if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev\n";
+                    w "                end\n";
+                    w "            | Error _ -> ()\n";
+                    w "        );\n";
+                    w "        Eio.Promise.await p\n\n";
+                end else begin
+                    w "    let %s (t : t) cb =\n" fn_name;
+                    w "        let _id = Connection.add_listener t.conn t.guid \"%s\" (fun _msg -> cb ()) in ()\n\n" ev.name;
+
+                    w "    let %s (t : t) =\n" wait_fn_name;
+                    w "        let p, r = Eio.Promise.create () in\n";
+                    w "        let id = ref (-1) in\n";
+                    w "        id := Connection.add_listener t.conn t.guid \"%s\" (fun _msg ->\n" ev.name;
+                    w "            Connection.remove_listener t.conn t.guid \"%s\" !id;\n" ev.name;
+                    w "            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ()\n";
+                    w "        );\n";
+                    w "        Eio.Promise.await p\n\n";
+                end
+            );
             let rec get_all_commands iface =
                 let base_cmds = match iface.Types.extends with
                     | Some base_name ->
@@ -586,7 +742,11 @@ module Render = struct
                     | Types.BinaryType -> "fun s -> `String (Base64.encode_exn s)"
                     | Types.JsonType -> "json_to_yojson"
                     | Types.AnyType -> "any_to_yojson"
-                    | Types.TypeRef t -> sprintf "%s.to_yojson" t
+                    | Types.TypeRef t ->
+                        if List.mem_assoc t interfaces then
+                            sprintf "(fun (x : %s.t) -> `Assoc [(\"guid\", `String x.guid)])" t
+                        else
+                            sprintf "%s.to_yojson" t
                     | Types.ObjectType _ | Types.EnumType _ ->
                         if String.ends_with ~suffix:".t" ty_name then
                             sprintf "%s.to_yojson" (String.sub ty_name 0 (String.length ty_name - 2))
@@ -608,7 +768,11 @@ module Render = struct
                     | Types.BinaryType -> "(fun v -> Base64.decode_exn (Yojson.Safe.Util.to_string v))"
                     | Types.JsonType -> "(fun v -> match json_of_yojson v with Ok x -> x | Error e -> print_endline \"Types.JsonType\"; failwith e)"
                     | Types.AnyType -> "(fun v -> match any_of_yojson v with Ok x -> x | Error e -> print_endline \"Types.AnyType\"; failwith e)"
-                    | Types.TypeRef t -> sprintf "(fun v -> match %s.of_yojson v with Ok x -> x | Error e -> print_endline \"Types.TypeRef\"; print_endline \"%s\"; print_endline (Yojson.Safe.to_string v); failwith e)" t t
+                    | Types.TypeRef t ->
+                        if List.mem_assoc t interfaces then
+                            sprintf "(fun v -> let guid = Yojson.Safe.Util.member \"guid\" v |> Yojson.Safe.Util.to_string in ({ conn = t.conn; guid } : %s.t))" t
+                        else
+                            sprintf "(fun v -> match %s.of_yojson v with Ok x -> x | Error e -> print_endline \"Types.TypeRef\"; print_endline \"%s\"; print_endline (Yojson.Safe.to_string v); failwith e)" t t
                     | Types.ObjectType _ | Types.EnumType _ ->
                         if String.ends_with ~suffix:".t" ty_name then
                             sprintf "(fun v -> match %s.of_yojson v with Ok x -> x | Error e -> print_endline \"Types.ObjectType 1\"; failwith e)" (String.sub ty_name 0 (String.length ty_name - 2))
@@ -646,14 +810,15 @@ module Render = struct
 
                 w "    let %s %s : %s =\n" (to_ocaml_name cmd.name) args_args res_t;
                 w "        let params = %s in\n" params;
-                w "        match Connection.send_message (Option.get t.__internal_obj).conn ~guid:(Option.get t.__internal_obj).guid ~method_:\"%s\" ~params with\n" cmd.name;
+                w "        match Connection.send_message t.conn ~guid:t.guid ~method_:\"%s\" ~params with\n" cmd.name;
                 w "        | Ok res -> %s\n" res_parser;
-                w "        | Error e -> failwith e\n";
+                w "        | Error e -> raise (Error e)\n";
             )
 
         let render (root : Types.root) = fun out_buf ->
             let w fmt = bprintf out_buf fmt in
             w "[@@@ocaml.warning \"-30-39-32\"]\n\n";
+            w "exception Error of string\n\n";
             w "type 'a obj = { conn: Connection.t; guid: string }\n";
             w "let internal_obj_to_yojson _ = failwith \"internal_obj_to_yojson called\"\nlet internal_obj_of_yojson _ = failwith \"internal_obj_of_yojson: <probably should never be called>\"\n";
             w "type any = Yojson.Safe.t [@@deriving yojson {strict = false}]\n";
