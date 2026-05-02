@@ -12,7 +12,7 @@ let () =
     let page = Playwright.BrowserContext.new_page ctx in
     let main_frame = Playwright.Page.main_frame page in
 
-    let _resp = Playwright.Frame.goto "https://example.com" ~timeout:10000.0 main_frame in
+    let _resp = Playwright.Frame.goto ~url:"https://example.com" ~timeout:10000.0 main_frame in
     Printf.printf "Navigated to example.com successfully using Playwright.with_playwright API!\n%!"
   with Playwright.Error err ->
     Printf.printf "Failed operation: %s\n%!" err

@@ -13,16 +13,16 @@ let () =
     let main_frame = Playwright.Page.main_frame page in
 
     Printf.printf "Navigating to todomvc...\n%!";
-    let _ = Playwright.Frame.goto "https://todomvc.com/examples/react/dist/" main_frame in
+    let _ = Playwright.Frame.goto ~url:"https://todomvc.com/examples/react/dist/" main_frame in
 
     Printf.printf "Filling todo item...\n%!";
-    Playwright.Frame.fill ".new-todo" "Buy milk" main_frame;
+    Playwright.Frame.fill ~selector:".new-todo" ~value:"Buy milk" main_frame;
 
     Printf.printf "Pressing Enter...\n%!";
-    Playwright.Frame.press ".new-todo" ~key:"Enter" main_frame;
+    Playwright.Frame.press ~selector:".new-todo" ~key:"Enter" main_frame;
 
     Printf.printf "Expecting item to be in list...\n%!";
-    let res = Playwright.Frame.expect ~selector:".todo-list li" "to.have.count" ~expected_number:1.0 ~is_not:false main_frame in
+    let res = Playwright.Frame.expect ~selector:".todo-list li" ~expression:"to.have.count" ~expected_number:1.0 ~is_not:false main_frame in
     Printf.printf "Expect result: %b\n%!" res.Playwright.Frame.ExpectResult.matches;
 
     Printf.printf "Test passed successfully!\n%!"

@@ -332,6 +332,9 @@ module Render = struct
             acc, (name, ocaml_name, ty_name, is_opt)
         ) []
 
+    (* let is_positional arg_name = match arg_name with "url" | "selector" | "text" | "expression" | "value" -> true | _ -> false *)
+    let is_positional _arg_name = false
+
     module Sig = struct
         let interface interfaces interface_name (interface : Types.interface_) = fun out_buf ->
             let w fmt = bprintf out_buf fmt in
@@ -449,7 +452,7 @@ module Render = struct
                 let args_sig =
                     args |> List.map (fun (orig_name, name, ty, is_opt) ->
                         let is_opt = is_opt || orig_name = "timeout" in
-                        let is_pos = match orig_name with "url" | "selector" | "text" | "expression" | "value" -> true | _ -> false in
+                        let is_pos = is_positional orig_name in
                         if is_opt then sprintf "?%s:%s" name ty
                         else if is_pos then ty
                         else sprintf "%s:%s" name ty
@@ -522,7 +525,7 @@ module Render = struct
                         args |> List.map (fun (orig_name, name, ty, is_opt) ->
                             let ty = fix_ty ty in
                             let is_opt = is_opt || orig_name = "timeout" in
-                            let is_pos = match orig_name with "url" | "selector" | "text" | "expression" | "value" -> true | _ -> false in
+                            let is_pos = is_positional orig_name in
                             if is_opt then sprintf "?%s:%s" name ty
                             else if is_pos then ty
                             else sprintf "%s:%s" name ty
@@ -780,7 +783,7 @@ module Render = struct
                 let args_args =
                     args |> List.map (fun (orig_name, name, _ty, is_opt) ->
                         let is_opt = is_opt || orig_name = "timeout" in
-                        let is_pos = match orig_name with "url" | "selector" | "text" | "expression" | "value" -> true | _ -> false in
+                        let is_pos = is_positional orig_name in
                         if is_opt then sprintf "?%s" name
                         else if is_pos then sprintf "%s" name
                         else sprintf "~%s" name
@@ -903,7 +906,7 @@ module Render = struct
                     let args_args =
                         args |> List.map (fun (orig_name, name, _ty, is_opt) ->
                             let is_opt = is_opt || orig_name = "timeout" in
-                            let is_pos = match orig_name with "url" | "selector" | "text" | "expression" | "value" -> true | _ -> false in
+                            let is_pos = is_positional orig_name in
                             if is_opt then sprintf "?%s" name
                             else if is_pos then sprintf "%s" name
                             else sprintf "~%s" name
