@@ -52,7 +52,7 @@ let () =
               
               Printf.printf "Navigating to example.com...\n%!";
               (try
-                 let _resp = Playwright.Frame.goto ~url:"https://example.com" ~timeout:10000.0 main_frame in
+                 let _resp = Playwright.Frame.goto "https://example.com" ~timeout:10000.0 main_frame in
                  Printf.printf "Navigated to example.com!\n%!"
                with Playwright.Error err -> Printf.printf "Failed to goto: %s\n%!" err)
 

@@ -449,7 +449,15 @@ module Render = struct
             w "    (* Commands *)\n";
             get_all_commands interface |> List.iter (fun (cmd : Types.command) ->
                 let local_type_defs, args = args_types cmd.parameters.properties in
-                let args_sig = args |> List.map (fun (_, name, ty, is_opt) -> if is_opt then sprintf "?%s:%s" name ty else sprintf "%s:%s" name ty) |> String.concat " -> " in
+                let args_sig =
+                    args |> List.map (fun (orig_name, name, ty, is_opt) ->
+                        let is_opt = is_opt || orig_name = "timeout" in
+                        let is_pos = match orig_name with "url" | "selector" | "text" | "expression" | "value" -> true | _ -> false in
+                        if is_opt then sprintf "?%s:%s" name ty
+                        else if is_pos then ty
+                        else sprintf "%s:%s" name ty
+                    ) |> String.concat " -> "
+                in
                 let local_type_defs, res_t = match cmd.returns.properties with
                     | [] -> local_type_defs, "unit"
                     | [name, ty] ->
@@ -720,9 +728,15 @@ module Render = struct
                     w "%s\n" local_type_def_mods;
                 );
 
-                let args_args = args |> List.map (fun (_orig_name, name, _ty, is_opt) ->
-                    if is_opt then sprintf "?%s" name else sprintf "~%s" name
-                ) |> String.concat " " in
+                let args_args =
+                    args |> List.map (fun (orig_name, name, _ty, is_opt) ->
+                        let is_opt = is_opt || orig_name = "timeout" in
+                        let is_pos = match orig_name with "url" | "selector" | "text" | "expression" | "value" -> true | _ -> false in
+                        if is_opt then sprintf "?%s" name
+                        else if is_pos then sprintf "%s" name
+                        else sprintf "~%s" name
+                    ) |> String.concat " "
+                in
 
                 let args_args = if args_args <> "" then sprintf "%s (t:t)" args_args else "(t:t)" in
                 (* let params = "Obj.magic \"<unimplemented>\"" in
@@ -780,16 +794,22 @@ module Render = struct
                             sprintf "(fun v -> match %s_of_yojson v with Ok x -> x | Error e -> print_endline \"Types.ObjectType 2\"; failwith e)" ty_name
                 in
 
-                let assoc_list = args |> List.filter_map (fun (orig_name, name, ty_name, is_opt) ->
-                    let ty = List.assoc orig_name cmd.parameters.properties in
-                    let _is_opt_inner, ty = match ty with | Types.Optional ty -> true, ty | ty -> false, ty in
-                    let base_encoder = get_encoder ty ty_name in
+                let assoc_list =
+                    args |> List.filter_map (fun (orig_name, name, ty_name, is_opt) ->
+                        let ty = List.assoc orig_name cmd.parameters.properties in
+                        let _is_opt_inner, ty = match ty with | Types.Optional ty -> true, ty | ty -> false, ty in
+                        let base_encoder = get_encoder ty ty_name in
 
-                    if is_opt then
+                        let is_opt_arg = is_opt || orig_name = "timeout" in
+                        if is_opt_arg then
+                        if orig_name = "timeout" && not is_opt then
+                        Some (sprintf "        (match %s with | Some v -> [(\"%s\", (%s) v)] | None -> [(\"timeout\", `Float 0.0)]);" name orig_name base_encoder)
+                        else
                         Some (sprintf "        (match %s with | Some v -> [(\"%s\", (%s) v)] | None -> []);" name orig_name base_encoder)
-                    else
+                        else
                         Some (sprintf "        [\"%s\", (%s) %s];" orig_name base_encoder name)
-                ) |> String.concat "\n" in
+                    ) |> String.concat "\n"
+                in
 
                 let params = if args = [] then "`Assoc []" else sprintf "`Assoc (List.concat [\n%s\n    ])" assoc_list in
 

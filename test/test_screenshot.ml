@@ -32,7 +32,7 @@ let () =
       let page = Playwright.BrowserContext.new_page ctx in
       let main_frame = Playwright.Page.main_frame page in
       
-      let _resp = Playwright.Frame.goto ~url:"https://example.com" ~timeout:10000.0 main_frame in
+      let _resp = Playwright.Frame.goto "https://example.com" ~timeout:10000.0 main_frame in
       
       let screenshot_resp = Playwright.Page.screenshot ~timeout:10000.0 page in
       Printf.printf "Screenshot string length: %d\n" (String.length screenshot_resp);

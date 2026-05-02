@@ -12,7 +12,7 @@ let () =
     let page = Playwright.BrowserContext.new_page ctx in
     let main_frame = Playwright.Page.main_frame page in
 
-    let _resp = Playwright.Frame.goto ~url:"https://this-will-fail.invalid" ~timeout:1000.0 main_frame in
+    let _resp = Playwright.Frame.goto "https://this-will-fail.invalid" ~timeout:1000.0 main_frame in
     Printf.printf "Success!\n%!"
   with Playwright.Error err -> Printf.printf "Caught Error:\n%s\n%!" err
 
