@@ -488,7 +488,60 @@ module Render = struct
                 );
                 let args_sig = if args_sig <> "" then sprintf "%s -> t" args_sig else "t" in
                 w "    val %s : %s -> %s\n" (to_ocaml_name cmd.name) args_sig res_t;
-            )
+            );
+            if interface_name = "Page" then begin
+                w "\n    (* Frame Proxy Commands *)\n";
+                let frame_iface = List.assoc "Frame" interfaces in
+                let rec get_all_commands iface =
+                    let base_cmds = match iface.Types.extends with
+                        | Some base_name ->
+                            (match List.assoc_opt base_name interfaces with
+                            | Some base_iface -> get_all_commands base_iface
+                            | None -> [])
+                        | None -> []
+                    in
+                    base_cmds @ iface.Types.commands
+                in
+                let page_cmds = get_all_commands interface |> List.map (fun (c : Types.command) -> c.name) in
+                let proxy_cmds = get_all_commands frame_iface |> List.filter (fun (c : Types.command) -> not (List.mem c.name page_cmds)) in
+                proxy_cmds |> List.iter (fun (cmd : Types.command) ->
+                    let local_type_defs_args, args = args_types cmd.parameters.properties in
+                    let local_type_defs_ret, _res_t = match cmd.returns.properties with
+                        | [] -> [], "unit"
+                        | [name, ty] -> inline_type_ name ty []
+                        | properties ->
+                            let ty_name = sprintf "%sResult" (String.capitalize_ascii cmd.name) in
+                            let acc, _fields = object_body properties [] in
+                            (ty_name, "", "") :: acc, ""
+                    in
+                    let local_names = (local_type_defs_args @ local_type_defs_ret) |> List.map (fun (n,_,_) -> n) in
+                    let fix_ty ty =
+                        List.fold_left (fun acc loc ->
+                            let rex = Re.compile (Re.str (loc ^ ".t")) in
+                            Re.replace_string rex ~by:("Frame." ^ loc ^ ".t") acc
+                        ) ty local_names
+                    in
+                    let args_sig =
+                        args |> List.map (fun (orig_name, name, ty, is_opt) ->
+                            let ty = fix_ty ty in
+                            let is_opt = is_opt || orig_name = "timeout" in
+                            let is_pos = match orig_name with "url" | "selector" | "text" | "expression" | "value" -> true | _ -> false in
+                            if is_opt then sprintf "?%s:%s" name ty
+                            else if is_pos then ty
+                            else sprintf "%s:%s" name ty
+                        ) |> String.concat " -> "
+                    in
+                    let res_t = match cmd.returns.properties with
+                        | [] -> "unit"
+                        | [name, ty] -> let _, ty_name = inline_type_ name ty [] in fix_ty ty_name
+                        | _properties ->
+                            let ty_name = sprintf "%sResult" (String.capitalize_ascii cmd.name) in
+                            fix_ty (sprintf "%s.t" ty_name)
+                    in
+                    let args_sig = if args_sig <> "" then sprintf "%s -> t" args_sig else "t" in
+                    w "    val %s : %s -> %s\n" (to_ocaml_name cmd.name) args_sig res_t;
+                );
+            end
         let render (root : Types.root) = fun out_buf ->
             let w fmt = bprintf out_buf fmt in
             w "[@@@ocaml.warning \"-30-39-32\"]\n\n";
@@ -833,7 +886,40 @@ module Render = struct
                 w "        match Connection.send_message t.conn ~guid:t.guid ~method_:\"%s\" ~params with\n" cmd.name;
                 w "        | Ok res -> %s\n" res_parser;
                 w "        | Error e -> raise (Error e)\n";
-            )
+            );
+            if interface_name = "Page" then begin
+                w "\n    (* Frame Proxy Commands *)\n";
+                let frame_iface = List.assoc "Frame" interfaces in
+                let rec get_all_commands iface =
+                    let base_cmds = match iface.Types.extends with
+                        | Some base_name ->
+                            (match List.assoc_opt base_name interfaces with
+                            | Some base_iface -> get_all_commands base_iface
+                            | None -> [])
+                        | None -> []
+                    in
+                    base_cmds @ iface.Types.commands
+                in
+                let page_cmds = get_all_commands interface |> List.map (fun (c : Types.command) -> c.name) in
+                let proxy_cmds = get_all_commands frame_iface |> List.filter (fun (c : Types.command) -> not (List.mem c.name page_cmds)) in
+                proxy_cmds |> List.iter (fun (cmd : Types.command) ->
+                    let _local_type_defs_args, args = args_types cmd.parameters.properties in
+                    let args_args =
+                        args |> List.map (fun (orig_name, name, _ty, is_opt) ->
+                            let is_opt = is_opt || orig_name = "timeout" in
+                            let is_pos = match orig_name with "url" | "selector" | "text" | "expression" | "value" -> true | _ -> false in
+                            if is_opt then sprintf "?%s" name
+                            else if is_pos then sprintf "%s" name
+                            else sprintf "~%s" name
+                        ) |> String.concat " "
+                    in
+                    let fn_name = to_ocaml_name cmd.name in
+                    let call_args = if args_args <> "" then sprintf "%s (main_frame t)" args_args else "(main_frame t)" in
+                    let args_args = if args_args <> "" then sprintf "%s (t:t)" args_args else "(t:t)" in
+                    w "    let %s %s =\n" fn_name args_args;
+                    w "        Frame.%s %s\n" fn_name call_args;
+                );
+            end
 
         let render (root : Types.root) = fun out_buf ->
             let w fmt = bprintf out_buf fmt in
