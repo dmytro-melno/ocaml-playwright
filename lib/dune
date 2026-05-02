@@ -8,7 +8,7 @@
 
 (rule
  (targets api.mli api.ml)
- (deps ../deps/playwright/packages/protocol/src/protocol.yml)
+ (deps ../protocol/protocol.yml)
  (action
   (progn
    (with-stdout-to

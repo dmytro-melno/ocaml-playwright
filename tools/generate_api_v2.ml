@@ -990,7 +990,7 @@ end
 
 
 let () =
-    let yaml_file = if Array.length Sys.argv > 2 then Sys.argv.(2) else "deps/playwright/packages/protocol/src/protocol.yml" in
+    let yaml_file = if Array.length Sys.argv > 2 then Sys.argv.(2) else "protocol/protocol.yml" in
     let content = In_channel.with_open_text yaml_file In_channel.input_all in
     let parsed = Parser.parse content in
     let out_buf = Buffer.create 0x1000 in
