@@ -15,7 +15,7 @@
  (depends
   (ocaml (>= 5.0.0))
   dune
-  eio_main
+  eio_unix
   yojson
   ppx_deriving_yojson
   yaml
