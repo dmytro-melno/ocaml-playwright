@@ -6,7 +6,7 @@ include Api
 
 let instances = Hashtbl.create 1
 
-let create ~env ~sw () =
+let create ~(env : Eio_unix.Stdenv.base) ~(sw : Eio.Switch.t) () =
   let process_mgr = Eio.Stdenv.process_mgr env in
   let p1_r, p1_w = Eio.Process.pipe ~sw process_mgr in
   let p2_r, p2_w = Eio.Process.pipe ~sw process_mgr in
