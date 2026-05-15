@@ -855,7 +855,7 @@ module Render = struct
                         let is_opt_arg = is_opt || orig_name = "timeout" in
                         if is_opt_arg then
                         if orig_name = "timeout" && not is_opt then
-                        Some (sprintf "        (match %s with | Some v -> [(\"%s\", (%s) v)] | None -> [(\"timeout\", `Float 0.0)]);" name orig_name base_encoder)
+                        Some (sprintf "        (match %s with | Some v -> [(\"%s\", (%s) v)] | None -> [(\"timeout\", `Float 30000.0)]);" name orig_name base_encoder)
                         else
                         Some (sprintf "        (match %s with | Some v -> [(\"%s\", (%s) v)] | None -> []);" name orig_name base_encoder)
                         else
