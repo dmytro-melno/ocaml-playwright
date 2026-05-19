@@ -487,7 +487,9 @@ module Render = struct
                     w "%s\n" local_type_def_mods;
                 );
                 let args_sig = if args_sig <> "" then sprintf "%s -> t" args_sig else "t" in
-                w "    val %s : %s -> %s\n" (to_ocaml_name cmd.name) args_sig res_t;
+                let fn_name = to_ocaml_name cmd.name in
+                let fn_name_raw = if fn_name = "evaluate_expression" || fn_name = "eval_on_selector" || fn_name = "eval_on_selector_all" || fn_name = "evaluate_expression_handle" || fn_name = "wait_for_function" || fn_name = "json_value" || fn_name = "dispatch_event" || fn_name = "expect" || fn_name = "reject" || fn_name = "resolve" then fn_name ^ "_raw" else fn_name in
+                w "    val %s : %s -> %s\n" fn_name_raw args_sig res_t;
             );
             if interface_name = "Page" then begin
                 w "\n    (* Frame Proxy Commands *)\n";
@@ -539,7 +541,9 @@ module Render = struct
                             fix_ty (sprintf "%s.t" ty_name)
                     in
                     let args_sig = if args_sig <> "" then sprintf "%s -> t" args_sig else "t" in
-                    w "    val %s : %s -> %s\n" (to_ocaml_name cmd.name) args_sig res_t;
+                    let fn_name = to_ocaml_name cmd.name in
+                    let fn_name_raw = if fn_name = "evaluate_expression" || fn_name = "eval_on_selector" || fn_name = "eval_on_selector_all" || fn_name = "evaluate_expression_handle" || fn_name = "wait_for_function" || fn_name = "json_value" || fn_name = "dispatch_event" || fn_name = "expect" || fn_name = "reject" || fn_name = "resolve" then fn_name ^ "_raw" else fn_name in
+                    w "    val %s : %s -> %s\n" fn_name_raw args_sig res_t;
                 );
             end
         let render (root : Types.root) = fun out_buf ->
@@ -880,7 +884,9 @@ module Render = struct
                         sprintf "(match %s.of_yojson res with Ok x -> x | Error e -> failwith e)" module_name
                 in
 
-                w "    let %s %s : %s =\n" (to_ocaml_name cmd.name) args_args res_t;
+                let fn_name = to_ocaml_name cmd.name in
+                let fn_name_raw = if fn_name = "evaluate_expression" || fn_name = "eval_on_selector" || fn_name = "eval_on_selector_all" || fn_name = "evaluate_expression_handle" || fn_name = "wait_for_function" || fn_name = "json_value" || fn_name = "dispatch_event" || fn_name = "expect" || fn_name = "reject" || fn_name = "resolve" then fn_name ^ "_raw" else fn_name in
+                w "    let %s %s : %s =\n" fn_name_raw args_args res_t;
                 w "        let params = %s in\n" params;
                 w "        match Connection.send_message t.conn ~guid:t.guid ~method_:\"%s\" ~params with\n" cmd.name;
                 w "        | Ok res -> %s\n" res_parser;
@@ -915,8 +921,9 @@ module Render = struct
                     let fn_name = to_ocaml_name cmd.name in
                     let call_args = if args_args <> "" then sprintf "%s (main_frame t)" args_args else "(main_frame t)" in
                     let args_args = if args_args <> "" then sprintf "%s (t:t)" args_args else "(t:t)" in
-                    w "    let %s %s =\n" fn_name args_args;
-                    w "        Frame.%s %s\n" fn_name call_args;
+                    let fn_name_raw = if fn_name = "evaluate_expression" || fn_name = "eval_on_selector" || fn_name = "eval_on_selector_all" || fn_name = "evaluate_expression_handle" || fn_name = "wait_for_function" || fn_name = "json_value" || fn_name = "dispatch_event" || fn_name = "expect" || fn_name = "reject" || fn_name = "resolve" then fn_name ^ "_raw" else fn_name in
+                    w "    let %s %s =\n" fn_name_raw args_args;
+                    w "        Frame.%s %s\n" fn_name_raw call_args;
                 );
             end
 
