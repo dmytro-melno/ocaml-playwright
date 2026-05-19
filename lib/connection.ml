@@ -1,4 +1,3 @@
-
 open Eio.Std
 
 type callback = (Yojson.Safe.t, string) result Promise.u
@@ -20,6 +19,8 @@ and channel_owner = {
   events : (string, (int * (Yojson.Safe.t -> unit)) list) Hashtbl.t;
 }
 
+let current_connection_key : t Eio.Fiber.key = Eio.Fiber.create_key ()
+
 let create transport_r transport_w =
   {
     objects = Hashtbl.create 100;
@@ -28,7 +29,6 @@ let create transport_r transport_w =
     transport_r = (transport_r :> Eio.Flow.source_ty Eio.Resource.t);
     transport_w = (transport_w :> Eio.Flow.sink_ty Eio.Resource.t);
   }
-
 let send_message (t : t) ~(guid: string) ~(method_: string) ~(params: Yojson.Safe.t) : (Yojson.Safe.t, string) result =
   t.last_id <- t.last_id + 1;
   let id = t.last_id in

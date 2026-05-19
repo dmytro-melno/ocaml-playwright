@@ -631,7 +631,12 @@ module Render = struct
                     w "    type %s_t\n" (to_ocaml_name interface_name);
                     w "    type t = %s_t obj\n" (to_ocaml_name interface_name);
                     w "    let to_yojson (t:t) = `Assoc [(\"guid\", `String t.guid)]\n";
-                    w "    let of_yojson _ = Result.Error \"of_yojson not implemented for obj\"\n\n";
+                    w "    let of_yojson v =\n";
+                    w "        match Eio.Fiber.get Connection.current_connection_key with\n";
+                    w "        | Some conn ->\n";
+                    w "            let guid = Yojson.Safe.Util.member \"guid\" v |> Yojson.Safe.Util.to_string in\n";
+                    w "            Ok ({ conn; guid } : t)\n";
+                    w "        | None -> Result.Error \"of_yojson: current connection not in Fiber context\"\n\n";
 
 
                     w "    (* Initializer getters *)\n";
@@ -659,7 +664,12 @@ module Render = struct
                     w "    type %s_t\n" (to_ocaml_name interface_name);
                     w "    type t = %s_t obj\n" (to_ocaml_name interface_name);
                     w "    let to_yojson (t:t) = `Assoc [(\"guid\", `String t.guid)]\n";
-                    w "    let of_yojson _ = Result.Error \"of_yojson not implemented for obj\"\n\n";
+                    w "    let of_yojson v =\n";
+                    w "        match Eio.Fiber.get Connection.current_connection_key with\n";
+                    w "        | Some conn ->\n";
+                    w "            let guid = Yojson.Safe.Util.member \"guid\" v |> Yojson.Safe.Util.to_string in\n";
+                    w "            Ok ({ conn; guid } : t)\n";
+                    w "        | None -> Result.Error \"of_yojson: current connection not in Fiber context\"\n\n";
 
             );
             w "\n";
@@ -707,7 +717,8 @@ module Render = struct
 
                     w "    let %s (t : t) cb =\n" fn_name;
                     w "        let _id = Connection.add_listener t.conn t.guid \"%s\" (fun msg ->\n" ev.name;
-                    w "            match %s.of_yojson msg with\n" arg_ty_name;
+                    w "            let parsed = Eio.Fiber.with_binding Connection.current_connection_key t.conn (fun () -> %s.of_yojson msg) in\n" arg_ty_name;
+                    w "            match parsed with\n";
                     w "            | Ok ev -> cb ev\n";
                     w "            | Error _ -> ()\n";
                     w "        ) in ()\n\n";
@@ -716,7 +727,8 @@ module Render = struct
                     w "        let p, r = Eio.Promise.create () in\n";
                     w "        let id = ref (-1) in\n";
                     w "        id := Connection.add_listener t.conn t.guid \"%s\" (fun msg ->\n" ev.name;
-                    w "            match %s.of_yojson msg with\n" arg_ty_name;
+                    w "            let parsed = Eio.Fiber.with_binding Connection.current_connection_key t.conn (fun () -> %s.of_yojson msg) in\n" arg_ty_name;
+                    w "            match parsed with\n";
                     w "            | Ok ev ->\n";
                     w "                let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in\n";
                     w "                if is_match then begin\n";
@@ -889,7 +901,7 @@ module Render = struct
                 w "    let %s %s : %s =\n" fn_name_raw args_args res_t;
                 w "        let params = %s in\n" params;
                 w "        match Connection.send_message t.conn ~guid:t.guid ~method_:\"%s\" ~params with\n" cmd.name;
-                w "        | Ok res -> %s\n" res_parser;
+                w "        | Ok res -> Eio.Fiber.with_binding Connection.current_connection_key t.conn (fun () -> %s)\n" res_parser;
                 w "        | Error e -> raise (Error e)\n";
             );
             if interface_name = "Page" then begin
