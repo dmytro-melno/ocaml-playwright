@@ -4,7 +4,7 @@ module Connection = Connection
 include Api
 
 module Value = struct
-  let rec parse_serialized_value (v : SerializedValue.t) : json =
+  let rec parse_serialized_value (v : SerializedValue.t) : Yojson.Safe.t =
     match v.n with
     | Some n -> `Float n
     | None ->
@@ -44,7 +44,7 @@ module Value = struct
     | Some o -> `Assoc (Array.to_list o |> List.map (fun (x : SerializedValue.O.t) -> (x.k, parse_serialized_value x.v)))
     | None -> `Null
 
-  let rec build_serialized_value (j : json) : SerializedValue.t =
+  let rec build_serialized_value (j : Yojson.Safe.t) : SerializedValue.t =
     let empty = SerializedValue.Wrap.{
       n = None; b = None; s = None; v = None; d = None; u = None; bi = None;
       ta = None; e = None; r = None; a = None; o = None; h = None; id = None; ref = None
@@ -61,10 +61,10 @@ module Value = struct
         let o = l |> List.map (fun (k, v) -> SerializedValue.O.{ k; v = build_serialized_value v }) |> Array.of_list in
         { empty with o = Some o }
     
-  let parse_serialized_argument (a : SerializedArgument.t) : json =
+  let parse_serialized_argument (a : SerializedArgument.t) : Yojson.Safe.t =
     parse_serialized_value a.value
     
-  let build_serialized_argument (j : json) : SerializedArgument.t =
+  let build_serialized_argument (j : Yojson.Safe.t) : SerializedArgument.t =
     SerializedArgument.Wrap.{ value = build_serialized_value j; handles = [||] }
 end
 

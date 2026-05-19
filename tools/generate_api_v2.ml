@@ -275,8 +275,8 @@ module Render = struct
         | FloatType -> acc, "float"
         | BooleanType -> acc, "bool"
         | BinaryType -> acc, "string"
-        | JsonType -> acc, "json"
-        | AnyType -> acc, "any"
+        | JsonType -> acc, "Yojson.Safe.t"
+        | AnyType -> acc, "Yojson.Safe.t"
         | ObjectType {properties} ->
             let name = String.capitalize_ascii name in
             let ty_name = sprintf "%s.t" name in
@@ -551,8 +551,8 @@ module Render = struct
             w "[@@@ocaml.warning \"-30-39-32\"]\n\n";
             w "exception Error of string\n\n";
             w "type 'a obj = { conn: Connection.t; guid: string }\n";
-            w "type any = Yojson.Safe.t\n";
-            w "type json = Yojson.Safe.t\n\n";
+            
+            
             w "module Channel : sig type t = { guid: string } [@@deriving yojson {strict = false}] end\n";
             root.top_defs |> List.iter (fun (name, def) ->
                 let local_type_defs, def_body = match def with
@@ -810,8 +810,8 @@ module Render = struct
                     | Types.FloatType -> "fun f -> `Float f"
                     | Types.BooleanType -> "fun b -> `Bool b"
                     | Types.BinaryType -> "fun s -> `String (Base64.encode_exn s)"
-                    | Types.JsonType -> "json_to_yojson"
-                    | Types.AnyType -> "any_to_yojson"
+                    | Types.JsonType -> "Stdlib.Fun.id"
+                    | Types.AnyType -> "Stdlib.Fun.id"
                     | Types.TypeRef t ->
                         if List.mem_assoc t interfaces then
                             sprintf "(fun (x : %s.t) -> `Assoc [(\"guid\", `String x.guid)])" t
@@ -836,8 +836,8 @@ module Render = struct
                     | Types.FloatType -> "Yojson.Safe.Util.to_float"
                     | Types.BooleanType -> "Yojson.Safe.Util.to_bool"
                     | Types.BinaryType -> "(fun v -> Base64.decode_exn (Yojson.Safe.Util.to_string v))"
-                    | Types.JsonType -> "(fun v -> match json_of_yojson v with Ok x -> x | Error e -> failwith e)"
-                    | Types.AnyType -> "(fun v -> match any_of_yojson v with Ok x -> x | Error e -> failwith e)"
+                    | Types.JsonType -> "Stdlib.Fun.id"
+                    | Types.AnyType -> "Stdlib.Fun.id"
                     | Types.TypeRef t ->
                         if List.mem_assoc t interfaces then
                             sprintf "(fun v -> let guid = Yojson.Safe.Util.member \"guid\" v |> Yojson.Safe.Util.to_string in ({ conn = t.conn; guid } : %s.t))" t
@@ -933,8 +933,8 @@ module Render = struct
             w "exception Error of string\n\n";
             w "type 'a obj = { conn: Connection.t; guid: string }\n";
             w "let internal_obj_to_yojson _ = failwith \"internal_obj_to_yojson called\"\nlet internal_obj_of_yojson _ = failwith \"internal_obj_of_yojson: <probably should never be called>\"\n";
-            w "type any = Yojson.Safe.t [@@deriving yojson {strict = false}]\n";
-            w "type json = Yojson.Safe.t [@@deriving yojson {strict = false}]\n";
+            
+            
             w "module Channel = struct type t = { guid: string } [@@deriving yojson {strict = false}] end\n";
             root.top_defs |> List.iter (fun (name, def) ->
                 let local_type_defs, def_body_for_sig, def_body_for_struct = match def with
