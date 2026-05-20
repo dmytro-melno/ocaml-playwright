@@ -1,12 +1,7 @@
-
 (library
  (name playwright)
  (public_name playwright)
- (libraries
-  yojson
-  eio
-  eio_linux
-  base64)
+ (libraries yojson eio eio_linux base64)
  (preprocess
   (pps ppx_deriving_yojson)))
 
