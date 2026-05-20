@@ -14,19 +14,23 @@ let () =
   let _ = Page.goto ~url:"https://todomvc.com/examples/react/dist/" page in
 
   Printf.printf "Adding items...\n%!";
-  Page.fill ~selector:".new-todo" ~value:"First item" page;
-  Page.press ~selector:".new-todo" ~key:"Enter" page;
+  let new_todo = Page.locator ~selector:".new-todo" page in
+  Locator.fill ~value:"First item" new_todo;
+  Locator.press ~key:"Enter" new_todo;
   
-  Page.fill ~selector:".new-todo" ~value:"Second item" page;
-  Page.press ~selector:".new-todo" ~key:"Enter" page;
+  Locator.fill ~value:"Second item" new_todo;
+  Locator.press ~key:"Enter" new_todo;
 
-  let count = Page.eval_on_selector_all ~selector:".todo-list li" ~expression:"els => els.length" page in
-  Printf.printf "Count of items: %f\n%!" (match count with | `Float f -> f | _ -> -1.0);
+  let todo_list = Page.locator ~selector:".todo-list li" page in
+  let count = Locator.count todo_list in
+  Printf.printf "Count of items: %d\n%!" count;
 
   Printf.printf "Clicking checkbox...\n%!";
-  Page.click ~selector:".todo-list li:first-child .toggle" page;
+  let first_checkbox = Locator.locator ~selector:".toggle" (Page.locator ~selector:".todo-list li:first-child" page) in
+  Locator.click first_checkbox;
 
-  let class_attr = Page.get_attribute ~selector:".todo-list li:first-child" ~name:"class" page in
+  let first_li = Page.locator ~selector:".todo-list li:first-child" page in
+  let class_attr = Locator.get_attribute ~name:"class" first_li in
   (match class_attr with
    | Some c -> Printf.printf "First item class: %s\n%!" c
    | None -> Printf.printf "No class attribute\n%!");

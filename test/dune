@@ -1,4 +1,16 @@
-
 (executables
- (names test_hl test_events test_hl2 test_screenshot test_wait test_error test_e2e test_ai_eval test_eval test_comprehensive test_locator test_events2)
+ (names
+  test_locator_adv
+  test_hl
+  test_events
+  test_hl2
+  test_screenshot
+  test_wait
+  test_error
+  test_e2e
+  test_ai_eval
+  test_eval
+  test_comprehensive
+  test_locator
+  test_events2)
  (libraries playwright eio_main))
