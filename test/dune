@@ -12,5 +12,6 @@
   test_eval
   test_comprehensive
   test_locator
-  test_events2)
+  test_events2
+  test_recursive_locator)
  (libraries playwright eio_main))

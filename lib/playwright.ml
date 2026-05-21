@@ -113,18 +113,27 @@ module Locator_utils = struct
     "internal:testid=" ^ escape_for_selector id
 end
 
-module Locator_core = struct
-  type t = {
-    frame : Api.Frame.t;
-    selector : string;
-  }
+module rec Frame : sig
+  include module type of Api.Frame
+  val locator : selector:string -> t -> Locator.t
+  val get_by_text : ?exact:bool -> string -> t -> Locator.t
+  val get_by_role : ?name:string -> ?exact:bool -> string -> t -> Locator.t
+  val get_by_label : ?exact:bool -> string -> t -> Locator.t
+  val get_by_placeholder : ?exact:bool -> string -> t -> Locator.t
+  val get_by_alt_text : ?exact:bool -> string -> t -> Locator.t
+  val get_by_title : ?exact:bool -> string -> t -> Locator.t
+  val get_by_test_id : string -> t -> Locator.t
 
-  let create ~selector frame = { frame; selector }
-end
-
-module Frame = struct
+  val evaluate : expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> t -> Yojson.Safe.t
+  val evaluate_handle : expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> t -> Api.JSHandle.t
+  val eval_on_selector : selector:string -> ?strict:bool -> expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> t -> Yojson.Safe.t
+  val eval_on_selector_all : selector:string -> expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> t -> Yojson.Safe.t
+  val wait_for_function : expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> ?timeout:float -> ?polling_interval:float -> t -> Api.JSHandle.t
+  val dispatch_event : selector:string -> ?strict:bool -> type_:string -> ?event_init:Yojson.Safe.t -> ?timeout:float -> t -> unit
+  val expect : ?selector:string -> expression:string -> ?expression_arg:Yojson.Safe.t -> ?pseudo:Pseudo.t -> ?expected_text:Api.ExpectedTextValue.t array -> ?expected_number:float -> ?expected_value:Yojson.Safe.t -> ?use_inner_text:bool -> is_not:bool -> ?timeout:float -> t -> ExpectResult.t
+end = struct
   include Api.Frame
-  let locator ~selector t = Locator_core.create ~selector t
+  let locator ~selector t = Locator.create ~selector t
 
   let get_by_text ?exact text t = locator ~selector:(Locator_utils.get_by_text ?exact text) t
   let get_by_role ?name ?exact role t = locator ~selector:(Locator_utils.get_by_role ?name ?exact role) t
@@ -157,9 +166,28 @@ module Frame = struct
     expect_raw ?selector ~expression ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value:expected_value_arg ?use_inner_text ~is_not ?timeout t
 end
 
-module Page = struct
-  include Api.Page
-  let locator ~selector t = Locator_core.create ~selector (main_frame t)
+and Page : sig
+  include module type of Api.Page with module Locator := Api.Page.Locator
+  val locator : selector:string -> t -> Locator.t
+  val get_by_text : ?exact:bool -> string -> t -> Locator.t
+  val get_by_role : ?name:string -> ?exact:bool -> string -> t -> Locator.t
+  val get_by_label : ?exact:bool -> string -> t -> Locator.t
+  val get_by_placeholder : ?exact:bool -> string -> t -> Locator.t
+  val get_by_alt_text : ?exact:bool -> string -> t -> Locator.t
+  val get_by_title : ?exact:bool -> string -> t -> Locator.t
+  val get_by_test_id : string -> t -> Locator.t
+
+  val evaluate : expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> t -> Yojson.Safe.t
+  val evaluate_handle : expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> t -> Api.JSHandle.t
+  val eval_on_selector : selector:string -> ?strict:bool -> expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> t -> Yojson.Safe.t
+  val eval_on_selector_all : selector:string -> expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> t -> Yojson.Safe.t
+  val wait_for_function : expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> ?timeout:float -> ?polling_interval:float -> t -> Api.JSHandle.t
+  val dispatch_event : selector:string -> ?strict:bool -> type_:string -> ?event_init:Yojson.Safe.t -> ?timeout:float -> t -> unit
+  val expect : ?selector:string -> expression:string -> ?expression_arg:Yojson.Safe.t -> ?pseudo:Frame.Pseudo.t -> ?expected_text:Api.ExpectedTextValue.t array -> ?expected_number:float -> ?expected_value:Yojson.Safe.t -> ?use_inner_text:bool -> is_not:bool -> ?timeout:float -> t -> Frame.ExpectResult.t
+end = struct
+  module Top_Locator = Locator
+  include (Api.Page : module type of Api.Page with module Locator := Api.Page.Locator)
+  let locator ~selector t = Top_Locator.create ~selector (main_frame t)
 
   let get_by_text ?exact text t = locator ~selector:(Locator_utils.get_by_text ?exact text) t
   let get_by_role ?name ?exact role t = locator ~selector:(Locator_utils.get_by_role ?name ?exact role) t
@@ -191,96 +219,74 @@ module Page = struct
     Frame.expect ?selector ~expression ?expression_arg ?pseudo ?expected_text ?expected_number ~expected_value ?use_inner_text ~is_not ?timeout (main_frame t)
 end
 
-module JSHandle = struct
-  include Api.JSHandle
+and Locator : sig
+  type t = {
+    frame : Api.Frame.t;
+    selector : string;
+  }
+  val create : selector:string -> Api.Frame.t -> t
+  val locator : selector:string -> t -> t
+  val click : ?strict:bool -> ?force:bool -> ?no_wait_after:bool -> ?modifiers:Frame.Modifiers.t array -> ?position:Api.Point.t -> ?delay:float -> ?button:Frame.Button.t -> ?click_count:int -> ?timeout:float -> ?trial:bool -> ?steps:int -> t -> unit
+  val fill : ?strict:bool -> ?force:bool -> ?timeout:float -> value:string -> t -> unit
+  val press : ?strict:bool -> ?delay:float -> ?no_wait_after:bool -> ?timeout:float -> key:string -> t -> unit
+  val get_attribute : ?strict:bool -> ?timeout:float -> name:string -> t -> string option
+  val text_content : ?strict:bool -> ?timeout:float -> t -> string option
+  val inner_text : ?strict:bool -> ?timeout:float -> t -> string
+  val inner_html : ?strict:bool -> ?timeout:float -> t -> string
+  val count : t -> int
+  val evaluate : expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> t -> Yojson.Safe.t
+  val evaluate_all : expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> t -> Yojson.Safe.t
+  val wait_for : ?state:Frame.State.t -> ?timeout:float -> t -> unit
+  val is_visible : ?timeout:float -> t -> bool
+  val check : ?strict:bool -> ?force:bool -> ?position:Api.Point.t -> ?timeout:float -> ?trial:bool -> t -> unit
+  val uncheck : ?strict:bool -> ?force:bool -> ?position:Api.Point.t -> ?timeout:float -> ?trial:bool -> t -> unit
+  val dblclick : ?strict:bool -> ?force:bool -> ?modifiers:Frame.Modifiers.t array -> ?position:Api.Point.t -> ?delay:float -> ?button:Frame.Button.t -> ?timeout:float -> ?trial:bool -> ?steps:int -> t -> unit
+  val get_by_text : ?exact:bool -> string -> t -> t
+  val get_by_role : ?name:string -> ?exact:bool -> string -> t -> t
+  val get_by_label : ?exact:bool -> string -> t -> t
+  val get_by_placeholder : ?exact:bool -> string -> t -> t
+  val get_by_alt_text : ?exact:bool -> string -> t -> t
+  val get_by_title : ?exact:bool -> string -> t -> t
+  val get_by_test_id : string -> t -> t
+  val nth : int -> t -> t
+  val first : t -> t
+  val last : t -> t
+  val filter : ?has_text:string -> ?has:t -> t -> t
+  val and_ : t -> t -> t
+  val or_ : t -> t -> t
+  val blur : ?strict:bool -> ?timeout:float -> t -> unit
+  val focus : ?strict:bool -> ?timeout:float -> t -> unit
+  val hover : ?strict:bool -> ?force:bool -> ?modifiers:Frame.Modifiers.t array -> ?position:Api.Point.t -> ?timeout:float -> ?trial:bool -> t -> unit
+  val input_value : ?strict:bool -> ?timeout:float -> t -> string
+  val select_option : ?strict:bool -> ?elements:Api.ElementHandle.t array -> ?options:Frame.Options.t array -> ?force:bool -> ?timeout:float -> t -> string array
+  val set_input_files : ?strict:bool -> ?payloads:Frame.Payloads.t array -> ?local_directory:string -> ?directory_stream:Api.WritableStream.t -> ?local_paths:string array -> ?streams:Api.WritableStream.t array -> ?timeout:float -> t -> unit
+  val tap : ?strict:bool -> ?force:bool -> ?modifiers:Frame.Modifiers.t array -> ?position:Api.Point.t -> ?timeout:float -> ?trial:bool -> t -> unit
+  val type_ : ?strict:bool -> ?delay:float -> ?timeout:float -> text:string -> t -> unit
+  val dispatch_event : ?strict:bool -> ?timeout:float -> type_:string -> ?event_init:Yojson.Safe.t -> t -> unit
+  val is_checked : ?strict:bool -> ?timeout:float -> t -> bool
+  val is_disabled : ?strict:bool -> ?timeout:float -> t -> bool
+  val is_enabled : ?strict:bool -> ?timeout:float -> t -> bool
+  val is_hidden : ?strict:bool -> t -> bool
+  val is_editable : ?strict:bool -> ?timeout:float -> t -> bool
+  val drag_to : ?force:bool -> ?timeout:float -> ?trial:bool -> ?source_position:Api.Point.t -> ?target_position:Api.Point.t -> ?strict:bool -> ?steps:int -> target:t -> t -> unit
+  val all : t -> t list
+  val all_inner_texts : t -> string list
+  val all_text_contents : t -> string list
+  val highlight : ?style:string -> t -> unit
+  val bounding_box : ?timeout:float -> t -> Api.Rect.Wrap.t option
+  val scroll_into_view_if_needed : ?timeout:float -> t -> unit
+  val element_handle : ?timeout:float -> t -> Api.ElementHandle.t option
+  val element_handles : t -> Api.ElementHandle.t array
+  val screenshot : ?timeout:float -> ?type_:Api.ElementHandle.Type_.t -> ?quality:int -> ?omit_background:bool -> ?caret:Api.ElementHandle.Caret.t -> ?animations:Api.ElementHandle.Animations.t -> ?scale:Api.ElementHandle.Scale.t -> ?mask:Api.ElementHandle.Mask.t array -> ?mask_color:string -> ?style:string -> t -> string
+  val expect : expression:string -> ?expression_arg:Yojson.Safe.t -> ?pseudo:Frame.Pseudo.t -> ?expected_text:Api.ExpectedTextValue.t array -> ?expected_number:float -> ?expected_value:Yojson.Safe.t -> ?use_inner_text:bool -> is_not:bool -> ?timeout:float -> t -> Frame.ExpectResult.t
+  val clear : ?strict:bool -> ?force:bool -> ?timeout:float -> t -> unit
+end = struct
+  type t = {
+    frame : Api.Frame.t;
+    selector : string;
+  }
 
-  let evaluate ~expression ?is_function ?(arg=`Null) t =
-    evaluate_expression_raw ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t |> Value.parse_serialized_value
-
-  let evaluate_handle ~expression ?is_function ?(arg=`Null) t =
-    evaluate_expression_handle_raw ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t
-
-  let json_value t =
-    json_value_raw t |> Value.parse_serialized_value
-end
-
-module ElementHandle = struct
-  include Api.ElementHandle
-
-  let evaluate ~expression ?is_function ?(arg=`Null) t =
-    evaluate_expression_raw ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t |> Value.parse_serialized_value
-
-  let evaluate_handle ~expression ?is_function ?(arg=`Null) t =
-    evaluate_expression_handle_raw ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t
-
-  let eval_on_selector ~selector ?strict ~expression ?is_function ?(arg=`Null) t =
-    eval_on_selector_raw ~selector ?strict ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t |> Value.parse_serialized_value
-
-  let eval_on_selector_all ~selector ~expression ?is_function ?(arg=`Null) t =
-    eval_on_selector_all_raw ~selector ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t |> Value.parse_serialized_value
-
-  let json_value t =
-    json_value_raw t |> Value.parse_serialized_value
-
-  let dispatch_event ~type_ ?(event_init=`Null) t =
-    dispatch_event_raw ~type_ ~event_init:(Value.build_serialized_argument event_init) t
-end
-
-module Worker = struct
-  include Api.Worker
-
-  let evaluate ~expression ?is_function ?(arg=`Null) t =
-    evaluate_expression_raw ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t |> Value.parse_serialized_value
-
-  let evaluate_handle ~expression ?is_function ?(arg=`Null) t =
-    evaluate_expression_handle_raw ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t
-end
-
-
-module BindingCall = struct
-  include Api.BindingCall
-
-  let resolve ~result t =
-    resolve_raw ~result:(Value.build_serialized_argument result) t
-
-  let reject ~error t =
-    reject_raw ~error t
-end
-
-let instances = Hashtbl.create 1
-
-let create ~(env : Eio_unix.Stdenv.base) ~(sw : Eio.Switch.t) () =
-  let process_mgr = Eio.Stdenv.process_mgr env in
-  let p1_r, p1_w = Eio.Process.pipe ~sw process_mgr in
-  let p2_r, p2_w = Eio.Process.pipe ~sw process_mgr in
-
-  let p = Driver.run ~sw ~process_mgr ~stdin:p1_r ~stdout:p2_w () in
-  Eio.Flow.close p1_r;
-  Eio.Flow.close p2_w;
-
-  let conn = Connection.create (p2_r :> Eio.Flow.source_ty Eio.Resource.t) (p1_w :> Eio.Flow.sink_ty Eio.Resource.t) in
-  Eio.Fiber.fork ~sw (fun () -> Connection.run_loop conn);
-
-  let root = { conn; guid = "" } in
-  let main = Root.initialize ~sdk_language:`Javascript root in
-
-  let close () =
-    Eio.Flow.close p1_w;
-    Eio.Flow.close p2_r;
-    ignore (Eio.Process.await p)
-  in
-  Hashtbl.add instances main.guid close;
-  main
-
-let destroy (main : Api.Playwright.t) =
-  match Hashtbl.find_opt instances main.guid with
-  | Some close ->
-      close ();
-      Hashtbl.remove instances main.guid
-  | None -> ()
-
-module Locator = struct
-  include Locator_core
+  let create ~selector frame = { frame; selector }
 
   let locator ~selector t =
     let new_selector = t.selector ^ " >> " ^ selector in
@@ -390,7 +396,6 @@ module Locator = struct
     | `List l -> List.filter_map (function `String s -> Some s | _ -> None) l
     | _ -> []
 
-
   let highlight ?style t = Frame.highlight ~selector:t.selector ?style t.frame
   let bounding_box ?timeout t =
     (* Wait for the element to be attached first. *)
@@ -406,7 +411,6 @@ module Locator = struct
         Some Api.Rect.Wrap.{ x; y; width; height }
     | _ -> None
 
-
   let scroll_into_view_if_needed ?timeout t =
     ignore (Frame.wait_for_selector ~selector:t.selector ~state:`Attached ?timeout t.frame);
     ignore (Frame.eval_on_selector ~selector:t.selector ~expression:"el => el.scrollIntoViewIfNeeded ? el.scrollIntoViewIfNeeded() : el.scrollIntoView()" ~arg:`Null t.frame)
@@ -417,7 +421,6 @@ module Locator = struct
   let element_handles t =
     Frame.query_selector_all ~selector:t.selector t.frame
 
-
   let screenshot ?timeout ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style t =
     match element_handle ?timeout t with
     | Some handle -> Api.ElementHandle.screenshot ?timeout ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style handle
@@ -427,3 +430,93 @@ module Locator = struct
     Frame.expect ~selector:t.selector ~expression ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not ?timeout t.frame
   let clear ?strict ?force ?timeout t = fill ?strict ?force ?timeout ~value:"" t
 end
+
+
+module JSHandle = struct
+  include Api.JSHandle
+
+  let evaluate ~expression ?is_function ?(arg=`Null) t =
+    evaluate_expression_raw ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t |> Value.parse_serialized_value
+
+  let evaluate_handle ~expression ?is_function ?(arg=`Null) t =
+    evaluate_expression_handle_raw ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t
+
+  let json_value t =
+    json_value_raw t |> Value.parse_serialized_value
+end
+
+module ElementHandle = struct
+  include Api.ElementHandle
+
+  let evaluate ~expression ?is_function ?(arg=`Null) t =
+    evaluate_expression_raw ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t |> Value.parse_serialized_value
+
+  let evaluate_handle ~expression ?is_function ?(arg=`Null) t =
+    evaluate_expression_handle_raw ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t
+
+  let eval_on_selector ~selector ?strict ~expression ?is_function ?(arg=`Null) t =
+    eval_on_selector_raw ~selector ?strict ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t |> Value.parse_serialized_value
+
+  let eval_on_selector_all ~selector ~expression ?is_function ?(arg=`Null) t =
+    eval_on_selector_all_raw ~selector ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t |> Value.parse_serialized_value
+
+  let json_value t =
+    json_value_raw t |> Value.parse_serialized_value
+
+  let dispatch_event ~type_ ?(event_init=`Null) t =
+    dispatch_event_raw ~type_ ~event_init:(Value.build_serialized_argument event_init) t
+end
+
+module Worker = struct
+  include Api.Worker
+
+  let evaluate ~expression ?is_function ?(arg=`Null) t =
+    evaluate_expression_raw ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t |> Value.parse_serialized_value
+
+  let evaluate_handle ~expression ?is_function ?(arg=`Null) t =
+    evaluate_expression_handle_raw ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t
+end
+
+
+module BindingCall = struct
+  include Api.BindingCall
+
+  let resolve ~result t =
+    resolve_raw ~result:(Value.build_serialized_argument result) t
+
+  let reject ~error t =
+    reject_raw ~error t
+end
+
+let instances = Hashtbl.create 1
+
+let create ~(env : Eio_unix.Stdenv.base) ~(sw : Eio.Switch.t) () =
+  let process_mgr = Eio.Stdenv.process_mgr env in
+  let p1_r, p1_w = Eio.Process.pipe ~sw process_mgr in
+  let p2_r, p2_w = Eio.Process.pipe ~sw process_mgr in
+
+  let p = Driver.run ~sw ~process_mgr ~stdin:p1_r ~stdout:p2_w () in
+  Eio.Flow.close p1_r;
+  Eio.Flow.close p2_w;
+
+  let conn = Connection.create (p2_r :> Eio.Flow.source_ty Eio.Resource.t) (p1_w :> Eio.Flow.sink_ty Eio.Resource.t) in
+  Eio.Fiber.fork ~sw (fun () -> Connection.run_loop conn);
+
+  let root = { conn; guid = "" } in
+  let main = Root.initialize ~sdk_language:`Javascript root in
+
+  let close () =
+    Eio.Flow.close p1_w;
+    Eio.Flow.close p2_r;
+    ignore (Eio.Process.await p)
+  in
+  Hashtbl.add instances main.guid close;
+  main
+
+let destroy (main : Api.Playwright.t) =
+  match Hashtbl.find_opt instances main.guid with
+  | Some close ->
+      close ();
+      Hashtbl.remove instances main.guid
+  | None -> ()
+
