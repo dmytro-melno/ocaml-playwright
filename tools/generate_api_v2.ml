@@ -550,7 +550,7 @@ module Render = struct
             let w fmt = bprintf out_buf fmt in
             w "[@@@ocaml.warning \"-30-39-32\"]\n\n";
             w "exception Error of string\n\n";
-            w "type 'a obj = { conn: Connection.t; guid: string }\n";
+            w "type 'a obj\n";
             
             
             w "module Channel : sig type t = { guid: string } [@@deriving yojson {strict = false}] end\n";
@@ -598,7 +598,11 @@ module Render = struct
                 w "and %s : sig\n" name;
                 interface root.interfaces name iface out_buf;
                 w "end\n"
-            )
+            );
+            w "\nmodule Internal : sig\n";
+            w "    val create_root : Connection.t -> Root.t\n";
+            w "    val guid : 'a obj -> string\n";
+            w "end\n"
     end
 
     module Mod = struct
@@ -1002,7 +1006,11 @@ module Render = struct
                 w "end = struct\n";
                 interface root.interfaces name iface out_buf;
                 w "end\n"
-            )
+            );
+            w "\nmodule Internal = struct\n";
+            w "    let create_root conn : Root.t = { conn; guid = \"\" }\n";
+            w "    let guid (t : 'a obj) = t.guid\n";
+            w "end\n"
     end
 end
 

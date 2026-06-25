@@ -13,8 +13,8 @@ let () =
     Eio.Fiber.both
       (fun () ->
           Printf.printf "Waiting for page event...\n%!";
-          let ev = Playwright.BrowserContext.wait_for_page ctx in
-          Printf.printf "Page created with GUID: %s\n%!" ev.page.guid
+          let _ev = Playwright.BrowserContext.wait_for_page ctx in
+          Printf.printf "Page created!\n%!"
       )
       (fun () ->
           Eio.Time.sleep (Eio.Stdenv.clock env) 0.5;

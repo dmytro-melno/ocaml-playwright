@@ -10,8 +10,8 @@ let () =
     let browser = Playwright.BrowserType.launch ~executable_path:"/usr/bin/chromium" ~headless:true ~timeout:0.0 chromium in
     let ctx = Playwright.Browser.new_context browser in
 
-    Playwright.BrowserContext.on_page ctx (fun ev ->
-      Printf.printf "Intercepted page event! New page GUID: %s\n%!" ev.page.guid
+    Playwright.BrowserContext.on_page ctx (fun _ev ->
+      Printf.printf "Intercepted page event!\n%!"
     );
 
     let _page = Playwright.BrowserContext.new_page ctx in
