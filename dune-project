@@ -16,11 +16,12 @@
  (depends
   (ocaml (>= 5.0.0))
   dune
-  eio
-  eio_linux
-  yojson
-  ppx_deriving_yojson
-  yaml
-  base64
-  re
+  (eio (>= 0.12))
+  (eio_linux (>= 0.12))
+  (eio_main (and :with-test (>= 0.12)))
+  (yojson (>= 1.6.0))
+  (ppx_deriving_yojson (>= 3.10.0))
+  (yaml (>= 3.0.1))
+  (base64 (>= 3.0.0))
+  (re (>= 1.9.0))
  ))
