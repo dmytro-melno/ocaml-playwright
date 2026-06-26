@@ -21,4 +21,6 @@
   yojson
   ppx_deriving_yojson
   yaml
+  base64
+  re
  ))
