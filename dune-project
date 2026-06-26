@@ -3,15 +3,16 @@
 (generate_opam_files true)
 
 (source
- (github dmytrom/ocaml-playwright))
+ (github dmytro-melno/ocaml-playwright))
 
-(authors "dmytrom")
-(maintainers "dmytrom")
+(authors "Dmytro Melnychuk")
+(maintainers "Dmytro Melnychuk")
 
 (package
  (name playwright)
  (synopsis "OCaml bindings for Playwright")
  (description "OCaml bindings for Playwright generated from protocol.yml")
+ (license MIT)
  (depends
   (ocaml (>= 5.0.0))
   dune

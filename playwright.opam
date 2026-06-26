@@ -2,10 +2,11 @@
 opam-version: "2.0"
 synopsis: "OCaml bindings for Playwright"
 description: "OCaml bindings for Playwright generated from protocol.yml"
-maintainer: ["dmytrom"]
-authors: ["dmytrom"]
-homepage: "https://github.com/dmytrom/ocaml-playwright"
-bug-reports: "https://github.com/dmytrom/ocaml-playwright/issues"
+maintainer: ["Dmytro Melnychuk"]
+authors: ["Dmytro Melnychuk"]
+license: "MIT"
+homepage: "https://github.com/dmytro-melno/ocaml-playwright"
+bug-reports: "https://github.com/dmytro-melno/ocaml-playwright/issues"
 depends: [
   "ocaml" {>= "5.0.0"}
   "dune" {>= "3.10"}
@@ -30,4 +31,4 @@ build: [
     "@doc" {with-doc}
   ]
 ]
-dev-repo: "git+https://github.com/dmytrom/ocaml-playwright.git"
+dev-repo: "git+https://github.com/dmytro-melno/ocaml-playwright.git"

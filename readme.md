@@ -28,7 +28,7 @@ dune build
 As a dependency:
 
 ```sh
-opam pin add playwright git+https://github.com/dmytrom/ocaml-playwright.git
+opam pin add playwright git+https://github.com/dmytro-melno/ocaml-playwright.git
 ```
 
 In `dune`:
@@ -69,3 +69,8 @@ let () =
 
 - JavaScript values are represented as `Yojson.Safe.t` in helpers such as `Page.evaluate`
 - Playwright protocol errors are raised as `Playwright.Error string`
+
+
+## License
+
+MIT © 2026 [Dmytro Melnychuk](https://github.com/dmytro-melno)
