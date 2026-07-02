@@ -34,10 +34,15 @@ let get_zip_name () =
     in
     match uname_s, uname_m with
     | "Darwin", "arm64" -> "mac-arm64"
-    | "Darwin", _ -> "mac"
-    | "Linux", "aarch64" -> "linux-arm64"
-    | "Linux", _ -> "linux"
-    | _ -> failwith "Unsupported platform"
+    | "Darwin", ("x86_64" | "amd64") -> "mac"
+    | "Linux", ("x86_64" | "amd64") -> "linux"
+    | "Linux", ("aarch64" | "arm64") -> "linux-arm64"
+    | _ ->
+      failwith
+        (Printf.sprintf
+           "Unsupported platform for bundled Playwright driver: %s/%s"
+           uname_s
+           uname_m)
 
 let download () =
   let dir = driver_dir () in
