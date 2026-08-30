@@ -11,10 +11,11 @@ Experimental. The API mostly mirrors Playwright's protocol objects, with a few c
 - OCaml 5+
 - dune
 - Eio
-- `curl` and `unzip` for first-run driver download
+- `curl`, `tar`, and Node.js 18+ for the Playwright driver
 - a browser executable, or Playwright-managed browsers available on the machine
 
-The Playwright driver is downloaded automatically on first use to `~/.cache/playwright-ocaml-driver`.
+The matching `playwright-core` driver is downloaded automatically from npm on
+first use to `~/.cache/playwright-ocaml-driver`.
 
 ## Install
 
