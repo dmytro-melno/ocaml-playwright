@@ -602,6 +602,7 @@ module Render = struct
             w "\nmodule Internal : sig\n";
             w "    val create_root : Connection.t -> Root.t\n";
             w "    val guid : 'a obj -> string\n";
+            w "    val connection : 'a obj -> Connection.t\n";
             w "end\n"
     end
 
@@ -650,6 +651,7 @@ module Render = struct
                         | Types.TypeRef t when List.mem_assoc t interfaces ->
                             let field_name_ocaml = to_ocaml_name field_name in
                             w "    let %s t =\n" field_name_ocaml;
+                            w "    (match Connection.closed_reason t.conn with Some reason -> raise (Error reason) | None -> ());\n";
                             w "    match Hashtbl.find_opt t.conn.objects t.guid with\n";
                             w "    | Some obj ->\n";
                             w "        let open Yojson.Safe.Util in\n";
@@ -724,36 +726,21 @@ module Render = struct
                     w "            let parsed = Eio.Fiber.with_binding Connection.current_connection_key t.conn (fun () -> %s.of_yojson msg) in\n" arg_ty_name;
                     w "            match parsed with\n";
                     w "            | Ok ev -> cb ev\n";
-                    w "            | Error _ -> ()\n";
+                    w "            | Error error -> failwith (\"Invalid %s.%s event: \" ^ error)\n" interface_name ev.name;
                     w "        ) in ()\n\n";
 
                     w "    let %s ?predicate (t : t) =\n" wait_fn_name;
-                    w "        let p, r = Eio.Promise.create () in\n";
-                    w "        let id = ref (-1) in\n";
-                    w "        id := Connection.add_listener t.conn t.guid \"%s\" (fun msg ->\n" ev.name;
-                    w "            let parsed = Eio.Fiber.with_binding Connection.current_connection_key t.conn (fun () -> %s.of_yojson msg) in\n" arg_ty_name;
-                    w "            match parsed with\n";
-                    w "            | Ok ev ->\n";
-                    w "                let is_match = match predicate with Some f -> (try f ev with _ -> false) | None -> true in\n";
-                    w "                if is_match then begin\n";
-                    w "                    Connection.remove_listener t.conn t.guid \"%s\" !id;\n" ev.name;
-                    w "                    if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ev\n";
-                    w "                end\n";
-                    w "            | Error _ -> ()\n";
-                    w "        );\n";
-                    w "        Eio.Promise.await p\n\n";
+                    w "        Connection.wait_for_event t.conn t.guid \"%s\" ?predicate\n" ev.name;
+                    w "            ~decode:(fun msg ->\n";
+                    w "                match Eio.Fiber.with_binding Connection.current_connection_key t.conn (fun () -> %s.of_yojson msg) with\n" arg_ty_name;
+                    w "                | Ok ev -> ev\n";
+                    w "                | Error error -> failwith (\"Invalid %s.%s event: \" ^ error)) ()\n\n" interface_name ev.name;
                 end else begin
                     w "    let %s (t : t) cb =\n" fn_name;
                     w "        let _id = Connection.add_listener t.conn t.guid \"%s\" (fun _msg -> cb ()) in ()\n\n" ev.name;
 
                     w "    let %s (t : t) =\n" wait_fn_name;
-                    w "        let p, r = Eio.Promise.create () in\n";
-                    w "        let id = ref (-1) in\n";
-                    w "        id := Connection.add_listener t.conn t.guid \"%s\" (fun _msg ->\n" ev.name;
-                    w "            Connection.remove_listener t.conn t.guid \"%s\" !id;\n" ev.name;
-                    w "            if not (Eio.Promise.is_resolved p) then Eio.Promise.resolve r ()\n";
-                    w "        );\n";
-                    w "        Eio.Promise.await p\n\n";
+                    w "        Connection.wait_for_event t.conn t.guid \"%s\" ~decode:(fun _ -> ()) ()\n\n" ev.name;
                 end
             );
             let rec get_all_commands iface =
@@ -1010,6 +997,7 @@ module Render = struct
             w "\nmodule Internal = struct\n";
             w "    let create_root conn : Root.t = { conn; guid = \"\" }\n";
             w "    let guid (t : 'a obj) = t.guid\n";
+            w "    let connection (t : 'a obj) = t.conn\n";
             w "end\n"
     end
 end

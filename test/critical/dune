@@ -1,0 +1,15 @@
+(executables
+ (names critical_tests public_regression)
+ (libraries playwright eio_main unix))
+
+(rule
+ (alias runtest)
+ (deps fixture_driver.cjs)
+ (action
+  (progn
+   (run timeout --signal=TERM --kill-after=3s 45s %{exe:critical_tests.exe} internal)
+   (run timeout --signal=TERM --kill-after=3s 45s %{exe:critical_tests.exe} events)
+   (run timeout --signal=TERM --kill-after=3s 60s %{exe:critical_tests.exe} ownership)
+   (run timeout --signal=TERM --kill-after=3s 45s %{exe:critical_tests.exe} drivers)
+   (run timeout --signal=TERM --kill-after=3s 12s %{exe:public_regression.exe} console)
+   (run timeout --signal=TERM --kill-after=3s 12s %{exe:public_regression.exe} multiple))))

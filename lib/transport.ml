@@ -1,17 +1,17 @@
-
 open Eio.Flow
 
 let read_message (source : _ source) : string option =
   let length_buf = Cstruct.create 4 in
-  try
-    Eio.Flow.read_exact source length_buf;
+  (* Only EOF before the header is a clean end of stream. A truncated frame or
+     reset is an error, reported by the connection's single close transition. *)
+  match (try Some (Eio.Flow.single_read source length_buf) with End_of_file -> None) with
+  | None -> None
+  | Some n ->
+    Eio.Flow.read_exact source (Cstruct.shift length_buf n);
     let length = Cstruct.LE.get_uint32 length_buf 0 |> Int32.to_int in
     let message_buf = Cstruct.create length in
     Eio.Flow.read_exact source message_buf;
     Some (Cstruct.to_string message_buf)
-  with
-  | End_of_file -> None
-  | Eio.Io (Eio.Net.E (Eio.Net.Connection_reset _), _) -> None
 
 let write_message (sink : _ sink) (message : string) : unit =
   let length = String.length message in

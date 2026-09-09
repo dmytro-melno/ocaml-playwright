@@ -70,6 +70,26 @@ let () =
 
 - JavaScript values are represented as `Yojson.Safe.t` in helpers such as `Page.evaluate`
 - Playwright protocol errors are raised as `Playwright.Error string`
+- Sessions belong to the supplied Eio switch; multiple instances are independent.
+  `destroy` is idempotent, and leaving the switch cleans up the session.
+- Event handlers and predicates run in owned Eio fibers outside the response
+  reader. They can make RPCs directly, but invocations may overlap. Callback
+  exceptions are reported on stderr by default, or through `create`'s
+  `on_event_error` hook.
+- See [session/event lifecycle semantics](doc/lifecycle.md) for ordering,
+  cancellation, backpressure, error handling, deadline options and limitations.
+  Cold driver provisioning is still blocking and outside the startup deadline.
+
+## Tests
+
+```sh
+dune build @all
+dune runtest --force --display=short
+```
+
+The critical lifecycle suite has real assertions and externally bounded
+subprocesses. It requires Linux, GNU `timeout`, the provisioned 1.59.1 driver,
+Node.js, and `/usr/bin/chromium`. See [test details](test/critical/README.md).
 
 
 ## License

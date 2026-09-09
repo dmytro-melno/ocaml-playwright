@@ -77,7 +77,25 @@ let download () =
   end;
   dir
 
-let run ~sw ~process_mgr ?env ?stdin ?stdout ?stderr () =
-  let dir = download () in
+let run ~sw ~process_mgr ?dir ?env ?stdin ?stdout ?stderr () =
+  let dir = match dir with Some dir -> dir | None -> download () in
   let cmd = [ "node"; cli_path dir; "run-driver" ] in
   Eio.Process.spawn ~sw process_mgr ?env ?stdin ?stdout ?stderr cmd
+
+(* Each phase is bounded. The process switch remains the final kill/reap safety
+   net if the OS cannot complete a KILL within the deadline. Cold provisioning
+   above is intentionally not covered by these lifecycle deadlines. *)
+let shutdown ~clock ~timeout process =
+  let await () =
+    match Eio.Time.with_timeout_exn clock timeout (fun () -> Eio.Process.await process) with
+    | _ -> true
+    | exception Eio.Time.Timeout -> false
+  in
+  if not (await ()) then begin
+    Eio.Process.signal process Sys.sigterm;
+    if not (await ()) then begin
+      Eio.Process.signal process Sys.sigkill;
+      if not (await ()) then
+        Printf.eprintf "Playwright driver did not reap after KILL; awaiting process-scope cleanup\n%!"
+    end
+  end

@@ -1,6 +1,7 @@
 module Transport = Transport
 module Driver = Driver
 module Connection = Connection
+module Internal = Api.Internal
 include (Api : module type of Api with module Internal := Api.Internal)
 
 module Value = struct
@@ -488,37 +489,112 @@ module BindingCall = struct
     reject_raw ~error t
 end
 
-let instances = Hashtbl.create 1
-
-let create ~(env : Eio_unix.Stdenv.base) ~(sw : Eio.Switch.t) () =
+(* Each handle owns its exact connection. No process-global session registry. *)
+let create ~(env : Eio_unix.Stdenv.base) ~(sw : Eio.Switch.t)
+    ?(init_timeout = 30.) ?(shutdown_timeout = 1.)
+    ?max_event_tasks ?on_event_error () =
+  if not (Float.is_finite init_timeout && init_timeout > 0.
+          && Float.is_finite shutdown_timeout && shutdown_timeout > 0.) then
+    invalid_arg "Playwright lifecycle timeouts must be finite and positive";
+  Option.iter (fun limit ->
+    if limit < 1 then invalid_arg "max_event_tasks must be positive") max_event_tasks;
+  Eio.Switch.check sw;
+  (* D01: the existing cold downloader is blocking and outside this deadline. *)
+  let dir = Driver.download () in
+  Eio.Switch.check sw;
   let process_mgr = Eio.Stdenv.process_mgr env in
-  let p1_r, p1_w = Eio.Process.pipe ~sw process_mgr in
-  let p2_r, p2_w = Eio.Process.pipe ~sw process_mgr in
-
-  let p = Driver.run ~sw ~process_mgr ~stdin:p1_r ~stdout:p2_w () in
-  Eio.Flow.close p1_r;
-  Eio.Flow.close p2_w;
-
-  let conn = Connection.create (p2_r :> Eio.Flow.source_ty Eio.Resource.t) (p1_w :> Eio.Flow.sink_ty Eio.Resource.t) in
-  Eio.Fiber.fork ~sw (fun () -> Connection.run_loop conn);
-
-  let root = Api.Internal.create_root conn in
-  let main = Root.initialize ~sdk_language:`Javascript root in
-  let main_guid = Api.Internal.guid main in
-
-  let close () =
-    Eio.Flow.close p1_w;
-    Eio.Flow.close p2_r;
-    ignore (Eio.Process.await p)
+  let clock = Eio.Stdenv.clock env in
+  let ready, ready_u = Eio.Promise.create () in
+  let stopped, stopped_u = Eio.Promise.create () in
+  let stop, stop_u = Eio.Promise.create () in
+  let connection = ref None in
+  let finish_ready value =
+    if not (Eio.Promise.is_resolved ready) then Eio.Promise.resolve ready_u value
   in
-  Hashtbl.add instances main_guid close;
-  main
+  let close reason = Option.iter (fun conn -> Connection.close conn reason) !connection in
+  let diagnose operation f =
+    try f () with ex ->
+      Printf.eprintf "Playwright cleanup (%s): %s\n%!" operation (Printexc.to_string ex)
+  in
+  let started = ref false in
+  let start () =
+    Eio.Switch.check sw;
+    started := true;
+    Eio.Fiber.fork_daemon ~sw (fun () ->
+      Fun.protect
+        ~finally:(fun () ->
+          Option.iter (fun conn -> conn.Connection.await_cleanup <- None) !connection;
+          Eio.Promise.resolve stopped_u ())
+        (fun () ->
+          try
+            Eio.Switch.run (fun resources ->
+              Eio.Fiber.first
+                (fun () ->
+                  let p1_r, p1_w = Eio.Process.pipe ~sw:resources process_mgr in
+                  let p2_r, p2_w = Eio.Process.pipe ~sw:resources process_mgr in
+                  let process = Driver.run ~sw:resources ~process_mgr ~dir
+                      ~stdin:p1_r ~stdout:p2_w () in
+                  Fun.protect
+                    ~finally:(fun () ->
+                      close "Playwright session scope closed";
+                      Eio.Cancel.protect (fun () ->
+                        diagnose "stdin" (fun () -> Eio.Flow.close p1_w);
+                        (* Keep stdout open and drain late replies while the driver
+                           exits. Closing it first causes EPIPE or a full pipe can
+                           prevent otherwise graceful termination. *)
+                        diagnose "driver" (fun () ->
+                          Eio.Fiber.first
+                            (fun () -> Driver.shutdown ~clock ~timeout:shutdown_timeout process)
+                            (fun () ->
+                              (try
+                                 let buffer = Cstruct.create 4096 in
+                                 while true do ignore (Eio.Flow.single_read p2_r buffer) done
+                               with End_of_file -> ());
+                              Eio.Fiber.await_cancel ()));
+                        diagnose "stdout" (fun () -> Eio.Flow.close p2_r)))
+                    (fun () ->
+                      Eio.Flow.close p1_r;
+                      Eio.Flow.close p2_w;
+                      let conn = Connection.create ?max_event_tasks ?on_event_error p2_r p1_w in
+                      connection := Some conn;
+                      conn.await_cleanup <- Some (fun () -> Eio.Promise.await stopped);
+                      finish_ready (Ok conn);
+                      Eio.Fiber.first
+                        (fun () -> Connection.run_loop conn)
+                        (fun () ->
+                          let status = Eio.Process.await process in
+                          let description = match status with
+                            | `Exited n -> Printf.sprintf "exit %d" n
+                            | `Signaled n -> Printf.sprintf "signal %d" n in
+                          Connection.close conn ("Playwright driver stopped: " ^ description))))
+                (fun () ->
+                  Eio.Promise.await stop;
+                  close "Playwright initialization stopped"));
+            finish_ready (Error (Failure "Playwright session stopped during initialization",
+                                 Printexc.get_callstack 10))
+          with ex ->
+            let bt = Printexc.get_raw_backtrace () in
+            close ("Playwright session failed: " ^ Printexc.to_string ex);
+            finish_ready (Error (ex, bt));
+            if Eio.Fiber.is_cancelled () then Printexc.raise_with_backtrace ex bt;
+            Printf.eprintf "Playwright session failed: %s\n%s%!"
+              (Printexc.to_string ex) (Printexc.raw_backtrace_to_string bt));
+      `Stop_daemon)
+  in
+  try
+    Eio.Time.with_timeout_exn clock init_timeout (fun () ->
+      start ();
+      let conn = match Eio.Promise.await ready with
+        | Ok conn -> conn
+        | Error (ex, bt) -> Printexc.raise_with_backtrace ex bt in
+      let root = Api.Internal.create_root conn in
+      Root.initialize ~sdk_language:`Javascript root)
+  with ex ->
+    let bt = Printexc.get_raw_backtrace () in
+    close ("Playwright initialization failed: " ^ Printexc.to_string ex);
+    Eio.Promise.resolve stop_u ();
+    if !started then Eio.Cancel.protect (fun () -> Eio.Promise.await stopped);
+    Printexc.raise_with_backtrace ex bt
 
 let destroy (main : Api.Playwright.t) =
-  let main_guid = Api.Internal.guid main in
-  match Hashtbl.find_opt instances main_guid with
-  | Some close ->
-      close ();
-      Hashtbl.remove instances main_guid
-  | None -> ()
-
+  Connection.destroy (Api.Internal.connection main)
