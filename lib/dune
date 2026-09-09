@@ -10,9 +10,5 @@
  (deps ../protocol/protocol.yml)
  (action
   (progn
-   (with-stdout-to
-    api.mli
-    (run %{exe:../tools/generate_api_v2.exe} mli %{deps}))
-   (with-stdout-to
-    api.ml
-    (run %{exe:../tools/generate_api_v2.exe} ml %{deps})))))
+    (with-stdout-to api.mli (run %{exe:../tools/generate_api_v2.exe} mli %{deps}))
+    (with-stdout-to api.ml (run %{exe:../tools/generate_api_v2.exe} ml %{deps})))))

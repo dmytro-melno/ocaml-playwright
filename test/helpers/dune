@@ -1,0 +1,7 @@
+(executable
+ (name helper_tests)
+ (libraries playwright eio_main))
+
+(rule
+ (alias runtest)
+ (action (run timeout --signal=TERM --kill-after=3s 45s %{exe:helper_tests.exe})))
