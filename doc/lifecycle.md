@@ -154,12 +154,13 @@ initialization, explicit destroy and scope cancellation all use this transition.
 Serialization happens before request registration. Once registered, the entry
 is removed on every exit: success, protocol error, write failure, caller
 cancellation or connection close. Dispatch removes the entry **before**
-resolving it; closure clears all entries. Late responses are ignored. A response
-already settled before close can succeed; close cannot resolve it a second time.
+resolving it; closure clears all entries. Late responses to abandoned ordinary
+requests are ignored. A response already settled before close can succeed;
+close cannot resolve it a second time.
 
 Complete RPC frames are serialized under a per-connection mutex. Cancellation
-while waiting for the mutex or a response is local: it removes the pending
-entry but **does not cancel execution in the driver/browser**. The operation may
+while waiting for the mutex or an ordinary response is local: it removes the
+pending entry but **does not cancel execution in the driver/browser**. The operation may
 still run remotely. Cancellation/failure **during a frame write** closes the
 connection conservatively because partial output could corrupt the stream.
 Connection closure also interrupts blocked writes and lock waiters.
@@ -167,6 +168,35 @@ Connection closure also interrupts blocked writes and lock waiters.
 `Connection.send_message` returns a closed/protocol failure as `Error reason`;
 the generated public RPC wrappers raise `Playwright.Error`. Local serialization
 errors and caller cancellation retain their original exception.
+
+### Locator handle ownership
+
+The [Locator helpers](locators.md) use a narrow, explicit exception to immediate
+response abandonment. Singular acquisition sends one strict attached-wait
+request with its available timeout; plural acquisition sends one query. Normal
+acquisitions are not retried in short slices or subject to a fatal one-second
+latency deadline.
+
+`Connection.send_message` has an internal opt-in `on_cancel` recovery hook for
+these resource-bearing responses. It runs in the caller, **not the reader**,
+only if a complete request frame was sent and that caller was canceled. The
+original promise/registration remains owned until response recovery completes
+or connection closure clears it. Cancellation while queued for the write lock
+does not invoke recovery or close the session. Ordinary generated calls keep
+their original cancellation behavior.
+
+Locator response recovery is cancellation-protected and bounded to one second.
+A late handle is decoded and disposed before cancellation is re-raised. If no
+reply arrives (including a canceled, unlimited wait for an absent element),
+recovery closes that exact session rather than orphaning remote handles or
+pending requests. Disposal is independently protected and bounded to one second
+per handle. Operation errors/cancellation survive secondary cleanup errors.
+There are no unowned cleanup fibers or reader callbacks.
+
+This is not general remote cancellation: remote actions/JavaScript may continue
+after local cancellation, and arbitrary JavaScript execution is not bounded by
+a Locator's element-acquisition timeout. See the Locator guide for timeout-zero,
+operation-specific budgets and the explicit post-cancellation close policy.
 
 ## Startup and shutdown deadlines
 

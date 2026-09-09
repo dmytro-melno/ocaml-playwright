@@ -4,6 +4,8 @@
 
 (rule
  (alias runtest)
+ ; Eio io_uring rings share the host's small per-user memlock budget.
+ (locks %{workspace_root}/eio-tests)
  (deps fixture_driver.cjs)
  (action
   (progn

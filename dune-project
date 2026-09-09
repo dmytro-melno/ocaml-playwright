@@ -17,6 +17,7 @@
   (ocaml (>= 5.0.0))
   dune
   (eio (>= 0.12))
+  mtime
   (eio_linux (>= 0.12))
   (eio_main (and :with-test (>= 0.12)))
   (yojson (>= 1.6.0))

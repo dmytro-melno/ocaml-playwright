@@ -38,6 +38,8 @@ and channel_owner = {
     obj_type : string;
     mutable parent : channel_owner option;
     initializer_ : Yojson.Safe.t;
+    context_guid : string option;
+    mutable test_id_attribute_name : string option;
     events : (string, listener list) Hashtbl.t;
 }
 
@@ -108,7 +110,11 @@ let destroy t =
     | Some _ -> ()
     | None -> Eio.Cancel.protect (fun () -> Option.iter (fun await -> await ()) t.await_cleanup)
 
-let send_message t ~guid ~method_ ~params =
+(* [on_cancel] is reserved for callers that must consume a resource-bearing
+   response even after cancellation. It runs in the caller, never the reader,
+   only after a complete frame was sent. It must bound recovery itself and
+   consume/dispose any returned resource before re-raising cancellation. *)
+let send_message ?on_cancel t ~guid ~method_ ~params =
     let open Result.Syntax in
     let* () = match closed_reason t with Some reason -> Error reason | None -> Ok () in
     t.last_id <- t.last_id + 1;
@@ -120,8 +126,9 @@ let send_message t ~guid ~method_ ~params =
     ] |> Yojson.Safe.to_string in
     let promise, resolver = Promise.create () in
     Hashtbl.add t.callbacks id resolver;
+    let sent = ref false in
     Fun.protect ~finally:(fun () -> Hashtbl.remove t.callbacks id) (fun () ->
-        Fiber.first
+        try Fiber.first
             (fun () ->
                 Eio.Mutex.lock t.write_lock;
                 Fun.protect ~finally:(fun () -> Eio.Mutex.unlock t.write_lock) (fun () ->
@@ -130,12 +137,25 @@ let send_message t ~guid ~method_ ~params =
                     | None ->
                         (* Interruption during a frame can corrupt the stream. Cancellation
                            while queued for the lock, or awaiting a reply, is only local. *)
-                        try Transport.write_message t.transport_w message with ex ->
+                        try
+                            Transport.write_message t.transport_w message;
+                            sent := true
+                        with ex ->
                             let bt = Printexc.get_raw_backtrace () in
                             close t ("Playwright transport write failed: " ^ Printexc.to_string ex);
                             if Fiber.is_cancelled () then Printexc.raise_with_backtrace ex bt);
                 Promise.await promise)
-            (fun () -> Error (Promise.await t.closed)))
+            (fun () -> Error (Promise.await t.closed))
+        with ex ->
+            let bt = Printexc.get_raw_backtrace () in
+            match on_cancel with
+            | Some recover when !sent && Fiber.is_cancelled () ->
+                (* Fiber.first may lose a response/cancellation race even when
+                   the promise has already settled. Retain and consume that
+                   same promise, not a replacement request. The entry stays
+                   registered until recovery finishes or close clears it. *)
+                recover (fun () -> Promise.await promise)
+            | _ -> Printexc.raise_with_backtrace ex bt)
 
 let register_listener conn guid event_name callback =
     check_open conn;
@@ -234,14 +254,27 @@ let dispatch t msg =
                 Promise.resolve resolver result)
         | None ->
             match member "method" msg |> to_string_option, member "guid" msg |> to_string_option with
-            | Some "__create__", Some _ ->
+            | Some "__create__", Some parent_guid ->
                 let params = member "params" msg in
                 let guid   = member "guid" params |> to_string in
+                let obj_type = member "type" params |> to_string in
+                (* A small context association for selector configuration, not
+                   channel ownership/adoption (C04 remains separate work). *)
+                let context_guid =
+                    if obj_type = "BrowserContext" then Some guid
+                    else Option.bind (Hashtbl.find_opt t.objects parent_guid) (fun parent -> parent.context_guid)
+                in
+                let test_id_attribute_name =
+                    if obj_type = "BrowserContext" then
+                        member "initializer" params |> member "options" |> member "testIdAttributeName" |> to_string_option
+                    else None
+                in
                 let obj    = {
                     guid; connection = t;
                     obj_type = member "type" params |> to_string;
                     parent = None;
                     initializer_ = member "initializer" params;
+                    context_guid; test_id_attribute_name;
                     events = Hashtbl.create 5;
                 } in
                 Hashtbl.replace t.objects guid obj

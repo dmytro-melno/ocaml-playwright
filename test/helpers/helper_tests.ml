@@ -86,7 +86,7 @@ let selector_helpers () =
     let check_string name expected actual = check name (expected = actual) in
     check_string "empty selector" {|""|} (Locator_utils.escape_for_selector "");
     check_string "escape quotes and backslashes" {|"a\"b\\c"|} (Locator_utils.escape_for_selector {|a"b\c|});
-    check_string "preserve UTF-8 and newlines" "\"café\n\"" (Locator_utils.escape_for_selector "café\n");
+    check_string "preserve UTF-8, JSON-escape newlines" "\"café\\n\"" (Locator_utils.escape_for_selector "café\n");
     check_string "text default" {|internal:text="Hello"i|} (Locator_utils.get_by_text "Hello");
     check_string "text exact" {|internal:text="Hello"s|} (Locator_utils.get_by_text ~exact:true "Hello");
     check_string "role without name" "internal:role=button" (Locator_utils.get_by_role "button");
@@ -96,7 +96,7 @@ let selector_helpers () =
     check_string "placeholder" {|internal:attr=[placeholder="Name"s]|} (Locator_utils.get_by_placeholder ~exact:true "Name");
     check_string "alt text" {|internal:attr=[alt="Photo"i]|} (Locator_utils.get_by_alt_text "Photo");
     check_string "title" {|internal:attr=[title="Help"s]|} (Locator_utils.get_by_title ~exact:true "Help");
-    check_string "test id" {|internal:testid="a\"b\\c"|} (Locator_utils.get_by_test_id {|a"b\c|})
+    check_string "test id" {|internal:testid=[data-testid="a\"b\\c"s]|} (Locator_utils.get_by_test_id {|a"b\c|})
 
 let locator_helpers () =
     Eio_main.run (fun env ->
@@ -117,7 +117,7 @@ let locator_helpers () =
                         let box    = Page.locator ~selector:"#box" page in
                         let both   = Locator.filter ~has_text:"Second marked" ~has:marker rows in
                         check "filter without options" ((Locator.filter rows).selector = "li");
-                        check "combined filter selector" (both.selector = {|li >> internal:has-text="Second marked" >> internal:has="span"|});
+                        check "combined filter selector" (both.selector = {|li >> internal:has-text="Second marked"i >> internal:has="span"|});
                         check "filter retains frame" (both.frame == rows.frame);
                         check "combined filter matches" (Locator.count both = 1);
                         check "text-only filter" (Locator.count (Locator.filter ~has_text:"First" rows) = 1);
@@ -129,7 +129,7 @@ let locator_helpers () =
                         let intersect = Locator.and_ rows marker in
                         let union     = Locator.or_ rows marker in
                         check "intersection" (intersect.selector = {|li >> internal:and="span"|} && intersect.frame == rows.frame);
-                        check "union" (union.selector = "li, span" && union.frame == rows.frame);
+                        check "union" (union.selector = {|li >> internal:or="span"|} && union.frame == rows.frame);
                         Locator.wait_for ~state:`Attached ~timeout:1000. box;
                         (match Locator.bounding_box ~timeout:1000. box with
                         | Some bounds ->

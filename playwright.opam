@@ -11,6 +11,7 @@ depends: [
   "ocaml" {>= "5.0.0"}
   "dune" {>= "3.10"}
   "eio" {>= "0.12"}
+  "mtime"
   "eio_linux" {>= "0.12"}
   "eio_main" {with-test & >= "0.12"}
   "yojson" {>= "1.6.0"}

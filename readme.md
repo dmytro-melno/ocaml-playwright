@@ -68,6 +68,15 @@ let () =
 
 ## API notes
 
+- Single-element Locator operations are strict by default: ambiguous matches
+  raise rather than silently choosing a target. Use `first`, `last` or `nth`
+  when ordering is intentional; plural operations remain plural.
+- `Locator.is_visible` / `is_hidden` are immediate queries, not waits.
+  Handle-based Locator helpers release temporary handles; handles explicitly
+  returned to callers remain caller-owned.
+- See [Locator usage and compatibility](doc/locators.md) for selector
+  composition, test-ID configuration, frame/session restrictions, timeouts,
+  cancellation safety and the retained `strict:false` extension.
 - JavaScript values are represented as `Yojson.Safe.t` in helpers such as `Page.evaluate`
 - Playwright protocol errors are raised as `Playwright.Error string`
 - Sessions belong to the supplied Eio switch; multiple instances are independent.
@@ -87,9 +96,12 @@ dune build @all
 dune runtest --force --display=short
 ```
 
-The critical lifecycle suite has real assertions and externally bounded
-subprocesses. It requires Linux, GNU `timeout`, the provisioned 1.59.1 driver,
-Node.js, and `/usr/bin/chromium`. See [test details](test/critical/README.md).
+The lifecycle and Locator suites have real assertions and externally bounded
+subprocesses. They require Linux, GNU `timeout`, the provisioned 1.59.1 driver,
+Node.js, and `/usr/bin/chromium`. The Locator suite also runs differential
+assertions against that exact JavaScript package and browser. See
+[lifecycle tests](test/critical/README.md) and
+[Locator tests](test/locator/README.md).
 
 
 ## License

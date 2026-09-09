@@ -48,46 +48,188 @@ module Value = struct
         SerializedArgument.Wrap.{ value = build_serialized_value j; handles = [||] }
 end
 
+module BrowserContext = struct
+    include Api.BrowserContext
+
+    let set_test_id_attribute_name ~test_id_attribute_name t =
+        Api.BrowserContext.set_test_id_attribute_name ~test_id_attribute_name t;
+        let conn = Internal.connection t in
+        Option.iter (fun obj -> obj.Connection.test_id_attribute_name <- Some test_id_attribute_name)
+            (Hashtbl.find_opt conn.Connection.objects (Internal.guid t))
+end
+
 module Locator_utils = struct
-    let escape_for_selector s =
-        let buf = Buffer.create (String.length s + 2) in
+    (* Nested selectors and text matchers are JSON; attribute matchers have
+       their own grammar, which preserves literal control characters. 1.59.1:
+       locatorUtils.js and stringUtils.js. *)
+    let escape_for_selector s = Yojson.Safe.to_string (`String s)
+    let text_matcher ~exact s = escape_for_selector s ^ if exact then "s" else "i"
+
+    let attribute_matcher ~exact s =
+        let buf = Buffer.create (String.length s + 3) in
         Buffer.add_char buf '"';
         String.iter (function
             | '"' -> Buffer.add_string buf "\\\""
             | '\\' -> Buffer.add_string buf "\\\\"
             | c -> Buffer.add_char buf c) s;
-        Buffer.add_char buf '"';
+        Buffer.add_string buf (if exact then "\"s" else "\"i");
         Buffer.contents buf
 
-    let get_by_text ?(exact = false) text =
-        let suffix = if exact then "s" else "i" in
-        "internal:text=" ^ escape_for_selector text ^ suffix
+    let get_by_text ?(exact = false) text = "internal:text=" ^ text_matcher ~exact text
+    let get_by_label ?(exact = false) text = "internal:label=" ^ text_matcher ~exact text
 
     let get_by_role ?name ?(exact = false) role =
-        let selector = "internal:role=" ^ role in
-        match name with
-        | None -> selector
-        | Some name ->
-            let suffix = if exact then "s" else "i" in
-            selector ^ "[name=" ^ escape_for_selector name ^ suffix ^ "]"
+        "internal:role=" ^ role ^
+        match name with None -> "" | Some name -> "[name=" ^ attribute_matcher ~exact name ^ "]"
 
-    let get_by_label ?(exact = false) text =
-        let suffix = if exact then "s" else "i" in
-        "internal:label=" ^ escape_for_selector text ^ suffix
+    let by_attribute ?(exact = false) attribute text =
+        "internal:attr=[" ^ attribute ^ "=" ^ attribute_matcher ~exact text ^ "]"
 
-    let get_by_placeholder ?(exact = false) text =
-        let suffix = if exact then "s" else "i" in
-        "internal:attr=[placeholder=" ^ escape_for_selector text ^ suffix ^ "]"
+    let get_by_placeholder ?exact text = by_attribute ?exact "placeholder" text
+    let get_by_alt_text ?exact text = by_attribute ?exact "alt" text
+    let get_by_title ?exact text = by_attribute ?exact "title" text
 
-    let get_by_alt_text ?(exact = false) text =
-        let suffix = if exact then "s" else "i" in
-        "internal:attr=[alt=" ^ escape_for_selector text ^ suffix ^ "]"
+    let test_id_attribute frame =
+        let conn = Internal.connection frame in
+        (match Connection.closed_reason conn with Some reason -> raise (Error reason) | None -> ());
+        let context =
+            Option.bind (Hashtbl.find_opt conn.Connection.objects (Internal.guid frame))
+                (fun obj -> Option.bind obj.Connection.context_guid (Hashtbl.find_opt conn.objects))
+        in
+        Option.value ~default:"data-testid"
+            (Option.bind context (fun obj -> obj.Connection.test_id_attribute_name))
 
-    let get_by_title ?(exact = false) text =
-        let suffix = if exact then "s" else "i" in
-        "internal:attr=[title=" ^ escape_for_selector text ^ suffix ^ "]"
+    let get_by_test_id ?(attribute = "data-testid") id =
+        "internal:testid=[" ^ attribute ^ "=" ^ attribute_matcher ~exact:true id ^ "]"
+end
 
-    let get_by_test_id id = "internal:testid=" ^ escape_for_selector id
+(* Private implementation shared by handle-based Locator operations.
+   Acquisition is one ordinary RPC, not a series of short selector attempts.
+   Only cancellation after transmission enters bounded response recovery. *)
+module Locator_element = struct
+    let now () = Mtime.Span.to_float_ns (Mtime_clock.elapsed ()) /. 1_000_000.
+    let deadline ?(timeout = 30000.) () =
+        if not (Float.is_finite timeout) || timeout < 0. then
+            invalid_arg "Locator timeout must be finite and nonnegative (milliseconds)";
+        if timeout = 0. then None else Some (now () +. timeout)
+
+    let remaining = function
+        | None -> 0.
+        | Some deadline ->
+            let timeout = deadline -. now () in
+            if timeout <= 0. then raise (Error "TimeoutError: Locator deadline exceeded");
+            timeout
+
+    (* This bounds recovery/cleanup, never an uncanceled acquisition. There is
+       no per-request remote cancel in 1.59.1: if a canceled, transmitted
+       resource-producing request cannot settle, close rather than orphan it. *)
+    let recover conn operation f =
+        Eio.Cancel.protect (fun () ->
+            Eio.Fiber.first f (fun () ->
+                Eio_unix.sleep 1.;
+                let reason = "Locator " ^ operation ^ " did not settle within the 1s ownership recovery deadline" in
+                Connection.close conn reason;
+                raise (Error reason)))
+
+    let dispose handle =
+        let conn = Internal.connection handle in
+        if Connection.closed_reason conn = None then
+            try recover conn "handle disposal" (fun () -> Api.ElementHandle.dispose handle) with
+            | Error message when String.starts_with ~prefix:"TargetClosedError:" message ->
+                (* C04 does not recursively remove children on target closure. *)
+                Hashtbl.remove conn.Connection.objects (Internal.guid handle)
+            | ex ->
+                Connection.close conn ("Locator handle disposal failed: " ^ Printexc.to_string ex);
+                raise ex
+
+    let release_after_error handle =
+        try dispose handle with ex ->
+            Printf.eprintf "Playwright Locator cleanup: %s\n%!" (Printexc.to_string ex)
+
+    let request frame ~method_ ~params =
+        Eio.Fiber.check ();
+        let conn = Internal.connection frame in
+        try
+            match Connection.send_message conn ~guid:(Internal.guid frame) ~method_ ~params
+                ~on_cancel:(recover conn ("canceled " ^ method_ ^ " response")) with
+            | Ok result -> result
+            | Error reason -> raise (Error reason)
+        with ex ->
+            let bt = Printexc.get_raw_backtrace () in
+            (* A remote/cleanup error must not replace the caller cancellation
+               that started recovery. Successful replies are decoded below
+               before checking cancellation, to retain handle ownership. *)
+            Eio.Fiber.check ();
+            Printexc.raise_with_backtrace ex bt
+
+    let decode_handles frame decode result =
+        let conn = Internal.connection frame in
+        try Eio.Fiber.with_binding Connection.current_connection_key conn (fun () ->
+            let handle value =
+                match Api.ElementHandle.of_yojson value with
+                | Ok handle -> handle
+                | Error reason -> failwith reason
+            in
+            decode handle result)
+        with ex ->
+            (* Malformed resource-bearing replies leave ownership unknowable.
+               A closed session owns no live handles. No broad codec rewrite. *)
+            let bt = Printexc.get_raw_backtrace () in
+            Connection.close conn ("Locator handle response decoding failed: " ^ Printexc.to_string ex);
+            Eio.Fiber.check ();
+            Printexc.raise_with_backtrace ex bt
+
+    let acquire ~deadline ~selector frame =
+        (* The two narrow wire calls here reuse the generated handle decoder.
+           They need Connection's explicit response-ownership hook; raw Frame
+           calls keep their original local-cancellation contract. *)
+        let result = request frame ~method_:"waitForSelector" ~params:(`Assoc [
+            "selector", `String selector; "strict", `Bool true;
+            "state", `String "attached"; "timeout", `Float (remaining deadline);
+        ]) in
+        let handle = decode_handles frame (fun decode result ->
+            match Yojson.Safe.Util.member "element" result with
+            | `Null -> None
+            | value -> Some (decode value)) result in
+        match handle with
+        | Some handle ->
+            (try Eio.Fiber.check (); handle with ex ->
+                let bt = Printexc.get_raw_backtrace () in
+                release_after_error handle;
+                Printexc.raise_with_backtrace ex bt)
+        | None ->
+            Eio.Fiber.check ();
+            raise (Error ("Could not resolve " ^ selector ^ " to DOM Element"))
+
+    let acquire_all ~selector frame =
+        let result = request frame ~method_:"querySelectorAll"
+            ~params:(`Assoc ["selector", `String selector]) in
+        let handles = decode_handles frame (fun decode result ->
+            Yojson.Safe.Util.member "elements" result |> Yojson.Safe.Util.to_list
+            |> List.map decode |> Array.of_list) result in
+        try Eio.Fiber.check (); handles with ex ->
+            let bt = Printexc.get_raw_backtrace () in
+            Array.iter release_after_error handles;
+            Printexc.raise_with_backtrace ex bt
+
+    let with_element ?timeout ~selector frame task =
+        let deadline = deadline ?timeout () in
+        let handle = acquire ~deadline ~selector frame in
+        match task handle (fun () -> remaining deadline) with
+        | value ->
+            (try dispose handle with ex ->
+                let bt = Printexc.get_raw_backtrace () in
+                if Eio.Fiber.is_cancelled () then begin
+                    Printf.eprintf "Playwright Locator cleanup: %s\n%!" (Printexc.to_string ex);
+                    Eio.Fiber.check ()
+                end;
+                Printexc.raise_with_backtrace ex bt);
+            Eio.Fiber.check ();
+            value
+        | exception ex ->
+            let bt = Printexc.get_raw_backtrace () in
+            release_after_error handle;
+            Printexc.raise_with_backtrace ex bt
 end
 
 module rec Frame : sig
@@ -118,7 +260,7 @@ end = struct
     let get_by_placeholder ?exact text t = locator ~selector:(Locator_utils.get_by_placeholder ?exact text) t
     let get_by_alt_text ?exact text t    = locator ~selector:(Locator_utils.get_by_alt_text ?exact text) t
     let get_by_title ?exact text t       = locator ~selector:(Locator_utils.get_by_title ?exact text) t
-    let get_by_test_id id t              = locator ~selector:(Locator_utils.get_by_test_id id) t
+    let get_by_test_id id t              = locator ~selector:(Locator_utils.get_by_test_id ~attribute:(Locator_utils.test_id_attribute t) id) t
 
     let evaluate ~expression ?is_function ?(arg = `Null) t =
         evaluate_expression_raw ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t |> Value.parse_serialized_value
@@ -172,7 +314,7 @@ end = struct
     let get_by_placeholder ?exact text t = locator ~selector:(Locator_utils.get_by_placeholder ?exact text) t
     let get_by_alt_text ?exact text t    = locator ~selector:(Locator_utils.get_by_alt_text ?exact text) t
     let get_by_title ?exact text t       = locator ~selector:(Locator_utils.get_by_title ?exact text) t
-    let get_by_test_id id t              = locator ~selector:(Locator_utils.get_by_test_id id) t
+    let get_by_test_id id t              = locator ~selector:(Locator_utils.get_by_test_id ~attribute:(Locator_utils.test_id_attribute (main_frame t)) id) t
 
     let evaluate ~expression ?is_function ?(arg = `Null) t =
         evaluate_expression_raw ~expression ?is_function ~arg:(Value.build_serialized_argument arg) t |> Value.parse_serialized_value
@@ -211,7 +353,7 @@ and Locator : sig
     val inner_text : ?strict:bool -> ?timeout:float -> t -> string
     val inner_html : ?strict:bool -> ?timeout:float -> t -> string
     val count : t -> int
-    val evaluate : expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> t -> Yojson.Safe.t
+    val evaluate : expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> ?timeout:float -> t -> Yojson.Safe.t
     val evaluate_all : expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> t -> Yojson.Safe.t
     val wait_for : ?state:Frame.State.t -> ?timeout:float -> t -> unit
     val is_visible : ?timeout:float -> t -> bool
@@ -267,26 +409,26 @@ end = struct
 
     let locator ~selector t = { t with selector = t.selector ^ " >> " ^ selector }
 
-    let click ?strict ?force ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?timeout ?trial ?steps t =
-        Frame.click ~selector:t.selector ?strict ?force ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?timeout ?trial ?steps t.frame
+    let click ?(strict = true) ?force ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?timeout ?trial ?steps t =
+        Frame.click ~selector:t.selector ~strict ?force ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?timeout ?trial ?steps t.frame
 
-    let fill ?strict ?force ?timeout ~value t =
-        Frame.fill ~selector:t.selector ?strict ~value ?force ?timeout t.frame
+    let fill ?(strict = true) ?force ?timeout ~value t =
+        Frame.fill ~selector:t.selector ~strict ~value ?force ?timeout t.frame
 
-    let press ?strict ?delay ?no_wait_after ?timeout ~key t =
-        Frame.press ~selector:t.selector ?strict ~key ?delay ?no_wait_after ?timeout t.frame
+    let press ?(strict = true) ?delay ?no_wait_after ?timeout ~key t =
+        Frame.press ~selector:t.selector ~strict ~key ?delay ?no_wait_after ?timeout t.frame
 
-    let get_attribute ?strict ?timeout ~name t =
-        Frame.get_attribute ~selector:t.selector ?strict ~name ?timeout t.frame
+    let get_attribute ?(strict = true) ?timeout ~name t =
+        Frame.get_attribute ~selector:t.selector ~strict ~name ?timeout t.frame
 
-    let text_content ?strict ?timeout t =
-        Frame.text_content ~selector:t.selector ?strict ?timeout t.frame
+    let text_content ?(strict = true) ?timeout t =
+        Frame.text_content ~selector:t.selector ~strict ?timeout t.frame
 
-    let inner_text ?strict ?timeout t =
-        Frame.inner_text ~selector:t.selector ?strict ?timeout t.frame
+    let inner_text ?(strict = true) ?timeout t =
+        Frame.inner_text ~selector:t.selector ~strict ?timeout t.frame
 
-    let inner_html ?strict ?timeout t =
-        Frame.inner_html ~selector:t.selector ?strict ?timeout t.frame
+    let inner_html ?(strict = true) ?timeout t =
+        Frame.inner_html ~selector:t.selector ~strict ?timeout t.frame
 
     let count t =
         match Frame.eval_on_selector_all ~selector:t.selector ~expression:"els => els.length" ~arg:`Null t.frame with
@@ -294,29 +436,28 @@ end = struct
         | `Int i -> i
         | _ -> 0
 
-    let evaluate ~expression ?is_function ?(arg = `Null) t =
-        Frame.eval_on_selector ~selector:t.selector ~expression ?is_function ~arg t.frame
+    let evaluate ~expression ?is_function ?(arg = `Null) ?timeout t =
+        Locator_element.with_element ?timeout ~selector:t.selector t.frame (fun handle _ ->
+            Api.ElementHandle.evaluate_expression_raw ~expression ?is_function
+                ~arg:(Value.build_serialized_argument arg) handle |> Value.parse_serialized_value)
 
     let evaluate_all ~expression ?is_function ?(arg = `Null) t =
         Frame.eval_on_selector_all ~selector:t.selector ~expression ?is_function ~arg t.frame
 
     let wait_for ?state ?timeout t =
-        Frame.wait_for_selector ~selector:t.selector ?timeout ?state ~omit_return_value:true t.frame |> ignore
+        Frame.wait_for_selector ~selector:t.selector ~strict:true ?timeout ?state ~omit_return_value:true t.frame |> ignore
 
-    let is_visible ?timeout t =
-        try
-            ignore (Frame.wait_for_selector ~selector:t.selector ~state:`Visible ?timeout t.frame);
-            true
-        with _ -> false
+    let is_visible ?timeout:(_ : float option) t =
+        Frame.is_visible ~selector:t.selector ~strict:true t.frame
 
-    let check ?strict ?force ?position ?timeout ?trial t =
-        Frame.check ~selector:t.selector ?strict ?force ?position ?timeout ?trial t.frame
+    let check ?(strict = true) ?force ?position ?timeout ?trial t =
+        Frame.check ~selector:t.selector ~strict ?force ?position ?timeout ?trial t.frame
 
-    let uncheck ?strict ?force ?position ?timeout ?trial t =
-        Frame.uncheck ~selector:t.selector ?strict ?force ?position ?timeout ?trial t.frame
+    let uncheck ?(strict = true) ?force ?position ?timeout ?trial t =
+        Frame.uncheck ~selector:t.selector ~strict ?force ?position ?timeout ?trial t.frame
 
-    let dblclick ?strict ?force ?modifiers ?position ?delay ?button ?timeout ?trial ?steps t =
-        Frame.dblclick ~selector:t.selector ?strict ?force ?modifiers ?position ?delay ?button ?timeout ?trial ?steps t.frame
+    let dblclick ?(strict = true) ?force ?modifiers ?position ?delay ?button ?timeout ?trial ?steps t =
+        Frame.dblclick ~selector:t.selector ~strict ?force ?modifiers ?position ?delay ?button ?timeout ?trial ?steps t.frame
 
     let get_by_text ?exact text t        = locator ~selector:(Locator_utils.get_by_text ?exact text) t
     let get_by_role ?name ?exact role t  = locator ~selector:(Locator_utils.get_by_role ?name ?exact role) t
@@ -324,39 +465,52 @@ end = struct
     let get_by_placeholder ?exact text t = locator ~selector:(Locator_utils.get_by_placeholder ?exact text) t
     let get_by_alt_text ?exact text t    = locator ~selector:(Locator_utils.get_by_alt_text ?exact text) t
     let get_by_title ?exact text t       = locator ~selector:(Locator_utils.get_by_title ?exact text) t
-    let get_by_test_id id t              = locator ~selector:(Locator_utils.get_by_test_id id) t
+    let get_by_test_id id t              = locator ~selector:(Locator_utils.get_by_test_id ~attribute:(Locator_utils.test_id_attribute t.frame) id) t
 
     let nth n t = locator ~selector:("nth=" ^ string_of_int n) t
     let first t = nth 0 t
     let last t  = nth (-1) t
 
+    let same_frame operation l1 l2 =
+        if Internal.connection l1.frame != Internal.connection l2.frame ||
+           Internal.guid l1.frame <> Internal.guid l2.frame then
+            invalid_arg ("Locator." ^ operation ^ ": locators must belong to the same frame and session")
+
     let filter ?has_text ?has t =
+        Option.iter (same_frame "filter ~has" t) has;
         let open Option.Syntax in
-        let text_selector = has_text |?> ((fun text -> " >> internal:has-text=" ^ Locator_utils.escape_for_selector text), "") in
+        let text_selector = has_text |?> ((fun text -> " >> internal:has-text=" ^ Locator_utils.text_matcher ~exact:false text), "") in
         let has_selector  = has |?> ((fun locator -> " >> internal:has=" ^ Locator_utils.escape_for_selector locator.selector), "") in
         { t with selector = t.selector ^ text_selector ^ has_selector }
 
-    let and_ l1 l2 = { l1 with selector = l1.selector ^ " >> internal:and=" ^ Locator_utils.escape_for_selector l2.selector }
-    let or_ l1 l2  = { l1 with selector = l1.selector ^ ", " ^ l2.selector }
+    let and_ l1 l2 =
+        same_frame "and_" l1 l2;
+        locator ~selector:("internal:and=" ^ Locator_utils.escape_for_selector l2.selector) l1
 
-    let blur ?strict ?timeout t                                                                               = Frame.blur ~selector:t.selector ?strict ?timeout t.frame
-    let focus ?strict ?timeout t                                                                              = Frame.focus ~selector:t.selector ?strict ?timeout t.frame
-    let hover ?strict ?force ?modifiers ?position ?timeout ?trial t                                           = Frame.hover ~selector:t.selector ?strict ?force ?modifiers ?position ?timeout ?trial t.frame
-    let input_value ?strict ?timeout t                                                                        = Frame.input_value ~selector:t.selector ?strict ?timeout t.frame
-    let select_option ?strict ?elements ?options ?force ?timeout t                                            = Frame.select_option ~selector:t.selector ?strict ?elements ?options ?force ?timeout t.frame
-    let set_input_files ?strict ?payloads ?local_directory ?directory_stream ?local_paths ?streams ?timeout t = Frame.set_input_files ~selector:t.selector ?strict ?payloads ?local_directory ?directory_stream ?local_paths ?streams ?timeout t.frame
-    let tap ?strict ?force ?modifiers ?position ?timeout ?trial t                                             = Frame.tap ~selector:t.selector ?strict ?force ?modifiers ?position ?timeout ?trial t.frame
-    let type_ ?strict ?delay ?timeout ~text t                                                                 = Frame.type_ ~selector:t.selector ?strict ~text ?delay ?timeout t.frame
-    let dispatch_event ?strict ?timeout ~type_ ?(event_init = `Null) t                                        = Frame.dispatch_event ~selector:t.selector ?strict ~type_ ~event_init ?timeout t.frame
+    let or_ l1 l2 =
+        same_frame "or_" l1 l2;
+        locator ~selector:("internal:or=" ^ Locator_utils.escape_for_selector l2.selector) l1
 
-    let is_checked ?strict ?timeout t  = Frame.is_checked ~selector:t.selector ?strict ?timeout t.frame
-    let is_disabled ?strict ?timeout t = Frame.is_disabled ~selector:t.selector ?strict ?timeout t.frame
-    let is_enabled ?strict ?timeout t  = Frame.is_enabled ~selector:t.selector ?strict ?timeout t.frame
-    let is_hidden ?strict t            = Frame.is_hidden ~selector:t.selector ?strict t.frame
-    let is_editable ?strict ?timeout t = Frame.is_editable ~selector:t.selector ?strict ?timeout t.frame
+    let blur ?(strict = true) ?timeout t                                                                               = Frame.blur ~selector:t.selector ~strict ?timeout t.frame
+    let focus ?(strict = true) ?timeout t                                                                              = Frame.focus ~selector:t.selector ~strict ?timeout t.frame
+    let hover ?(strict = true) ?force ?modifiers ?position ?timeout ?trial t                                           = Frame.hover ~selector:t.selector ~strict ?force ?modifiers ?position ?timeout ?trial t.frame
+    let input_value ?(strict = true) ?timeout t                                                                        = Frame.input_value ~selector:t.selector ~strict ?timeout t.frame
+    let select_option ?(strict = true) ?elements ?options ?force ?timeout t                                            = Frame.select_option ~selector:t.selector ~strict ?elements ?options ?force ?timeout t.frame
+    let set_input_files ?(strict = true) ?payloads ?local_directory ?directory_stream ?local_paths ?streams ?timeout t = Frame.set_input_files ~selector:t.selector ~strict ?payloads ?local_directory ?directory_stream ?local_paths ?streams ?timeout t.frame
+    let tap ?(strict = true) ?force ?modifiers ?position ?timeout ?trial t                                             = Frame.tap ~selector:t.selector ~strict ?force ?modifiers ?position ?timeout ?trial t.frame
+    let type_ ?(strict = true) ?delay ?timeout ~text t                                                                 = Frame.type_ ~selector:t.selector ~strict ~text ?delay ?timeout t.frame
+    let dispatch_event ?(strict = true) ?timeout ~type_ ?(event_init = `Null) t                                        = Frame.dispatch_event ~selector:t.selector ~strict ~type_ ~event_init ?timeout t.frame
 
-    let drag_to ?force ?timeout ?trial ?source_position ?target_position ?strict ?steps ~target t =
-        Frame.drag_and_drop ~source:t.selector ~target:target.selector ?force ?timeout ?trial ?source_position ?target_position ?strict ?steps t.frame
+    let is_checked ?(strict = true) ?timeout t  = Frame.is_checked ~selector:t.selector ~strict ?timeout t.frame
+    let is_disabled ?(strict = true) ?timeout t = Frame.is_disabled ~selector:t.selector ~strict ?timeout t.frame
+    let is_enabled ?(strict = true) ?timeout t  = Frame.is_enabled ~selector:t.selector ~strict ?timeout t.frame
+    let is_hidden ?(strict = true) t            = Frame.is_hidden ~selector:t.selector ~strict t.frame
+    let is_editable ?(strict = true) ?timeout t = Frame.is_editable ~selector:t.selector ~strict ?timeout t.frame
+
+    let drag_to ?force ?timeout ?trial ?source_position ?target_position ?(strict = true) ?steps ~target t =
+        (* Deliberately safer than 1.59.1 dragTo, which only uses target._selector. *)
+        same_frame "drag_to" t target;
+        Frame.drag_and_drop ~source:t.selector ~target:target.selector ?force ?timeout ?trial ?source_position ?target_position ~strict ?steps t.frame
 
     let all t = List.init (count t) (fun i -> nth i t)
 
@@ -373,43 +527,29 @@ end = struct
     let highlight ?style t = Frame.highlight ~selector:t.selector ?style t.frame
 
     let bounding_box ?timeout t =
-        (* Wait for the element to be attached first. *)
-        ignore (Frame.wait_for_selector ~selector:t.selector ~state:`Attached ?timeout t.frame);
-        let js = "el => { const rect = el.getBoundingClientRect(); return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }; }" in
-        match Frame.eval_on_selector ~selector:t.selector ~expression:js ~arg:`Null t.frame with
-        | `Assoc fields ->
-            let coordinate name =
-                match List.assoc_opt name fields with
-                | Some (`Float f) -> f
-                | Some (`Int i) -> float_of_int i
-                | _ -> 0.0
-            in
-            let x      = coordinate "x" in
-            let y      = coordinate "y" in
-            let width  = coordinate "width" in
-            let height = coordinate "height" in
-            Some Api.Rect.Wrap.{ x; y; width; height }
-        | _ -> None
+        Locator_element.with_element ?timeout ~selector:t.selector t.frame
+            (fun handle _ -> Api.ElementHandle.bounding_box handle)
 
     let scroll_into_view_if_needed ?timeout t =
-        ignore (Frame.wait_for_selector ~selector:t.selector ~state:`Attached ?timeout t.frame);
-        ignore (Frame.eval_on_selector ~selector:t.selector ~expression:"el => el.scrollIntoViewIfNeeded ? el.scrollIntoViewIfNeeded() : el.scrollIntoView()" ~arg:`Null t.frame)
+        Locator_element.with_element ?timeout ~selector:t.selector t.frame
+            (fun handle remaining -> Api.ElementHandle.scroll_into_view_if_needed ~timeout:(remaining ()) handle)
 
     let element_handle ?timeout t =
-        Frame.wait_for_selector ~selector:t.selector ~state:`Attached ?timeout t.frame
+        Some (Locator_element.acquire ~deadline:(Locator_element.deadline ?timeout ())
+            ~selector:t.selector t.frame)
 
     let element_handles t =
-        Frame.query_selector_all ~selector:t.selector t.frame
+        Locator_element.acquire_all ~selector:t.selector t.frame
 
     let screenshot ?timeout ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style t =
-        match element_handle ?timeout t with
-        | Some handle -> Api.ElementHandle.screenshot ?timeout ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style handle
-        | None -> failwith "Locator resolved to no element for screenshot"
+        Locator_element.with_element ?timeout ~selector:t.selector t.frame (fun handle remaining ->
+            Api.ElementHandle.screenshot ~timeout:(remaining ()) ?type_ ?quality ?omit_background
+                ?caret ?animations ?scale ?mask ?mask_color ?style handle)
 
     let expect ~expression ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not ?timeout t =
         Frame.expect ~selector:t.selector ~expression ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not ?timeout t.frame
 
-    let clear ?strict ?force ?timeout t = fill ?strict ?force ?timeout ~value:"" t
+    let clear ?(strict = true) ?force ?timeout t = fill ~strict ?force ?timeout ~value:"" t
 end
 
 module JSHandle = struct
