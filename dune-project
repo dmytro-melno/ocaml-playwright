@@ -23,6 +23,7 @@
   (yojson (>= 1.6.0))
   (ppx_deriving_yojson (>= 3.10.0))
   (yaml (>= 3.0.1))
+  digestif
   (base64 (>= 3.0.0))
   (camlzip (>= 1.14))
   (re (>= 1.9.0))

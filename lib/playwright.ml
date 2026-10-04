@@ -12,8 +12,8 @@ module Value = struct
         | { s = Some s; _ } -> `String s
         | { v = Some (`Null | `Undefined); _ } -> `Null
         | { v = Some `Nan; _ } -> `String "NaN"
-        | { v = Some `Inf; _ } -> `String "Infinity"
-        | { v = Some `Minus_inf; _ } -> `String "-Infinity"
+        | { v = Some `Infinity; _ } -> `String "Infinity"
+        | { v = Some `Minus_infinity; _ } -> `String "-Infinity"
         | { v = Some `Minus_zero; _ } -> `Float (-0.0)
         | { d = Some d; _ } -> `String d
         | { u = Some u; _ } -> `String u
@@ -249,7 +249,7 @@ module rec Frame : sig
     val eval_on_selector_all : selector:string -> expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> t -> Yojson.Safe.t
     val wait_for_function : expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> ?timeout:float -> ?polling_interval:float -> t -> Api.JSHandle.t
     val dispatch_event : selector:string -> ?strict:bool -> type_:string -> ?event_init:Yojson.Safe.t -> ?timeout:float -> t -> unit
-    val expect : ?selector:string -> expression:string -> ?expression_arg:Yojson.Safe.t -> ?pseudo:Pseudo.t -> ?expected_text:Api.ExpectedTextValue.t array -> ?expected_number:float -> ?expected_value:Yojson.Safe.t -> ?use_inner_text:bool -> is_not:bool -> ?timeout:float -> t -> ExpectResult.t
+    val expect : ?selector:string -> expression:string -> ?expression_arg:Yojson.Safe.t -> ?expected_text:Api.ExpectedTextValue.t array -> ?expected_number:float -> ?expected_value:Yojson.Safe.t -> ?use_inner_text:bool -> is_not:bool -> ?timeout:float -> t -> ExpectResult.t
 end = struct
     include Api.Frame
     let locator ~selector t = Locator.create ~selector t
@@ -280,13 +280,13 @@ end = struct
     let dispatch_event ~selector ?strict ~type_ ?(event_init = `Null) ?timeout t =
         dispatch_event_raw ~selector ?strict ~type_ ~event_init:(Value.build_serialized_argument event_init) ?timeout t
 
-    let expect ?selector ~expression ?expression_arg ?pseudo ?expected_text ?expected_number ?(expected_value = `Null) ?use_inner_text ~is_not ?timeout t =
+    let expect ?selector ~expression ?expression_arg ?expected_text ?expected_number ?(expected_value = `Null) ?use_inner_text ~is_not ?timeout t =
         let expected_value_arg = if expected_value = `Null then None else Some (Value.build_serialized_argument expected_value) in
-        expect_raw ?selector ~expression ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value:expected_value_arg ?use_inner_text ~is_not ?timeout t
+        expect_raw ?selector ~expression ?expression_arg ?expected_text ?expected_number ?expected_value:expected_value_arg ?use_inner_text ~is_not ?timeout t
 end
 
 and Page : sig
-    include module type of Api.Page with module Locator := Api.Page.Locator
+    include module type of Api.Page
     val locator : selector:string -> t -> Locator.t
     val get_by_text : ?exact:bool -> string -> t -> Locator.t
     val get_by_role : ?name:string -> ?exact:bool -> string -> t -> Locator.t
@@ -302,10 +302,10 @@ and Page : sig
     val eval_on_selector_all : selector:string -> expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> t -> Yojson.Safe.t
     val wait_for_function : expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> ?timeout:float -> ?polling_interval:float -> t -> Api.JSHandle.t
     val dispatch_event : selector:string -> ?strict:bool -> type_:string -> ?event_init:Yojson.Safe.t -> ?timeout:float -> t -> unit
-    val expect : ?selector:string -> expression:string -> ?expression_arg:Yojson.Safe.t -> ?pseudo:Frame.Pseudo.t -> ?expected_text:Api.ExpectedTextValue.t array -> ?expected_number:float -> ?expected_value:Yojson.Safe.t -> ?use_inner_text:bool -> is_not:bool -> ?timeout:float -> t -> Frame.ExpectResult.t
+    val expect : ?selector:string -> expression:string -> ?expression_arg:Yojson.Safe.t -> ?expected_text:Api.ExpectedTextValue.t array -> ?expected_number:float -> ?expected_value:Yojson.Safe.t -> ?use_inner_text:bool -> is_not:bool -> ?timeout:float -> t -> Frame.ExpectResult.t
 end = struct
     module Top_Locator = Locator
-    include (Api.Page : module type of Api.Page with module Locator := Api.Page.Locator)
+    include Api.Page
     let locator ~selector t = Top_Locator.create ~selector (main_frame t)
 
     let get_by_text ?exact text t        = locator ~selector:(Locator_utils.get_by_text ?exact text) t
@@ -334,8 +334,8 @@ end = struct
     let dispatch_event ~selector ?strict ~type_ ?(event_init = `Null) ?timeout t =
         dispatch_event_raw ~selector ?strict ~type_ ~event_init:(Value.build_serialized_argument event_init) ?timeout t
 
-    let expect ?selector ~expression ?expression_arg ?pseudo ?expected_text ?expected_number ?(expected_value = `Null) ?use_inner_text ~is_not ?timeout t =
-        Frame.expect ?selector ~expression ?expression_arg ?pseudo ?expected_text ?expected_number ~expected_value ?use_inner_text ~is_not ?timeout (main_frame t)
+    let expect ?selector ~expression ?expression_arg ?expected_text ?expected_number ?(expected_value = `Null) ?use_inner_text ~is_not ?timeout t =
+        Frame.expect ?selector ~expression ?expression_arg ?expected_text ?expected_number ~expected_value ?use_inner_text ~is_not ?timeout (main_frame t)
 end
 
 and Locator : sig
@@ -345,7 +345,7 @@ and Locator : sig
     }
     val create : selector:string -> Api.Frame.t -> t
     val locator : selector:string -> t -> t
-    val click : ?strict:bool -> ?force:bool -> ?no_wait_after:bool -> ?modifiers:Frame.Modifiers.t array -> ?position:Api.Point.t -> ?delay:float -> ?button:Frame.Button.t -> ?click_count:int -> ?timeout:float -> ?trial:bool -> ?steps:int -> t -> unit
+    val click : ?strict:bool -> ?force:bool -> ?no_wait_after:bool -> ?modifiers:Frame.ClickParams_Modifiers.t array -> ?position:Api.Point.t -> ?delay:float -> ?button:Frame.ClickParams_Button.t -> ?click_count:int -> ?timeout:float -> ?trial:bool -> ?steps:int -> t -> unit
     val fill : ?strict:bool -> ?force:bool -> ?timeout:float -> value:string -> t -> unit
     val press : ?strict:bool -> ?delay:float -> ?no_wait_after:bool -> ?timeout:float -> key:string -> t -> unit
     val get_attribute : ?strict:bool -> ?timeout:float -> name:string -> t -> string option
@@ -355,11 +355,11 @@ and Locator : sig
     val count : t -> int
     val evaluate : expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> ?timeout:float -> t -> Yojson.Safe.t
     val evaluate_all : expression:string -> ?is_function:bool -> ?arg:Yojson.Safe.t -> t -> Yojson.Safe.t
-    val wait_for : ?state:Frame.State.t -> ?timeout:float -> t -> unit
+    val wait_for : ?state:Frame.WaitForSelectorParams_State.t -> ?timeout:float -> t -> unit
     val is_visible : ?timeout:float -> t -> bool
     val check : ?strict:bool -> ?force:bool -> ?position:Api.Point.t -> ?timeout:float -> ?trial:bool -> t -> unit
     val uncheck : ?strict:bool -> ?force:bool -> ?position:Api.Point.t -> ?timeout:float -> ?trial:bool -> t -> unit
-    val dblclick : ?strict:bool -> ?force:bool -> ?modifiers:Frame.Modifiers.t array -> ?position:Api.Point.t -> ?delay:float -> ?button:Frame.Button.t -> ?timeout:float -> ?trial:bool -> ?steps:int -> t -> unit
+    val dblclick : ?strict:bool -> ?force:bool -> ?modifiers:Frame.DblclickParams_Modifiers.t array -> ?position:Api.Point.t -> ?delay:float -> ?button:Frame.DblclickParams_Button.t -> ?timeout:float -> ?trial:bool -> ?steps:int -> t -> unit
     val get_by_text : ?exact:bool -> string -> t -> t
     val get_by_role : ?name:string -> ?exact:bool -> string -> t -> t
     val get_by_label : ?exact:bool -> string -> t -> t
@@ -375,11 +375,11 @@ and Locator : sig
     val or_ : t -> t -> t
     val blur : ?strict:bool -> ?timeout:float -> t -> unit
     val focus : ?strict:bool -> ?timeout:float -> t -> unit
-    val hover : ?strict:bool -> ?force:bool -> ?modifiers:Frame.Modifiers.t array -> ?position:Api.Point.t -> ?timeout:float -> ?trial:bool -> t -> unit
+    val hover : ?strict:bool -> ?force:bool -> ?modifiers:Frame.HoverParams_Modifiers.t array -> ?position:Api.Point.t -> ?timeout:float -> ?trial:bool -> t -> unit
     val input_value : ?strict:bool -> ?timeout:float -> t -> string
-    val select_option : ?strict:bool -> ?elements:Api.ElementHandle.t array -> ?options:Frame.Options.t array -> ?force:bool -> ?timeout:float -> t -> string array
-    val set_input_files : ?strict:bool -> ?payloads:Frame.Payloads.t array -> ?local_directory:string -> ?directory_stream:Api.WritableStream.t -> ?local_paths:string array -> ?streams:Api.WritableStream.t array -> ?timeout:float -> t -> unit
-    val tap : ?strict:bool -> ?force:bool -> ?modifiers:Frame.Modifiers.t array -> ?position:Api.Point.t -> ?timeout:float -> ?trial:bool -> t -> unit
+    val select_option : ?strict:bool -> ?elements:Api.ElementHandle.t array -> ?options:Frame.SelectOptionParams_Options.t array -> ?force:bool -> ?timeout:float -> t -> string array
+    val set_input_files : ?strict:bool -> ?payloads:Frame.SetInputFilesParams_Payloads.t array -> ?local_directory:string -> ?directory_stream:Api.WritableStream.t -> ?local_paths:string array -> ?streams:Api.WritableStream.t array -> ?timeout:float -> t -> unit
+    val tap : ?strict:bool -> ?force:bool -> ?modifiers:Frame.TapParams_Modifiers.t array -> ?position:Api.Point.t -> ?timeout:float -> ?trial:bool -> t -> unit
     val type_ : ?strict:bool -> ?delay:float -> ?timeout:float -> text:string -> t -> unit
     val dispatch_event : ?strict:bool -> ?timeout:float -> type_:string -> ?event_init:Yojson.Safe.t -> t -> unit
     val is_checked : ?strict:bool -> ?timeout:float -> t -> bool
@@ -391,13 +391,13 @@ and Locator : sig
     val all : t -> t list
     val all_inner_texts : t -> string list
     val all_text_contents : t -> string list
-    val highlight : ?style:string -> t -> unit
+    val highlight : t -> unit
     val bounding_box : ?timeout:float -> t -> Api.Rect.Wrap.t option
     val scroll_into_view_if_needed : ?timeout:float -> t -> unit
     val element_handle : ?timeout:float -> t -> Api.ElementHandle.t option
     val element_handles : t -> Api.ElementHandle.t array
-    val screenshot : ?timeout:float -> ?type_:Api.ElementHandle.Type_.t -> ?quality:int -> ?omit_background:bool -> ?caret:Api.ElementHandle.Caret.t -> ?animations:Api.ElementHandle.Animations.t -> ?scale:Api.ElementHandle.Scale.t -> ?mask:Api.ElementHandle.Mask.t array -> ?mask_color:string -> ?style:string -> t -> string
-    val expect : expression:string -> ?expression_arg:Yojson.Safe.t -> ?pseudo:Frame.Pseudo.t -> ?expected_text:Api.ExpectedTextValue.t array -> ?expected_number:float -> ?expected_value:Yojson.Safe.t -> ?use_inner_text:bool -> is_not:bool -> ?timeout:float -> t -> Frame.ExpectResult.t
+    val screenshot : ?timeout:float -> ?type_:Api.ElementHandle.ScreenshotParams_Type_.t -> ?quality:int -> ?omit_background:bool -> ?caret:Api.ElementHandle.ScreenshotParams_Caret.t -> ?animations:Api.ElementHandle.ScreenshotParams_Animations.t -> ?scale:Api.ElementHandle.ScreenshotParams_Scale.t -> ?mask:Api.ElementHandle.ScreenshotParams_Mask.t array -> ?mask_color:string -> ?style:string -> t -> string
+    val expect : expression:string -> ?expression_arg:Yojson.Safe.t -> ?expected_text:Api.ExpectedTextValue.t array -> ?expected_number:float -> ?expected_value:Yojson.Safe.t -> ?use_inner_text:bool -> is_not:bool -> ?timeout:float -> t -> Frame.ExpectResult.t
     val clear : ?strict:bool -> ?force:bool -> ?timeout:float -> t -> unit
 end = struct
     type t = {
@@ -524,7 +524,7 @@ end = struct
         | `List l -> List.filter_map (function `String s -> Some s | _ -> None) l
         | _ -> []
 
-    let highlight ?style t = Frame.highlight ~selector:t.selector ?style t.frame
+    let highlight t = Frame.highlight ~selector:t.selector t.frame
 
     let bounding_box ?timeout t =
         Locator_element.with_element ?timeout ~selector:t.selector t.frame
@@ -546,8 +546,8 @@ end = struct
             Api.ElementHandle.screenshot ~timeout:(remaining ()) ?type_ ?quality ?omit_background
                 ?caret ?animations ?scale ?mask ?mask_color ?style handle)
 
-    let expect ~expression ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not ?timeout t =
-        Frame.expect ~selector:t.selector ~expression ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not ?timeout t.frame
+    let expect ~expression ?expression_arg ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not ?timeout t =
+        Frame.expect ~selector:t.selector ~expression ?expression_arg ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not ?timeout t.frame
 
     let clear ?(strict = true) ?force ?timeout t = fill ~strict ?force ?timeout ~value:"" t
 end

@@ -15,7 +15,7 @@ let () =
 
   let msgs = Page.console_messages page in
   Array.iter (fun msg ->
-    Printf.printf "Console %s: %s\n%!" msg.Page.Messages.type_ msg.Page.Messages.text
+    Printf.printf "Console %s: %s\n%!" msg.Page.ConsoleMessagesResult_Messages.type_ msg.Page.ConsoleMessagesResult_Messages.text
   ) msgs;
   
   Printf.printf "All tests passed!\n%!";

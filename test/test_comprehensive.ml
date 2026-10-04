@@ -16,8 +16,8 @@ let () =
   Printf.printf "Getting properties of handle...\n%!";
   let props = JSHandle.get_property_list handle in
   Array.iter (fun prop ->
-    let name = prop.JSHandle.Properties.name in
-    let val_handle = prop.JSHandle.Properties.value in
+    let name = prop.JSHandle.GetPropertyListResult_Properties.name in
+    let val_handle = prop.JSHandle.GetPropertyListResult_Properties.value in
     let json_val = JSHandle.json_value val_handle in
     Printf.printf "Property %s: %s\n%!" name (Yojson.Safe.to_string json_val)
   ) props;
@@ -28,7 +28,7 @@ let () =
   Printf.printf "Fetching console messages...\n%!";
   let msgs = Page.console_messages page in
   Array.iter (fun msg ->
-    Printf.printf "Console %s: %s\n%!" msg.Page.Messages.type_ msg.Page.Messages.text
+    Printf.printf "Console %s: %s\n%!" msg.Page.ConsoleMessagesResult_Messages.type_ msg.Page.ConsoleMessagesResult_Messages.text
   ) msgs;
 
   Printf.printf "All tests passed!\n%!";

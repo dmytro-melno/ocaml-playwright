@@ -1,4 +1,4 @@
-let version = "1.59.1"
+let version = Protocol_version.version
 
 let cache_dir () =
     let open Option.Syntax in

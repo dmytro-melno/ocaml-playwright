@@ -49,8 +49,8 @@ let special_values () =
         `Null, `Null;
         `Undefined, `Null;
         `Nan, `String "NaN";
-        `Inf, `String "Infinity";
-        `Minus_inf, `String "-Infinity";
+        `Infinity, `String "Infinity";
+        `Minus_infinity, `String "-Infinity";
         `Minus_zero, `Float (-0.0);
     ] in
     List.iter (fun (special, expected) ->
@@ -60,7 +60,7 @@ let special_values () =
     | `Float value -> check "negative zero sign" (Int64.bits_of_float value = Int64.bits_of_float (-0.0))
     | _ -> failwith "negative zero did not decode to a float");
     Value.parse_serialized_value empty |> check_json "empty serialized value" `Null;
-    let unsupported = { empty with h = Some 1; id = Some 2; ref = Some 3; ta = Some SerializedValue.Ta.{ b = "AA=="; k = `Ui8 } } in
+    let unsupported = { empty with h = Some 1; id = Some 2; ref = Some 3; ta = Some SerializedValue.Ta.{ b = "\000"; k = `Ui8 } } in
     Value.parse_serialized_value unsupported |> check_json "unsupported fields" `Null
 
 let value_round_trips () =

@@ -7,8 +7,16 @@
 
 (rule
  (targets api.mli api.ml)
- (deps ../protocol/protocol.yml)
+ (deps ../protocol/protocol.yml ../protocol/provenance.json)
  (action
   (progn
-    (with-stdout-to api.mli (run %{exe:../tools/generate_api_v2.exe} mli %{deps}))
-    (with-stdout-to api.ml (run %{exe:../tools/generate_api_v2.exe} ml %{deps})))))
+    (run %{exe:../tools/verify_protocol.exe} check ../protocol/protocol.yml ../protocol/provenance.json)
+    (with-stdout-to api.mli (run %{exe:../tools/generate_api_v2.exe} mli ../protocol/protocol.yml))
+    (with-stdout-to api.ml (run %{exe:../tools/generate_api_v2.exe} ml ../protocol/protocol.yml)))))
+
+(rule
+ (target protocol_version.ml)
+ (deps ../protocol/protocol.yml ../protocol/provenance.json)
+ (action
+  (with-stdout-to %{target}
+   (run %{exe:../tools/verify_protocol.exe} ml ../protocol/protocol.yml ../protocol/provenance.json))))

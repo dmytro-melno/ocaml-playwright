@@ -14,8 +14,9 @@ Experimental. The API mostly mirrors Playwright's protocol objects, with a few c
 - `curl`, `tar`, and Node.js 18+ for the Playwright driver
 - a browser executable, or Playwright-managed browsers available on the machine
 
-The matching `playwright-core` driver is downloaded automatically from npm on
-first use to `~/.cache/playwright-ocaml-driver`.
+The matching **1.59.1** `playwright-core` driver is downloaded automatically from
+npm on first use to `~/.cache/playwright-ocaml-driver`. The exact upstream schema
+and its version/hash are checked offline during the build.
 
 ## Install
 
@@ -77,6 +78,11 @@ let () =
 - See [Locator usage and compatibility](doc/locators.md) for selector
   composition, test-ID configuration, frame/session restrictions, timeouts,
   cancellation safety and the retained `strict:false` extension.
+- Protocol `binary` fields are raw-byte strings at every nesting level; do not
+  pre-encode nested uploads or decode returned event/screenshot bytes again.
+- See [protocol compatibility and migration](doc/protocol.md) for schema-aligned
+  API removals, path-scoped generated type names, byte semantics and special-value
+  wire spellings.
 - JavaScript values are represented as `Yojson.Safe.t` in helpers such as `Page.evaluate`
 - Playwright protocol errors are raised as `Playwright.Error string`
 - Sessions belong to the supplied Eio switch; multiple instances are independent.
@@ -96,12 +102,13 @@ dune build @all
 dune runtest --force --display=short
 ```
 
-The lifecycle and Locator suites have real assertions and externally bounded
-subprocesses. They require Linux, GNU `timeout`, the provisioned 1.59.1 driver,
-Node.js, and `/usr/bin/chromium`. The Locator suite also runs differential
-assertions against that exact JavaScript package and browser. See
-[lifecycle tests](test/critical/README.md) and
-[Locator tests](test/locator/README.md).
+The lifecycle, Locator and protocol suites have real assertions and externally
+bounded subprocesses. They require Linux, GNU `timeout`, the provisioned 1.59.1 driver,
+Node.js, and `/usr/bin/chromium`. The Locator and protocol suites also run
+differential assertions against that exact JavaScript package and browser. See
+[lifecycle tests](test/critical/README.md),
+[Locator tests](test/locator/README.md) and
+[protocol tests](test/protocol/README.md).
 
 
 ## License

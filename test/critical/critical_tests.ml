@@ -455,7 +455,7 @@ let events env =
           ~is_base64:false e.route;
         Promise.resolve routed_u ());
       Page.set_network_interception_patterns page ~patterns:[|
-        Page.Patterns.{glob=Some "**/*";regex_source=None;regex_flags=None;url_pattern=None}|];
+        Page.SetNetworkInterceptionPatternsParams_Patterns.{glob=Some "**/*";regex_source=None;regex_flags=None;url_pattern=None}|];
       ignore (Page.goto ~url:"http://fixture.invalid/route" page);
       bounded env (fun () -> Promise.await routed);
       Page.set_network_interception_patterns ~patterns:[||] page;

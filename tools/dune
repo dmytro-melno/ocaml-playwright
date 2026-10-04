@@ -1,3 +1,9 @@
-(executables
- (names generate_api_v2)
+(executable
+ (name generate_api_v2)
+ (modules generate_api_v2)
  (libraries yaml re.pcre yojson))
+
+(executable
+ (name verify_protocol)
+ (modules verify_protocol)
+ (libraries digestif yojson))
