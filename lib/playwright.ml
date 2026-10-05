@@ -125,11 +125,21 @@ module Locator_element = struct
        resource-producing request cannot settle, close rather than orphan it. *)
     let recover conn operation f =
         Eio.Cancel.protect (fun () ->
-            Eio.Fiber.first f (fun () ->
+            (* Closing the connection also fails the pending request. Race
+               outcomes, not exceptions, so Eio does not aggregate the same
+               failure from both branches into Eio.Exn.Multiple. *)
+            let capture f () =
+                try Ok (f ()) with ex -> Result.Error (ex, Printexc.get_raw_backtrace ())
+            in
+            let timeout () =
                 Eio_unix.sleep 1.;
                 let reason = "Locator " ^ operation ^ " did not settle within the 1s ownership recovery deadline" in
                 Connection.close conn reason;
-                raise (Error reason)))
+                raise (Error reason)
+            in
+            match Eio.Fiber.first (capture f) (capture timeout) with
+            | Ok value -> value
+            | Result.Error (ex, bt) -> Printexc.raise_with_backtrace ex bt)
 
     let dispose handle =
         let conn = Internal.connection handle in
@@ -608,15 +618,20 @@ module BindingCall = struct
 end
 
 (* Each handle owns its exact connection. No process-global session registry. *)
-let create ~(env : Eio_unix.Stdenv.base) ~(sw : Eio.Switch.t) ?(init_timeout = 30.) ?(shutdown_timeout = 1.) ?max_event_tasks ?on_event_error () =
-    if not (Float.is_finite init_timeout && init_timeout > 0. && Float.is_finite shutdown_timeout && shutdown_timeout > 0.) then
+let create ~(env : Eio_unix.Stdenv.base) ~(sw : Eio.Switch.t) ?(download_timeout = 120.) ?(init_timeout = 30.) ?(shutdown_timeout = 1.) ?max_event_tasks ?on_event_error () =
+    if not (Float.is_finite download_timeout
+        && download_timeout > 0.
+        && Float.is_finite init_timeout
+        && init_timeout > 0.
+        && Float.is_finite shutdown_timeout
+        && shutdown_timeout > 0.)
+    then
         invalid_arg "Playwright lifecycle timeouts must be finite and positive";
     Option.iter (fun limit -> if limit < 1 then invalid_arg "max_event_tasks must be positive") max_event_tasks;
     Eio.Switch.check sw;
-    (* D01: the existing cold downloader is blocking and outside this deadline. *)
-    let dir = Driver.download () in
+    (* Provisioning is automatic, but has its own cancellable deadline. *)
+    let dir = Driver.download ~env ~timeout:download_timeout () in
     Eio.Switch.check sw;
-    let process_mgr        = Eio.Stdenv.process_mgr env in
     let clock              = Eio.Stdenv.clock env in
     let ready, ready_u     = Eio.Promise.create () in
     let stopped, stopped_u = Eio.Promise.create () in
@@ -630,9 +645,9 @@ let create ~(env : Eio_unix.Stdenv.base) ~(sw : Eio.Switch.t) ?(init_timeout = 3
         try f () with ex -> Printf.eprintf "Playwright cleanup (%s): %s\n%!" operation (Printexc.to_string ex)
     in
     let run_session resources () =
-        let driver_stdin, stdin   = Eio.Process.pipe ~sw:resources process_mgr in
-        let stdout, driver_stdout = Eio.Process.pipe ~sw:resources process_mgr in
-        let process               = Driver.run ~sw:resources ~process_mgr ~dir ~stdin:driver_stdin ~stdout:driver_stdout () in
+        let process = Driver.run ~sw:resources ~env ~dir () in
+        let stdin = Driver.stdin process in
+        let stdout = Driver.stdout process in
         let cleanup () =
             close "Playwright session scope closed";
             Eio.Cancel.protect (fun () ->
@@ -653,8 +668,6 @@ let create ~(env : Eio_unix.Stdenv.base) ~(sw : Eio.Switch.t) ?(init_timeout = 3
                 diagnose "stdout" (fun () -> Eio.Flow.close stdout))
         in
         Fun.protect ~finally:cleanup (fun () ->
-            Eio.Flow.close driver_stdin;
-            Eio.Flow.close driver_stdout;
             let conn = Connection.create ?max_event_tasks ?on_event_error stdout stdin in
             connection := Some conn;
             conn.await_cleanup <- Some (fun () -> Eio.Promise.await stopped);
@@ -662,7 +675,7 @@ let create ~(env : Eio_unix.Stdenv.base) ~(sw : Eio.Switch.t) ?(init_timeout = 3
             Eio.Fiber.first
                 (fun () -> Connection.run_loop conn)
                 (fun () ->
-                    let status      = Eio.Process.await process in
+                    let status      = Driver.await process in
                     let description = match status with `Exited n -> Printf.sprintf "exit %d" n | `Signaled n -> Printf.sprintf "signal %d" n in
                     Connection.close conn ("Playwright driver stopped: " ^ description)))
     in

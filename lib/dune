@@ -1,13 +1,18 @@
 (library
  (name playwright)
  (public_name playwright)
- (libraries yojson eio eio_linux mtime.clock.os base64 zip)
+ (libraries yojson eio eio.unix unix cstruct mtime.clock.os base64
+  cohttp-eio http uri tls tls-eio ca-certs mirage-crypto-rng mirage-crypto-rng.unix
+  domain-name tar tar.gz tar-eio)
+ (foreign_stubs
+  (language c)
+  (names driver_process_stubs))
  (preprocess
   (pps ppx_deriving_yojson)))
 
 (rule
  (targets api.mli api.ml)
- (deps ../protocol/protocol.yml ../protocol/provenance.json)
+ (deps toolchain.checked ../protocol/protocol.yml ../protocol/provenance.json)
  (action
   (progn
     (run %{exe:../tools/verify_protocol.exe} check ../protocol/protocol.yml ../protocol/provenance.json)
@@ -16,7 +21,13 @@
 
 (rule
  (target protocol_version.ml)
- (deps ../protocol/protocol.yml ../protocol/provenance.json)
+ (deps toolchain.checked ../protocol/protocol.yml ../protocol/provenance.json)
  (action
   (with-stdout-to %{target}
    (run %{exe:../tools/verify_protocol.exe} ml ../protocol/protocol.yml ../protocol/provenance.json))))
+
+(rule
+ (target toolchain.checked)
+ (action
+  (with-stdout-to %{target}
+   (run %{exe:../tools/check_toolchain.exe} %{context_name} %{ocaml-config:os_type}))))

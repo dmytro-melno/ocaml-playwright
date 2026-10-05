@@ -92,6 +92,7 @@ Supply a per-session reporter, or use the default stderr reporter:
 ```ocaml
 let pw =
   create ~env ~sw
+    ~download_timeout:120.
     ~init_timeout:30.
     ~shutdown_timeout:1.
     ~max_event_tasks:1024
@@ -204,6 +205,7 @@ Optional `create` parameters preserve existing call sites:
 
 | Option | Default | Meaning |
 | --- | --- | --- |
+| `download_timeout` | 120 seconds | Cold-cache provisioning, including waiting for the install lock |
 | `init_timeout` | 30 seconds | Deadline for spawn and protocol initialization **after provisioning** |
 | `shutdown_timeout` | 1 second | Deadline for each driver shutdown phase |
 | `max_event_tasks` | 1024 | Queued + active callback invocation limit |
@@ -217,22 +219,34 @@ leave an abandoned daemon or affect another session.
 
 On explicit close the reader and callback tasks stop, stdin closes to request
 a graceful driver exit, and late stdout is drained. Shutdown waits at most one
-phase, sends TERM and waits another, then sends KILL and waits a final phase.
+phase, then escalates. On Unix this sends TERM and waits another phase, then
+sends KILL and waits a final phase. On Windows it terminates the driver's job
+object, which also contains its child processes; Unix signals are not used.
 Normally this is at most `3 * shutdown_timeout` plus cooperative task cleanup
 and scheduling. Secondary cleanup errors are diagnosed, not substituted for
 the primary initialization/connection failure.
 
-Switch cancellation may cause Eio's process owner to kill/reap the process
+Switch cancellation may cause the process owner to kill/reap the process
 earlier rather than wait through the graceful path. Its private process switch
-is the final kill/reap safety net. Userspace cannot impose an absolute deadline
-on kernel reaping of a process stuck in uninterruptible sleep; similarly it
+is the final kill/reap safety net: Eio.Process on Unix, or the library's own
+process/job/overlapped-pipe adapter on Windows. Userspace cannot impose an
+absolute deadline on kernel reaping of a process stuck in uninterruptible sleep; similarly it
 cannot forcibly terminate uncooperative OCaml callback code. These are not
 claimed to be hard real-time deadlines.
 
-**Cold provisioning remains outside this bound (review D01).** The existing
-`curl`/`tar` downloader uses blocking calls and is not made asynchronous or
-bounded by this change. Provision the matching cache in advance for predictable
-startup latency.
+Cold provisioning runs **before** `init_timeout`, with its own
+`download_timeout`. It remains automatic on every cache miss. HTTPS uses the
+system CA trust store; the tar/gzip archive is extracted without invoking a
+shell or external downloader. Installs are serialized between fibers/processes,
+validated against the pinned version, and published by renaming a staging
+directory. Failed or canceled installs clean up their staging directory without
+publishing a partial cache. A cache hit needs neither network access nor TLS
+initialization. These are cooperative deadlines: filesystem operations,
+platform process creation and cancellation-protected cleanup may take additional
+time. The timeout is not a hard real-time bound.
+
+Node.js and browser executables are still separate runtime prerequisites. See
+[Windows and cross-compilation](windows.md) for cache locations and deployment.
 
 ## Compatibility and testing
 
@@ -243,6 +257,13 @@ sessions reject; overflow closes; and callbacks do not synchronously join
 destroy. The accidental public `instances` global has been removed. Exposed
 `Connection` record internals changed; `Internal.connection` exists for
 handwritten integration and diagnostics, not as a stable representation API.
+
+The exposed low-level `Driver` API has changed: `download ~env ?timeout ()`
+requires an Eio environment, and `run ~sw ~env ?dir ()` returns a library-owned
+process rather than an `Eio.Process.t`. Use `Driver.stdin`, `Driver.stdout`,
+`Driver.await` and `Driver.shutdown` instead of accessing Eio process resources.
+The old `~process_mgr` and optional redirection/environment arguments to `run`
+are no longer supported. High-level `create ~env ~sw ()` calls remain valid.
 
 Tests use newly built Dune executables, never the preloaded library in a
 persistent REPL. See [regression instructions](../test/critical/README.md).

@@ -8,15 +8,25 @@ Experimental. The API mostly mirrors Playwright's protocol objects, with a few c
 
 ## Requirements
 
-- OCaml 5+
-- dune
-- Eio
-- `curl`, `tar`, and Node.js 18+ for the Playwright driver
+- OCaml 5.2+ and dune 3.10+
+- Eio 1.3+ on Linux; patched Eio 1.6 from the cross overlay for Windows
+- Node.js 18+ on `PATH` for the Playwright driver
 - a browser executable, or Playwright-managed browsers available on the machine
 
 The matching **1.59.1** `playwright-core` driver is downloaded automatically from
-npm on first use to `~/.cache/playwright-ocaml-driver`. The exact upstream schema
+npm on first use using HTTPS/TLS and an in-process tar/gzip extractor; `curl`
+and `tar` executables are not required. The cache defaults to
+`$XDG_CACHE_HOME/playwright-ocaml-driver` (or `~/.cache/playwright-ocaml-driver`)
+on Linux and `%LOCALAPPDATA%\playwright-ocaml-driver` on Windows.
+`PLAYWRIGHT_OCAML_CACHE_DIR` overrides the cache root. The exact upstream schema
 and its version/hash are checked offline during the build.
+
+Windows support targets **64-bit Windows 10+**, cross-compiled from Linux using
+MinGW-w64. It uses a library-owned process/pipe adapter, not Eio's unimplemented
+Windows process manager. See [Windows and cross-compilation](doc/windows.md)
+for the reusable opam overlay/setup, validation status and limitations.
+The complete Windows dependency stack and example have been cross-built and
+run end-to-end under Wine; real-Windows validation is still outstanding.
 
 ## Install
 
@@ -24,8 +34,13 @@ From this repository:
 
 ```sh
 opam install . --deps-only
-dune build
+dune build --workspace dune-workspace.native @install
 ```
+
+The default `dune-workspace` requests both native and Windows targets. Use the
+native-only workspace above unless a complete Windows OCaml toolchain and target
+dependencies are configured. Ordinary opam package builds use the native-only
+workspace automatically.
 
 As a dependency:
 
@@ -93,14 +108,19 @@ let () =
   `on_event_error` hook.
 - See [session/event lifecycle semantics](doc/lifecycle.md) for ordering,
   cancellation, backpressure, error handling, deadline options and limitations.
-  Cold driver provisioning is still blocking and outside the startup deadline.
+  Cold driver provisioning is automatic and has its own cancellable
+  `download_timeout` (120 seconds by default), separate from `init_timeout`.
 
 ## Tests
 
 ```sh
-dune build @all
-dune runtest --force --display=short
+dune build --workspace dune-workspace.native @lib/all @tools/all @test/all
+env -u PLAYWRIGHT_OCAML_CACHE_DIR -u XDG_CACHE_HOME \
+  dune runtest --workspace dune-workspace.native test --force --display=short
 ```
+
+Clear the cache overrides when running tests (including opam `--with-test`):
+the existing fake-driver fixtures isolate their caches by changing `HOME`.
 
 The lifecycle, Locator and protocol suites have real assertions and externally
 bounded subprocesses. They require Linux, GNU `timeout`, the provisioned 1.59.1 driver,

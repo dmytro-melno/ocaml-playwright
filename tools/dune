@@ -7,3 +7,7 @@
  (name verify_protocol)
  (modules verify_protocol)
  (libraries digestif yojson))
+
+(executable
+ (name check_toolchain)
+ (modules check_toolchain))

@@ -8,34 +8,39 @@ license: "MIT"
 homepage: "https://github.com/dmytro-melno/ocaml-playwright"
 bug-reports: "https://github.com/dmytro-melno/ocaml-playwright/issues"
 depends: [
-  "ocaml" {>= "5.0.0"}
+  "ocaml" {>= "5.2.0"}
   "dune" {>= "3.10"}
-  "eio" {>= "0.12"}
+  "eio" {>= "1.3"}
   "mtime"
-  "eio_linux" {>= "0.12"}
-  "eio_main" {with-test & >= "0.12"}
+  "eio_main" {with-test & >= "1.3"}
   "yojson" {>= "1.6.0"}
   "ppx_deriving_yojson" {>= "3.10.0"}
   "yaml" {>= "3.0.1"}
   "digestif"
   "base64" {>= "3.0.0"}
-  "camlzip" {>= "1.14"}
+  "cstruct"
+  "cohttp-eio" {>= "6.3.0"}
+  "http"
+  "uri"
+  "tls" {>= "2.1.3"}
+  "tls-eio" {>= "2.1.3"}
+  "ca-certs" {>= "1.0.3"}
+  "mirage-crypto-rng" {>= "2.4.1"}
+  "domain-name"
+  "tar" {>= "3.5.0"}
+  "tar-eio" {>= "3.5.0"}
   "re" {>= "1.9.0"}
   "odoc" {with-doc}
 ]
+dev-repo: "git+https://github.com/dmytro-melno/ocaml-playwright.git"
+available: (os = "linux" & (arch = "x86_64" | arch = "arm64")) | (os = "win32" & arch = "x86_64")
 build: [
   ["dune" "subst"] {dev}
   [
-    "dune"
-    "build"
-    "-p"
-    name
-    "-j"
-    jobs
+    "dune" "build" "--workspace" "dune-workspace.native"
+    "-p" name "-j" jobs
     "@install"
     "@runtest" {with-test}
     "@doc" {with-doc}
   ]
 ]
-dev-repo: "git+https://github.com/dmytro-melno/ocaml-playwright.git"
-available: os = "linux" & (arch = "x86_64" | arch = "arm64")

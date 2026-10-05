@@ -1,0 +1,2 @@
+# The provenance verifier hashes the upstream bytes, including line endings.
+protocol/protocol.yml text eol=lf
