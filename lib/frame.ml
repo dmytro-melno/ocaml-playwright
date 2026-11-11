@@ -129,6 +129,7 @@ let convert_input_files (frame : t option) = function
         if size > max_payload_size then
             Error.raise_ "Cannot set buffer larger than 50Mb, please write it to a file and pass its path instead.";
         { no_files with payloads = Some payloads }
+    | Paths [] -> { no_files with payloads = Some [] }  (* clears the input *)
     | Paths paths ->
         let paths = List.map Files.absolute paths in
         let files, directory =
