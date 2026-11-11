@@ -172,10 +172,10 @@ let handle_event (context : t) (event : Protocol.Browser_context.event) =
         Option.iter (fun (worker : worker) -> emit context worker.we_console message) worker;
         Option.iter (fun (page : page) -> emit context page.pe_console message) page;
         emit context context.ce_console message
-    | Page_error { error; page; location = _ } ->
+    | Page_error { error; page; location } ->
         let page = Types.page page in
         let error = js_error error in
-        emit context context.ce_web_error { we_serial = Serial.next (); we_page = Some page; we_error = error };
+        emit context context.ce_web_error { we_serial = Serial.next (); we_page = Some page; we_error = error; we_location = location };
         emit context page.pe_page_error error
     | Dialog { dialog } ->
         let channel = dialog in

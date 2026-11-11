@@ -148,6 +148,13 @@ let test_selector_combinators () =
     Alcotest.(check string) "or" {|internal:or="a"|} (Selector.or_ "a");
     Alcotest.(check string) "visible" "visible=true" (Selector.visible true);
     Alcotest.(check string) "frame" "internal:control=enter-frame" Selector.enter_frame;
+    let described description = Selector.join [ "button"; Selector.describe description ] in
+    Alcotest.(check (option string)) "description" (Some "The button") (Selector.description (described "The button"));
+    Alcotest.(check (option string)) "of nothing else" (Some "x") (Selector.description (Selector.describe "x"));
+    Alcotest.(check (option string)) "with what looks like one" (Some {|a >> internal:describe="b"|}) (Selector.description (described {|a >> internal:describe="b"|}));
+    Alcotest.(check (option string)) "none" None (Selector.description "button");
+    Alcotest.(check (option string)) "not the last part" None (Selector.description (Selector.join [ described "The button"; Selector.nth 0 ]));
+    Alcotest.(check (option string)) "in the text of another part" None (Selector.description {|internal:text="a >> internal:describe=b"i|});
     Alcotest.(check (pair string string)) "regex literal" ("a/b", "gi") (Selector.parse_regex "/a/b/gi");
     match Selector.parse_regex "no slashes" with
     | _ -> Alcotest.fail "a string that is no regex literal must be rejected"

@@ -66,6 +66,9 @@ module Web_error = struct
 
     let page (e : t) = e.we_page
     let error (e : t) = e.we_error
+
+    let location (e : t) : Console_message.location =
+        { url = e.we_location.url; line_number = e.we_location.line; column_number = e.we_location.column }
 end
 
 module Selectors = struct

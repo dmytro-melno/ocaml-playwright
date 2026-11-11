@@ -198,6 +198,51 @@ let test_selector_operations _ page =
     Alcotest.(check bool) "waiting for hidden yields nothing" true (Option.is_none (Page.wait_for_selector ~state:`Hidden "#hidden" page));
     check_failure "strict selector" ~message:"strict mode violation" (fun () -> Page.click ~strict:true "li" page)
 
+(* What came with Playwright 1.6x: references into snapshots, normalized locators, and so on. *)
+let test_references _ page =
+    Page.set_content
+        {|<table><tr><td>a1</td><td>b1</td><td>c1</td></tr><tr><td>a2</td><td>b2</td><td>c2</td></tr></table>
+          <button>Submit</button> <input aria-label="Amount" value="12">|}
+        page;
+    let third = Page.get_by_role `Cell page |> Locator.nth 2 |> Locator.within (Page.get_by_role `Row page) in
+    Alcotest.(check (list string)) "the third cell of every row" [ "c1"; "c2" ] (Locator.all_inner_texts third);
+    let button = Page.get_by_role `Button page in
+    let name = {|The "submit" >> internal:describe="button"|} in
+    Alcotest.(check (option string)) "not described" None (Locator.description button);
+    Alcotest.(check (option string)) "described" (Some name) (Locator.description (Locator.describe name button));
+    Alcotest.(check (option string)) "the description of the last part only" None (Locator.description (Locator.describe name button |> Locator.first));
+    Alcotest.(check string) "a described locator still works" "Submit" (Locator.inner_text (Locator.describe name button));
+    (* A snapshot for machines gives every element a reference, which finds the element again. *)
+    let snapshot = Page.aria_snapshot ~mode:`Ai page in
+    let reference =
+        let line = List.find (contains ~sub:{|button "Submit"|}) (String.split_on_char '\n' snapshot) in
+        let start = Option.get (String.index_opt line '=') + 1 in
+        String.sub line start (String.index_from line start ']' - start)
+    in
+    let by_reference = Page.get_by_ref reference page in
+    Alcotest.(check string) "by reference" "Submit" (Locator.inner_text by_reference);
+    Alcotest.(check string) "normalized" (Locator.to_string (Page.get_by_role `Button ~name:"Submit" page)) (Locator.to_string (Locator.normalize by_reference));
+    check_failure "nothing to normalize" ~message:"No element matching" (fun () -> Locator.normalize (Page.locator "#absent" page));
+    let rec roles : Yojson.Safe.t -> string list = function
+        | `Assoc fields ->
+            (match List.assoc_opt "role" fields with Some (`String role) -> [ role ] | _ -> [])
+            @ (match List.assoc_opt "children" fields with Some (`List children) -> List.concat_map roles children | _ -> [])
+        | `List items -> List.concat_map roles items
+        | _ -> []
+    in
+    Alcotest.(check bool) "the snapshot as JSON" true (List.mem "button" (roles (Page.aria_snapshot_json page)));
+    Alcotest.(check (list string)) "of an element" [ "button" ] (roles (Locator.aria_snapshot_json button));
+    (* Waiting for something about an element. *)
+    let input = Page.get_by_label "Amount" page in
+    ignore (Page.evaluate "setTimeout(() => document.querySelector('input').value = '1234', 50)" page);
+    Locator.wait_for_function "(input, length) => input.value.length >= length" ~arg:(Js.int 4) input;
+    Alcotest.(check string) "waited for the element" "1234" (Locator.input_value input);
+    check_failure "which may not come" ~kind:Timeout (fun () -> Locator.wait_for_function ~timeout:100. "input => input.value === 'never'" input);
+    (* Marks are put on elements and taken off again. *)
+    let mark = Locator.highlight button in
+    Page.hide_highlight page;
+    Disposable.dispose mark
+
 let test_drop t page =
     Page.set_content
         {|<div id="zone" style="width: 200px; height: 100px; background: silver">Drop here</div>
@@ -342,6 +387,7 @@ let tests t =
         page_case t "mouse actions" (test_mouse_actions t);
         page_case t "waiting and strictness" (test_waiting_and_strictness t);
         page_case t "selector operations and element handles" (test_selector_operations t);
+        page_case t "references, descriptions and snapshots" (test_references t);
         page_case t "uploads" (test_uploads t);
         page_case t "drop" (test_drop t) ];
       "expect", [ page_case t "assertions" (test_expect t); page_case t "waiting and failing" (test_expect_waits_and_fails t) ] ]

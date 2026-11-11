@@ -9,7 +9,7 @@ reaches the public interface is a matter of that module. `dune runtest` fails wh
 is not what the generator would write, so that an update of the protocol shows here what it
 added. See [protocol.md](protocol.md).
 
-The client sends 233 of the 283 commands of the 27 interfaces that it knows.
+The client sends 240 of the 283 commands of the 27 interfaces that it knows.
 
 ## Interfaces
 
@@ -19,11 +19,11 @@ The client sends 233 of the 283 commands of the 27 interfaces that it knows.
 | `Artifact` | 7 | 1 | none |
 | `Stream` | 2 | 0 | none |
 | `WritableStream` | 2 | 0 | none |
-| `Browser` | 11 | 8 | 2, handled |
+| `Browser` | 11 | 6 | 2, handled |
 | `BrowserContext` | 38 | 9 | 15, handled |
 | `BrowserType` | 4 | 1 | none |
 | `Disposable` | 1 | 0 | none |
-| `Frame` | 52 | 4 | 2, handled |
+| `Frame` | 52 | 2 | 2, handled |
 | `JSHandle` | 6 | 0 | 1, handled |
 | `ElementHandle` (extends `JSHandle`) | 36 | 0 | none |
 | `LocalUtils` | 11 | 3 | none |
@@ -32,7 +32,7 @@ The client sends 233 of the 283 commands of the 27 interfaces that it knows.
 | `WebSocketRoute` | 6 | 0 | 4, handled |
 | `Response` | 6 | 0 | none |
 | `WebSocket` | 0 | 0 | 5, handled |
-| `Page` | 59 | 18 | 14, handled |
+| `Page` | 59 | 15 | 14, handled |
 | `Root` | 1 | 0 | none |
 | `Playwright` | 1 | 0 | none |
 | `JsonPipe` | 2 | 0 | 2, handled |
@@ -50,12 +50,12 @@ reads `| Event _ -> ()` there.
 ## Commands that the client does not send
 
 - `Artifact`: `stream`
-- `Browser`: `startServer`, `stopServer`, `killForTests`, `defaultUserAgentForTest`, `newContextForReuse`, `disconnectFromReusedContext`, `startTracing`, `stopTracing`
+- `Browser`: `killForTests`, `defaultUserAgentForTest`, `newContextForReuse`, `disconnectFromReusedContext`, `startTracing`, `stopTracing`
 - `BrowserContext`: `setHTTPCredentials`, `showRecorder`, `startRecording`, `stopRecording`, `exposeConsoleApi`, `credentialsInstall`, `credentialsCreate`, `credentialsGet`, `credentialsDelete`
 - `BrowserType`: `connectToWorker`
-- `Frame`: `ariaSnapshotJSON`, `resolveSelector`, `webmcpTools`, `webmcpCallTool`
+- `Frame`: `webmcpTools`, `webmcpCallTool`
 - `LocalUtils`: `addStackToTracingNoReply`, `globToRegex`, `asLocatorDescription`
-- `Page`: `expectScreenshot`, `startJSCoverage`, `stopJSCoverage`, `startCSSCoverage`, `stopCSSCoverage`, `pickLocator`, `cancelPickLocator`, `hideHighlight`, `screencastShowOverlay`, `screencastRemoveOverlay`, `screencastChapter`, `screencastSetOverlayVisible`, `screencastShowActions`, `screencastHideActions`, `screencastStart`, `screencastFrameAck`, `screencastStop`, `setDockTile`
+- `Page`: `expectScreenshot`, `startJSCoverage`, `stopJSCoverage`, `startCSSCoverage`, `stopCSSCoverage`, `screencastShowOverlay`, `screencastRemoveOverlay`, `screencastChapter`, `screencastSetOverlayVisible`, `screencastShowActions`, `screencastHideActions`, `screencastStart`, `screencastFrameAck`, `screencastStop`, `setDockTile`
 - `Debugger`: `requestPause`, `resume`, `next`, `runTo`, `enable`
 - `Worker`: `disconnect`
 

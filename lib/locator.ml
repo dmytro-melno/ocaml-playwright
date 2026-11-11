@@ -112,6 +112,13 @@ let and_ (other : t) (locator : t) = refine locator (Selector.and_ (same_frame "
 let or_ (other : t) (locator : t) = refine locator (Selector.or_ (same_frame "the other" locator.l_frame other))
 let visible locator = refine locator (Selector.visible true)
 let describe description locator = refine locator (Selector.describe description)
+
+(* What {!describe} gave the locator: the description is the last part of its selector. *)
+let description (locator : t) = Selector.description locator.selector
+
+let normalize (locator : t) =
+    let resolved = Protocol.Frame.resolve_selector ~selector:locator.selector locator.l_frame.f_channel in
+    { locator with selector = resolved.resolved_selector }
 let frame_locator selector (locator : t) : frame_locator = { fl_frame = locator.l_frame; frame_selector = Selector.join [ locator.selector; selector ] }
 let content_frame (locator : t) : frame_locator = { fl_frame = locator.l_frame; frame_selector = locator.selector }
 
@@ -209,6 +216,16 @@ let wait_for ?timeout ?state (l : t) =
 
 let aria_snapshot ?timeout ?mode ?depth ?boxes (l : t) =
     Protocol.Frame.aria_snapshot ~timeout:(Frame.action_timeout ?timeout l.l_frame) ?mode ~selector:l.selector ?depth ?boxes l.l_frame.f_channel
+
+let aria_snapshot_json ?timeout ?mode ?depth ?boxes (l : t) =
+    Protocol.Frame.aria_snapshot_json ~timeout:(Frame.action_timeout ?timeout l.l_frame) ?mode ~selector:l.selector ?depth ?boxes
+        l.l_frame.f_channel
+
+(* Waits until the expression, which is given the element, returns something truthy. *)
+let wait_for_function ?timeout ?(arg = Js.Undefined) expression (l : t) =
+    Protocol.Frame.wait_for_function ~timeout:(Frame.action_timeout ?timeout l.l_frame) ~expression ~arg:(Js.to_argument arg)
+        ~selector:l.selector ~strict:true l.l_frame.f_channel
+    |> Option.iter (fun handle -> Js_handle.dispose (Types.js_handle handle))
 
 let element_handle ?timeout (l : t) =
     match Frame.wait_for_selector ~strict:true ~state:`Attached ?timeout l.selector l.l_frame with

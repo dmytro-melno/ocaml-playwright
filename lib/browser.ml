@@ -106,6 +106,12 @@ let new_page ?proxy =
 
 let new_browser_cdp_session (browser : t) = Protocol.Browser.new_browser_cdp_session browser.b_channel |> Types.cdp_session
 
+(* Makes the browser available to other clients of Playwright, and returns where. *)
+let bind ?workspace_dir ?metadata ?host ?port title (browser : t) =
+    Protocol.Browser.start_server ~title ?workspace_dir ?metadata ?host ?port browser.b_channel
+
+let unbind (browser : t) = Protocol.Browser.stop_server browser.b_channel
+
 (* Closing is idempotent, and a browser that is already gone counts as closed.  A browser that
    was connected to is disconnected from. *)
 let close ?reason (browser : t) =

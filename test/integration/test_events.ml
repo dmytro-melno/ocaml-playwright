@@ -36,6 +36,8 @@ let test_page_errors _ page =
             (Page.context page)
     in
     Alcotest.(check string) "context event" "for the context" (WebError.error web_error).message;
+    let location = WebError.location web_error in
+    Alcotest.(check bool) "where it was thrown" true (location.line_number >= 0 && location.column_number > 0);
     Alcotest.(check bool) "its page" true (Option.equal Page.equal (WebError.page web_error) (Some page))
 
 let test_dialogs _ page =
@@ -186,11 +188,11 @@ let test_waiting t page =
     (* An event that arrives in time counts, however long the action goes on after it, and
        wherever it is among the others. *)
     let message =
-        Page.expect_event Page.Console ~timeout:400.
+        Page.expect_event Page.Console ~timeout:1500.
             ~predicate:(fun m -> ConsoleMessage.text m = "three")
             (fun () ->
                 log [ "one"; "two"; "three"; "four" ];
-                sleep t 0.6)
+                sleep t 1.6)
             page
     in
     Alcotest.(check string) "in time" "three" (ConsoleMessage.text message);

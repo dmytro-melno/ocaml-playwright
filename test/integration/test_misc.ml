@@ -115,6 +115,45 @@ let test_cdp _ page =
     CDPSession.detach session;
     check_failure "detached" (fun () -> CDPSession.send "Runtime.evaluate" ~params:(`Assoc [ "expression", `String "1" ]) session)
 
+let test_picking t page =
+    Page.set_content {|<button style="position: absolute; left: 20px; top: 20px; width: 100px; height: 40px">Pick me</button>|} page;
+    (* The person who points at an element is played by the mouse of the page. *)
+    let picking = Fiber.fork_promise ~sw:t.sw (fun () -> Page.pick_locator page) in
+    eventually t "picked" (fun () ->
+        if not (Promise.is_resolved picking) then Mouse.click ~x:60. ~y:40. (Page.mouse page);
+        Promise.is_resolved picking);
+    let locator = Promise.await_exn picking in
+    Alcotest.(check string) "the element that was clicked" "Pick me" (Locator.inner_text locator);
+    Alcotest.(check string) "as Playwright would locate it" (Locator.selector (Page.get_by_role `Button ~name:"Pick me" page)) (Locator.selector locator);
+    let picking = Fiber.fork_promise ~sw:t.sw (fun () -> Page.pick_locator page) in
+    eventually t "no longer picking" (fun () ->
+        Page.cancel_pick_locator page;
+        Promise.is_resolved picking);
+    match Promise.await picking with
+    | Error (Playwright.Error error) -> check_contains "picking was cancelled" ~sub:"cancelled" error.message
+    | Error ex -> raise ex
+    | Ok locator -> Alcotest.failf "picked %s after all" (Locator.to_string locator)
+
+(* A browser that is bound can be connected to by other clients; here by a second driver. *)
+let test_binding t () =
+    let browser = launch t in
+    let page = Browser.new_page browser in
+    Page.set_content "<title>Bound</title>" page;
+    let pipe = Browser.bind "ocaml-playwright-test" browser in
+    Alcotest.(check bool) "a pipe by default" true (pipe <> "" && not (String.starts_with ~prefix:"ws://" pipe));
+    Browser.unbind browser;
+    let endpoint = Browser.bind ~host:"127.0.0.1" ~port:0 ~metadata:(`Assoc [ "purpose", `String "test" ]) "ocaml-playwright-test" browser in
+    Alcotest.(check string) "a WebSocket server on request" "ws://127.0.0.1:" (String.sub endpoint 0 15);
+    Playwright.run ~env:t.env (fun other ->
+        let remote = BrowserType.connect endpoint (chromium other) in
+        let titles = List.concat_map BrowserContext.pages (Browser.contexts remote) |> List.map Page.title in
+        Alcotest.(check (list string)) "the other client sees the pages of the browser" [ "Bound" ] titles;
+        Browser.close remote);
+    Alcotest.(check bool) "which stays when the other client leaves" true (Browser.is_connected browser && Page.title page = "Bound");
+    Browser.unbind browser;
+    check_failure "unbound" (fun () -> Playwright.run ~env:t.env (fun other -> BrowserType.connect ~timeout:2000. endpoint (chromium other)));
+    Browser.close browser
+
 let test_selectors t () =
     let engine =
         {|({
@@ -538,7 +577,8 @@ let test_identity t page =
 let tests t =
     [ "rendering", [ case t "screenshots" (test_screenshots t); page_case t "PDF and ARIA snapshots" (test_pdf_and_aria t) ];
       "input", [ page_case t "keyboard and mouse" (test_keyboard_and_mouse t); case t "touch" (test_touch t) ];
-      "tools", [ page_case t "CDP sessions" (test_cdp t); case t "selector engines and test ids" (test_selectors t) ];
+      "tools", [ page_case t "CDP sessions" (test_cdp t); case t "selector engines and test ids" (test_selectors t); page_case t "picking a locator" (test_picking t);
+          case t "binding a browser" (test_binding t) ];
       "objects", [ page_case t "identity" (test_identity t) ];
       "fibers", [ case t "concurrent pages" (test_concurrency t); page_case t "cancellation" (test_cancellation t) ];
       "lifecycle",

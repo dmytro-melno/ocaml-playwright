@@ -101,4 +101,24 @@ let nth index = "nth=" ^ string_of_int index
 let enter_frame = "internal:control=enter-frame"
 let describe description = "internal:describe=" ^ json_string description
 
+(* The description that the last part of a selector gives, if that is what the last part is.
+   Looked for from the left: a description may itself contain what looks like one. *)
+let description selector =
+    let marker = "internal:describe=" in
+    let m = String.length marker and n = String.length selector in
+    let separator = " >> " in
+    let s = String.length separator in
+    let parsed start =
+        match Yojson.Safe.from_string (String.sub selector start (n - start)) with
+        | `String description -> Some description
+        | _ | (exception _) -> None
+    in
+    let rec from i =
+        if i + m > n then None
+        else if String.sub selector i m = marker && (i = 0 || (i >= s && String.sub selector (i - s) s = separator)) then
+            match parsed (i + m) with Some description -> Some description | None -> from (i + 1)
+        else from (i + 1)
+    in
+    from 0
+
 let join parts = String.concat " >> " parts

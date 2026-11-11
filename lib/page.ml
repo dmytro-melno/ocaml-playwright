@@ -364,6 +364,17 @@ let expose_function name f page = expose_binding name (fun _ args -> f args) pag
 let aria_snapshot ?timeout ?mode ?depth ?boxes (page : t) =
     Protocol.Frame.aria_snapshot ~timeout:(Timeouts.action ?timeout page.p_timeouts) ?mode ?depth ?boxes page.main_frame.f_channel
 
+let aria_snapshot_json ?timeout ?mode ?depth ?boxes (page : t) =
+    Protocol.Frame.aria_snapshot_json ~timeout:(Timeouts.action ?timeout page.p_timeouts) ?mode ?depth ?boxes page.main_frame.f_channel
+
+(* The element that a snapshot for machines marked with [ref=...]. *)
+let get_by_ref reference (page : t) = Locator.make page.main_frame ("aria-ref=" ^ reference)
+
+(* Lets the person in front of a headed browser point at an element. *)
+let pick_locator (page : t) = Locator.make page.main_frame (Protocol.Page.pick_locator page.p_channel)
+let cancel_pick_locator (page : t) = Protocol.Page.cancel_pick_locator page.p_channel
+let hide_highlight (page : t) = Protocol.Page.hide_highlight page.p_channel
+
 (* {1 Routing} *)
 
 let remove_routes ?(behavior = `Default) removed (page : t) =

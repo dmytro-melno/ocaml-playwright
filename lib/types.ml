@@ -353,6 +353,7 @@ and web_error = {
     we_serial : Serial.t;
     we_page : page option;
     we_error : Error.t;
+    we_location : Protocol.Browser_context.Page_error_event_location.t;
 }
 
 and download = {

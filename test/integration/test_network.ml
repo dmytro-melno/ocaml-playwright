@@ -230,6 +230,11 @@ let test_api_requests t page =
     Alcotest.(check string) "url" (url ^ "?q=a+b&n=1") (APIResponse.url response);
     Alcotest.(check (option string)) "response header" (Some "application/json") (APIResponse.header_value "Content-Type" response);
     Alcotest.check json "query" (`String "q=a+b&n=1") (member "query" (described response));
+    let address = Option.get (APIResponse.server_addr response) in
+    Alcotest.(check bool) "the server's address" true (address.ip_address = "127.0.0.1" && Server.origin t.server = Printf.sprintf "http://127.0.0.1:%d" address.port);
+    Alcotest.(check bool) "no certificate over HTTP" true (APIResponse.security_details response = None);
+    let timing = APIResponse.timing response in
+    Alcotest.(check bool) "timing" true (timing.start_time > 0. && timing.response_end >= timing.response_start && timing.response_start >= 0.);
     Alcotest.check json "header" (`String "yes") (member "headers" (described response) |> member "x-custom");
     let posted = APIRequestContext.post url ~json:(`Assoc [ "n", `Int 1 ]) request |> described in
     Alcotest.check json "json body" (`String {|{"n":1}|}) (member "body" posted);
@@ -281,7 +286,12 @@ let test_api_requests t page =
 let test_standalone_api_requests t () =
     Server.route t.server "/echo" echo;
     let request = APIRequest.new_context ~base_url:(Server.origin t.server) ~extra_http_headers:[ "x-client", "tests" ] ~user_agent:"ApiAgent" t.pw in
+    let tracing = APIRequestContext.tracing request in
+    Tracing.start tracing;
     let seen = APIRequestContext.get "/echo" request |> APIResponse.json |> Yojson.Safe.Util.member "headers" in
+    let trace = scratch_file t "requests.zip" in
+    Tracing.stop ~path:trace tracing;
+    Alcotest.(check string) "a trace of the requests" "PK" (String.sub (read_file trace) 0 2);
     Alcotest.check json "default header" (`String "tests") (Yojson.Safe.Util.member "x-client" seen);
     Alcotest.check json "user agent" (`String "ApiAgent") (Yojson.Safe.Util.member "user-agent" seen);
     Server.route t.server "/login" (fun _ -> Server.respond ~headers:[ "set-cookie", "session=abc; Path=/" ] "logged in");

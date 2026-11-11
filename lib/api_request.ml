@@ -85,6 +85,8 @@ module Context = struct
     let add_cookies cookies (t : t) = Protocol.Api_request_context.add_cookies ~cookies t.a_channel
     let clear_cookies ?name ?domain ?path (t : t) = Protocol.Api_request_context.clear_cookies ?name ?domain ?path t.a_channel
 
+    let tracing (t : t) = t.a_tracing
+
     (* Disposing is idempotent, and a context that is already gone counts as disposed of. *)
     let dispose ?reason (t : t) =
         if Closing.is_open t.a_close_state then t.a_close_reason <- reason;
@@ -112,6 +114,20 @@ module Response = struct
     let headers r = Network.merge_headers (headers_array r)
     let header_value name r = Network.header_value (headers_array r) name
     let fetch_uid (r : t) = r.ar_init.fetch_uid
+    let security_details (r : t) = r.ar_init.security_details
+    let server_addr (r : t) = r.ar_init.server_addr
+
+    (* What the driver measured; [-1.] for what it did not. *)
+    let timing (r : t) : timing =
+        let response_end = Option.value r.ar_init.response_end_timing ~default:(-1.) in
+        match r.ar_init.timing with
+        | Some t ->
+            { start_time = t.start_time; domain_lookup_start = t.domain_lookup_start; domain_lookup_end = t.domain_lookup_end;
+              connect_start = t.connect_start; secure_connection_start = t.secure_connection_start; connect_end = t.connect_end;
+              request_start = t.request_start; response_start = t.response_start; response_end }
+        | None ->
+            { start_time = -1.; domain_lookup_start = -1.; domain_lookup_end = -1.; connect_start = -1.; secure_connection_start = -1.;
+              connect_end = -1.; request_start = -1.; response_start = -1.; response_end }
 
     let body (r : t) =
         match Protocol.Api_request_context.fetch_response_body ~fetch_uid:r.ar_init.fetch_uid r.ar_context.a_channel with

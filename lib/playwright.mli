@@ -750,6 +750,15 @@ and Browser : sig
     val new_browser_cdp_session : t -> CDPSession.t
     (** A Chrome DevTools Protocol session with the browser itself. Chromium only. *)
 
+    val bind : ?workspace_dir:string -> ?metadata:Yojson.Safe.t -> ?host:string -> ?port:int -> string -> t -> string
+    (** [bind title] makes the browser available to other clients of Playwright, such as its command line tool and
+        its MCP server, under that title, and returns the endpoint that they connect to. This is a named pipe
+        unless [host] or [port] ask for a WebSocket server; a [port] of [0] lets the system choose one.
+        [workspace_dir] and [metadata], a JSON object, are passed on to those clients. *)
+
+    val unbind : t -> unit
+    (** Ends what {!bind} started. *)
+
     val close : ?reason:string -> t -> unit
     (** Closes the browser with all its contexts and pages; for a browser that was connected to, disconnects from it.
         [reason] is reported by the operations that this interrupts. Does nothing if the browser is gone already.
@@ -942,6 +951,12 @@ and Page : sig
 
     include Locator_queries with type t := t and type locator := Locator.t
 
+    val get_by_ref : string -> t -> Locator.t
+    (** The element with a reference such as ["e2"] or ["f1e3"] in the latest {!aria_snapshot} that was taken with
+        [~mode:`Ai], where it reads [[ref=e2]]. This is how a program that is shown such a snapshot, a language
+        model for instance, says which element it means. A reference holds until the next snapshot of the frame;
+        {!Locator.normalize} gives a locator that lasts. *)
+
     val frame_locator : string -> t -> FrameLocator.t
     (** The content of the [<iframe>] that the selector matches. *)
 
@@ -999,6 +1014,16 @@ and Page : sig
 
     val pause : t -> unit
     (** Opens the Playwright Inspector and waits for the user to resume. For headed browsers. *)
+
+    val pick_locator : t -> Locator.t
+    (** Lets the person in front of a headed browser point at an element of the page, and returns a locator for the
+        one they click on. It waits for as long as that takes; {!cancel_pick_locator}, called from another fiber,
+        ends the picking. *)
+
+    val cancel_pick_locator : t -> unit
+
+    val hide_highlight : t -> unit
+    (** Removes the marks that {!Locator.highlight} put on elements of the page. *)
 
     (** {1 Events} *)
 
@@ -1147,6 +1172,9 @@ and Page : sig
     val aria_snapshot : ?timeout:float -> ?mode:[ `Ai | `Default ] -> ?depth:int -> ?boxes:bool -> t -> string
     (** The accessibility tree of the page as YAML, see {!Locator.aria_snapshot}. *)
 
+    val aria_snapshot_json : ?timeout:float -> ?mode:[ `Ai | `Default ] -> ?depth:int -> ?boxes:bool -> t -> Yojson.Safe.t
+    (** The same tree as JSON, see {!Locator.aria_snapshot_json}. *)
+
     val viewport_size : t -> (int * int) option
     val set_viewport_size : int * int -> t -> unit
 
@@ -1239,8 +1267,26 @@ and Locator : sig
 
     val visible : t -> t
 
+    val within : t -> t -> t
+    (** [within outer inner] are the elements of [inner] inside an element of [outer], with [inner] looked up in each
+        of those separately: [Page.get_by_role `Cell page |> Locator.nth 2 |> Locator.within (Page.get_by_role `Row page)]
+        is the third cell of every row, where [Locator.get_by_role `Cell row |> Locator.nth 2] is the third cell of
+        all. *)
+
     val describe : string -> t -> t
     (** Gives the locator a name to show in traces and error messages. *)
+
+    val description : t -> string option
+    (** The name that {!describe} gave to the locator. *)
+
+    val normalize : t -> t
+    (** A locator for the same element as Playwright itself would write it, by role, label, text or test id where
+        that is possible. This asks the browser, and fails when the locator matches no element.
+
+        {[
+          Page.get_by_ref "e2" page |> Locator.normalize |> Locator.selector
+          (* internal:role=button[name="Submit"i] *)
+        ]} *)
 
     val frame_locator : string -> t -> FrameLocator.t
 
@@ -1250,8 +1296,11 @@ and Locator : sig
     val page : t -> Page.t
     val frame : t -> Frame.t
 
+    val selector : t -> string
+    (** The selector that the locator stands for, which {!Page.locator} accepts. *)
+
     val to_string : t -> string
-    (** The selector that the locator stands for. *)
+    (** The locator for the eyes of a person: ["Locator@"] and its selector. *)
 
     (** {1 Actions} *)
 
@@ -1324,6 +1373,10 @@ and Locator : sig
 
     val hide_highlight : t -> unit
 
+    val wait_for_function : ?timeout:float -> ?arg:Js.t -> string -> t -> unit
+    (** [wait_for_function expression] waits until the JavaScript function, which is called with the element and
+        [arg], returns something truthy: [Locator.wait_for_function "input => input.value.length > 3" locator]. *)
+
     (** {1 Reading} *)
 
     val count : t -> int
@@ -1352,7 +1405,13 @@ and Locator : sig
 
     val aria_snapshot : ?timeout:float -> ?mode:[ `Ai | `Default ] -> ?depth:int -> ?boxes:bool -> t -> string
     (** The accessibility tree of the element as YAML, see
-        {{:https://playwright.dev/docs/aria-snapshots} ARIA snapshots}. *)
+        {{:https://playwright.dev/docs/aria-snapshots} ARIA snapshots}. With [~mode:`Ai] the snapshot is the one
+        meant for language models: it goes into frames and gives every element a reference, for {!Page.get_by_ref}.
+        [depth] limits how deep the tree goes, and [boxes] adds the position and size of every element. *)
+
+    val aria_snapshot_json : ?timeout:float -> ?mode:[ `Ai | `Default ] -> ?depth:int -> ?boxes:bool -> t -> Yojson.Safe.t
+    (** The tree of {!aria_snapshot} as JSON rather than YAML: an object for each element with its [role], [name],
+        the states that apply and its [children], and a string for each text. *)
 
     val screenshot :
         ?timeout:float -> ?path:string -> ?type_:[ `Png | `Jpeg | `Webp ] -> ?quality:int -> ?omit_background:bool ->
@@ -1815,6 +1874,9 @@ and WebError : sig
     val page : t -> Page.t option
     val error : t -> Error.t
 
+    val location : t -> ConsoleMessage.location
+    (** Where in the page's code the exception was thrown. *)
+
     include Identity with type t := t
 end
 
@@ -1917,6 +1979,15 @@ and APIResponse : sig
     val text : t -> string
     val json : t -> Yojson.Safe.t
 
+    val server_addr : t -> Response.server_addr option
+    (** The address of the server that answered. *)
+
+    val security_details : t -> Response.security_details option
+    (** The certificate of the server, for a response that came over TLS. *)
+
+    val timing : t -> timing
+    (** When the phases of the request took place, as for {!Request.timing}. *)
+
     val dispose : t -> unit
     (** Frees the body, which the driver otherwise keeps until the request context is disposed of. *)
 
@@ -1965,6 +2036,9 @@ and APIRequestContext : sig
 
     val add_cookies : Cookie.init list -> t -> unit
     val clear_cookies : ?name:string -> ?domain:string -> ?path:string -> t -> unit
+
+    val tracing : t -> Tracing.t
+    (** Records the requests of the context into a trace, as {!BrowserContext.tracing} does for a browser context. *)
 
     val dispose : ?reason:string -> t -> unit
     (** Frees the context and all responses that it holds. Only for contexts made with {!APIRequest.new_context}. *)
