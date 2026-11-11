@@ -1,7 +1,7 @@
 (** The objects of the driver, each known by the interface that it implements.
 
     A channel is the client's end of an object that lives in the driver.  The connection keeps
-    channels of whatever interface ({!any}); everything else works with channels of a known
+    channels of whatever interface ({!type-any}); everything else works with channels of a known
     one ({!t}), so that a command of a frame cannot be sent to a browser.  {!Protocol} is
     generated on top of this vocabulary. *)
 

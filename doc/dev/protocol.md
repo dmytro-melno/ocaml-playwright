@@ -95,8 +95,17 @@ reviews. `dune runtest` fails if the file is not what the generator would produc
   keywords get an underscore appended.
 - Inline objects and enumerations get modules named after their path, such as
   `Protocol.Page.Initializer_viewport_size`.
+- Every interface gets a type in `Protocol.Kind`, a row of tags: its own and those of the
+  interfaces that it extends (`type element_handle = [ js_handle | `Element_handle ]`), and
+  a value of the same name that tells its objects from the others. Channels are typed with
+  these; see the section on the connection in [architecture.md](architecture.md). The
+  commands and events of an extended interface are not repeated in the one that extends it.
 - The interfaces listed in `excluded_interfaces` (Android, Electron and some tools) are
-  not generated. Objects of these kinds still exist as untyped channels.
+  not generated. Objects of these kinds still exist, as channels of no known interface
+  (`Channel.any`), and so do the objects that the specification gives no interface to.
+- For each kind of object that a command hands over to its caller, the generator knows the
+  command that gives it back (`released_with`). The reply to a cancelled command is released
+  with it; the tables at the top of the generator say which commands are exceptions.
 - `SerializedValue` is passed through as raw JSON; `Js` encodes and decodes it by hand,
   since it is a recursive structure with back references.
 - Mixins of the specification are expanded into the interfaces that use them.

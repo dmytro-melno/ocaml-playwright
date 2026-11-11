@@ -1,21 +1,6 @@
-(* The internal modules of the library under their own names. *)
+(* The modules of the implementation, and what the tests have in common. *)
 
-module Json = Playwright__Json
-module Error = Playwright__Error
-module Transport = Playwright__Transport
-module Connection = Playwright__Connection
-module Channel = Playwright__Channel
-module Closing = Playwright__Closing
-module Protocol = Playwright__Protocol
-module Emitter = Playwright__Emitter
-module Waiter = Playwright__Waiter
-module Timeouts = Playwright__Timeouts
-module Url_regex = Playwright__Url_regex
-module Selector = Playwright__Selector
-module Js = Playwright__Js
-module Driver = Playwright__Driver
-module Driver_process = Playwright__Driver_process
-module Expect = Playwright__Expect
+include Playwright_internal
 
 (* JSON documents, compared the way a JavaScript peer sees them: 7 and 7.0 are the same number. *)
 let json =

@@ -311,13 +311,12 @@ let check_instance_end t what ~create ~obtain end_ =
 
 (* Runs a Playwright server for one browser and passes its endpoint to [f]. *)
 let with_server t f =
-    let driver = Playwright__Driver.locate ~install_if_missing:false () in
     let config = scratch_file t "server.json" in
     write_file config
         (Yojson.Safe.to_string (`Assoc (("headless", `Bool true) :: (match t.executable_path with Some path -> [ "executablePath", `String path ] | None -> []))));
     let read, write = Unix.pipe ~cloexec:true () in
-    let pid =
-        Unix.create_process driver.node [| driver.node; driver.cli; "launch-server"; "--browser"; "chromium"; "--config"; config |] Unix.stdin write Unix.stderr
+    let command = Driver.command [ "launch-server"; "--browser"; "chromium"; "--config"; config ] in
+    let pid = Unix.create_process (List.hd command) (Array.of_list command) Unix.stdin write Unix.stderr
     in
     Unix.close write;
     let output = Unix.in_channel_of_descr read in
@@ -379,10 +378,10 @@ let test_connect t () =
 
 (* Starts an instance whose driver can be killed: returns the process identifier with it. *)
 let create_with_driver_pid t ~on_error =
-    let driver = Playwright__Driver.locate ~install_if_missing:false () in
+    let node = List.hd (Driver.command []) in
     let pid_file = scratch_file t "driver.pid" in
     let wrapper = scratch_file t "node.sh" in
-    write_file wrapper (Printf.sprintf "#!/bin/sh\necho $$ > %s\nexec %s \"$@\"\n" (Filename.quote pid_file) (Filename.quote driver.node));
+    write_file wrapper (Printf.sprintf "#!/bin/sh\necho $$ > %s\nexec %s \"$@\"\n" (Filename.quote pid_file) (Filename.quote node));
     Unix.chmod wrapper 0o755;
     let variable = "PLAYWRIGHT_NODEJS_PATH" in
     let previous = Option.value (Sys.getenv_opt variable) ~default:"" in

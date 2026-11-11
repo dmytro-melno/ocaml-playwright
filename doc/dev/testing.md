@@ -13,8 +13,8 @@ from `protocol/` (see [protocol.md](protocol.md)).
 
 ## Unit tests
 
-`test/unit` reaches into the library through the names that dune gives its modules
-(`Playwright__Connection`, ...), collected in `internal.ml`. It covers:
+`test/unit` is written against `playwright_internal`, the private library that holds the
+implementation; `internal.ml` brings its modules into scope. It covers:
 
 - `test_wire.ml`: JSON decoding, framing of messages, and the connection against a scripted
   transport: creation and disposal of objects, replies and errors, cancellation, closing.

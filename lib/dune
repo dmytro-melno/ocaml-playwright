@@ -1,6 +1,17 @@
+; The library that applications use is one module, [Playwright], which is an interface to the
+; implementation in the library below.  That one is private to the package: nothing outside of
+; this project can depend on it, and the documentation of the package does not list its modules.
+
 (library
  (name playwright)
  (public_name playwright)
+ (modules playwright)
+ (libraries playwright_internal eio eio.unix yojson))
+
+(library
+ (name playwright_internal)
+ (package playwright)
+ (modules :standard \ playwright)
  (libraries eio eio.unix cstruct yojson base64 unix threads.posix))
 
 ; [protocol.ml] is generated from protocol/ but checked in, so that building the library needs

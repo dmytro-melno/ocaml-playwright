@@ -1,6 +1,6 @@
-; Tests of the internals that need neither a driver nor a browser.  They reach into the library
-; through the names that dune gives to its modules (Playwright__Connection and so on).
+; Tests of the implementation that need neither a driver nor a browser.  They are written
+; against the private library that holds it, not against the interface that applications use.
 
 (test
  (name main)
- (libraries playwright alcotest eio eio.mock eio_main yojson unix))
+ (libraries playwright playwright_internal alcotest eio eio.mock eio_main yojson unix))
