@@ -183,20 +183,25 @@ let expect_navigation ?timeout ?(wait_until = `Load) ?(matches = fun _ -> true) 
     navigation_waiter ?timeout frame (fun waiter ->
         Waiter.listen waiter frame.fe_navigated (fun navigation -> Some (`Navigated navigation));
         Waiter.listen waiter frame.fe_load_state (fun state -> Some (`Load_state state));
-        let result = action () in
-        let navigation =
-            Waiter.next waiter (function
+        (* First the navigation, then the state that it is to reach, unless it is in it already. *)
+        let navigated = ref None in
+        let select event =
+            match event, !navigated with
+            | `Navigated navigation, None when navigation.n_error <> None || matches navigation.n_url ->
                 (* Any failed navigation ends the wait. *)
-                | `Navigated navigation when navigation.n_error <> None || matches navigation.n_url -> Some navigation
-                | _ -> None)
+                Option.iter (fun message -> raise (Error.E (Error.make message))) navigation.n_error;
+                if List.mem wait_until frame.load_states then Some navigation
+                else begin
+                    navigated := Some navigation;
+                    None
+                end
+            | `Load_state state, Some navigation when state = wait_until -> Some navigation
+            | _ -> None
         in
-        Option.iter (fun message -> raise (Error.E (Error.make message))) navigation.n_error;
-        if not (List.mem wait_until frame.load_states) then
-            Waiter.next waiter (function `Load_state state when state = wait_until -> Some () | _ -> None);
+        let result, navigation = Waiter.around waiter action select in
         let rec final (request : request) = match request.redirected_to with Some next -> final next | None -> request in
         let response =
-            Option.bind navigation.n_request (fun request ->
-                Option.map Types.response (Protocol.Request.response (final request).r_channel))
+            Option.bind navigation.n_request (fun request -> Option.map Types.response (Protocol.Request.response (final request).r_channel))
         in
         result, response)
 

@@ -436,7 +436,8 @@ let wire_trace () =
 
 let initialize_timeout = 60_000.
 
-let create ?(on_error = fun what ex -> report_to_stderr what ex (Printexc.get_raw_backtrace ())) ~sw ~(env : Eio_unix.Stdenv.base) () : t =
+let create ?(on_error = fun what ex -> report_to_stderr what ex (Printexc.get_raw_backtrace ())) ?handler_concurrency ?handler_backlog ~sw
+        ~(env : Eio_unix.Stdenv.base) () : t =
     (* Installing the driver can take a while, during which other fibers go on. *)
     let driver = Eio_unix.run_in_systhread ~label:"playwright-driver" (fun () -> Driver.locate ()) in
     let process = Driver_process.spawn ~sw ~env driver in
@@ -444,6 +445,7 @@ let create ?(on_error = fun what ex -> report_to_stderr what ex (Printexc.get_ra
         Connection.create ~clock:(Eio.Stdenv.clock env)
             ~report:(fun what ex _ -> on_error what ex)
             ?trace:(wire_trace ())
+            ?handler_concurrency ?handler_backlog
             ~render_value:(fun value -> Js.show (Js.of_wire value))
             process.transport
     in
@@ -493,9 +495,9 @@ let close (t : t) =
     Connection.close t.session.conn (Error.target_closed ~message:"Playwright has been closed" ());
     Promise.await t.stopped
 
-let run ?on_error ~env f =
+let run ?on_error ?handler_concurrency ?handler_backlog ~env f =
     Switch.run (fun sw ->
-        let t = create ?on_error ~sw ~env () in
+        let t = create ?on_error ?handler_concurrency ?handler_backlog ~sw ~env () in
         Fun.protect ~finally:(fun () -> Eio.Cancel.protect (fun () -> close t)) (fun () -> f t))
 
 let chromium (t : t) = t.chromium

@@ -3,4 +3,4 @@
 
 (test
  (name main)
- (libraries playwright alcotest eio eio_main yojson unix))
+ (libraries playwright alcotest eio eio.mock eio_main yojson unix))

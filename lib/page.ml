@@ -140,9 +140,9 @@ let did_close (page : t) =
 
 let handle_event (page : t) name params =
     let conn = conn page in
-    let fork what f = Connection.fork conn what f in
+    let handle what f = Connection.handle conn what f in
     match Protocol.Page.event_of_json conn name params with
-    | Some (Binding_call { binding }) -> fork "exposed binding" (fun () -> on_binding page binding)
+    | Some (Binding_call { binding }) -> handle "exposed binding" (fun () -> on_binding page binding)
     | Some Close -> did_close page
     | Some Crash ->
         if not (Promise.is_resolved page.p_gone) then Promise.resolve page.p_gone_resolver (Error.target_closed ~message:"Page crashed" ());
@@ -168,10 +168,10 @@ let handle_event (page : t) name params =
         frame.detached <- true;
         Option.iter (fun (parent : frame) -> parent.child_frames <- List.filter (fun f -> f != frame) parent.child_frames) frame.parent_frame;
         emit page page.pe_frame_detached frame
-    | Some (Locator_handler_triggered { uid }) -> fork "locator handler" (fun () -> on_locator_handler_triggered page uid)
-    | Some (Route { route }) -> fork "route" (fun () -> on_route page (Types.route route))
+    | Some (Locator_handler_triggered { uid }) -> handle "locator handler" (fun () -> on_locator_handler_triggered page uid)
+    | Some (Route { route }) -> handle "route" (fun () -> on_route page (Types.route route))
     | Some (Web_socket_route { web_socket_route }) ->
-        fork "WebSocket route" (fun () -> on_web_socket_route page (Types.web_socket_route web_socket_route))
+        handle "WebSocket route" (fun () -> on_web_socket_route page (Types.web_socket_route web_socket_route))
     | Some (Web_socket { web_socket }) -> emit page page.pe_web_socket (Types.web_socket web_socket)
     | Some (Worker { worker }) ->
         let worker = Types.worker worker in
@@ -257,8 +257,8 @@ let frame ?name ?url (page : t) =
 
 (* {1 Events for the user} *)
 
-let on event listener (page : t) = Emitter.on (emitter page event) listener
-let once event listener (page : t) = Emitter.once (emitter page event) listener
+let on event listener (page : t) = ignore (Emitter.on (emitter page event) listener : unit -> unit)
+let once event listener (page : t) = ignore (Emitter.once (emitter page event) listener : unit -> unit)
 let off event listener (page : t) = Emitter.off (emitter page event) listener
 
 let expect_event (type a) ?timeout ?predicate (event : a event) action (page : t) : a =
@@ -377,7 +377,7 @@ let route_from_har ?url ?not_found ?(update = false) ?update_content ?update_mod
     if update then ignore (Tracing.record_into_har ~page ?url_glob:url ?content:update_content ?mode:update_mode page.context.tracing har : string)
     else begin
         let handler, close = Route.Har.open_ (session page) ?not_found har in
-        Emitter.once page.pe_close (fun _ -> close ());
+        ignore (Emitter.once page.pe_close (fun _ -> close ()) : unit -> unit);
         add_route (Glob (Option.value url ~default:"**/*")) handler page
     end
 

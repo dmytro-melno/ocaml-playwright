@@ -1,90 +1,6 @@
-(* Events, waiting, timeouts and the driver installation. *)
+(* Timeouts, the driver installation and errors. *)
 
-open Eio.Std
 open Internal
-
-let with_peer = Test_wire.with_peer
-
-(* {1 Emitter} *)
-
-let test_emitter () =
-    with_peer @@ fun peer ->
-    let emitter = Emitter.create () in
-    let log = ref [] in
-    let note tag value = log := Printf.sprintf "%s:%d" tag value :: !log in
-    let logged () = List.rev !log in
-    Alcotest.(check bool) "no listener, not delivered" false (Emitter.emit peer.conn emitter 0);
-    let a = note "a" and b = note "b" in
-    Emitter.on emitter a;
-    Emitter.once emitter (note "once");
-    Emitter.on emitter b;
-    Alcotest.(check bool) "delivered" true (Emitter.emit peer.conn emitter 1);
-    ignore (Emitter.emit peer.conn emitter 2);
-    Alcotest.(check (list string)) "registration order, once only once" [ "a:1"; "once:1"; "b:1"; "a:2"; "b:2" ] (logged ());
-    Emitter.off emitter a;
-    Emitter.off emitter (note "never registered");
-    log := [];
-    ignore (Emitter.emit peer.conn emitter 3);
-    Alcotest.(check (list string)) "off removes exactly that listener" [ "b:3" ] (logged ());
-    Emitter.off emitter b;
-    Alcotest.(check bool) "empty again" false (Emitter.has_listeners emitter)
-
-let test_emitter_listeners_may_block () =
-    with_peer @@ fun peer ->
-    let emitter = Emitter.create () in
-    let gate, open_gate = Promise.create () in
-    let log = ref [] in
-    Emitter.on emitter (fun value ->
-        if value = 1 then Promise.await gate;
-        log := value :: !log);
-    ignore (Emitter.emit peer.conn emitter 1);
-    ignore (Emitter.emit peer.conn emitter 2);
-    Alcotest.(check (list int)) "a blocked listener does not hold up later events" [ 2 ] !log;
-    Promise.resolve open_gate ();
-    Fiber.yield ();
-    Alcotest.(check (list int)) "and finishes later" [ 1; 2 ] !log;
-    (* An exception in a listener goes to the error hook instead of the reader. *)
-    Emitter.on emitter (fun _ -> failwith "listener failed");
-    ignore (Emitter.emit peer.conn emitter 3);
-    Alcotest.(check bool) "reported" true (List.exists (fun (_, ex) -> ex = Failure "listener failed") !(peer.reported))
-
-let test_emitter_watch () =
-    with_peer @@ fun _ ->
-    let emitter = Emitter.create () in
-    let transitions = ref [] in
-    Emitter.set_watch emitter (fun active -> transitions := active :: !transitions);
-    let listener (_ : int) = () in
-    Emitter.on emitter listener;
-    let unsubscribe = Emitter.subscribe emitter ignore in
-    Emitter.off emitter listener;
-    Alcotest.(check (list bool)) "told about the first listener only" [ true ] (List.rev !transitions);
-    unsubscribe ();
-    Alcotest.(check (list bool)) "and about the last one leaving" [ true; false ] (List.rev !transitions)
-
-(* {1 Waiter} *)
-
-let test_waiter () =
-    with_peer @@ fun peer ->
-    let emitter = Emitter.create () in
-    let closed = Emitter.create () in
-    let wait ?(timeout = 1000.) action predicate =
-        Waiter.using peer.conn ~timeout ~timeout_message:(fun () -> "Timeout while waiting for the event") (fun waiter ->
-            Waiter.listen waiter emitter Option.some;
-            Waiter.reject_on waiter closed (fun reason -> Some (Error.target_closed ~message:reason ()));
-            action ();
-            Waiter.next waiter (fun value -> if predicate value then Some value else None))
-    in
-    let emit values () = List.iter (fun value -> ignore (Emitter.emit peer.conn emitter value)) values in
-    Alcotest.(check int) "an event emitted during the action is not missed" 1 (wait (emit [ 1 ]) (fun _ -> true));
-    Alcotest.(check int) "the predicate selects" 4 (wait (emit [ 1; 3; 4; 6 ]) (fun value -> value mod 2 = 0));
-    Alcotest.(check bool) "listeners are removed afterwards" false (Emitter.has_listeners emitter || Emitter.has_listeners closed);
-    let late = failure "timeout" (fun () -> wait ~timeout:30. ignore (fun _ -> true)) in
-    Alcotest.check error_kind "timeout kind" Error.Timeout late.kind;
-    check_contains "timeout message" ~sub:"Timeout while waiting for the event" late.message;
-    let gone = failure "rejection" (fun () -> wait (fun () -> ignore (Emitter.emit peer.conn closed "Page closed")) (fun _ -> true)) in
-    Alcotest.check error_kind "rejection kind" Error.Target_closed gone.kind;
-    Alcotest.(check string) "rejection message" "Page closed" gone.message;
-    Alcotest.(check bool) "cleaned up after failures too" false (Emitter.has_listeners emitter || Emitter.has_listeners closed)
 
 (* {1 Timeouts} *)
 
@@ -178,12 +94,7 @@ let test_error_rendering () =
     Alcotest.(check string) "empty call logs are left out" "" (Error.call_log [ ""; "" ])
 
 let tests =
-    [ "emitter",
-      [ Alcotest.test_case "listeners" `Quick test_emitter;
-        Alcotest.test_case "blocking and failing listeners" `Quick test_emitter_listeners_may_block;
-        Alcotest.test_case "watch" `Quick test_emitter_watch ];
-      "waiter", [ Alcotest.test_case "events, timeouts and rejections" `Quick test_waiter ];
-      "timeouts", [ Alcotest.test_case "precedence" `Quick test_timeouts ];
+    [ "timeouts", [ Alcotest.test_case "precedence" `Quick test_timeouts ];
       "driver",
       [ Alcotest.test_case "cache directory" `Quick test_driver_cache_dir;
         Alcotest.test_case "PATH lookup" `Quick test_driver_path_lookup;

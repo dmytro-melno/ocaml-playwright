@@ -61,8 +61,8 @@ let evaluate ?(arg = Js.Undefined) expression (worker : t) =
 let evaluate_handle ?(arg = Js.Undefined) expression (worker : t) =
     Protocol.Worker.evaluate_expression_handle ~expression ~arg:(Js.to_argument arg) worker.w_channel |> Types.js_handle
 
-let on event listener (worker : t) = Emitter.on (emitter worker event) listener
-let once event listener (worker : t) = Emitter.once (emitter worker event) listener
+let on event listener (worker : t) = ignore (Emitter.on (emitter worker event) listener : unit -> unit)
+let once event listener (worker : t) = ignore (Emitter.once (emitter worker event) listener : unit -> unit)
 let off event listener (worker : t) = Emitter.off (emitter worker event) listener
 
 let timeouts (worker : t) =

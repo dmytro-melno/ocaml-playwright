@@ -46,7 +46,7 @@ let contexts (browser : t) = browser.contexts
 let version (browser : t) = browser.version
 let name (browser : t) = browser.b_name
 let is_connected (browser : t) = not (Closing.is_closed browser.b_close_state)
-let on_disconnected listener (browser : t) = Emitter.on browser.e_disconnected listener
+let on_disconnected listener (browser : t) = ignore (Emitter.on browser.e_disconnected listener : unit -> unit)
 let off_disconnected listener (browser : t) = Emitter.off browser.e_disconnected listener
 
 let selector_options (session : session) =

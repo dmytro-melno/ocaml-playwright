@@ -6,18 +6,6 @@ open Harness
 
 let clock t = Eio.Stdenv.clock t.env
 
-(* Waits until [condition] holds. *)
-let eventually t what condition =
-    let rec poll attempts =
-        if not (condition ()) then
-            if attempts = 0 then Alcotest.failf "%s: still not the case" what
-            else begin
-                sleep t 0.02;
-                poll (attempts - 1)
-            end
-    in
-    poll 250
-
 (* [f ()] in a fiber that is cancelled as soon as it waits. *)
 let cancelled f = Fiber.first f (fun () -> ())
 

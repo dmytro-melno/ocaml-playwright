@@ -6,7 +6,9 @@
 
    Concurrency model: a single reader fiber decodes every incoming message and runs the object's
    event hook synchronously, so client-side state is always updated in protocol order.  Hooks must
-   not block; anything that may (user callbacks, follow-up commands) is forked with {!fork}.
+   not block; anything that may is given a fiber of its own: user callbacks with {!handle}, which
+   limits how many of them run at a time, and follow-up commands with {!fork}.  The reader never
+   waits for either.
 
    Lifetime: a connection ends exactly once, in {!close}, whatever the cause: the program closing
    it, the driver going away, a transport failure or a message that cannot be understood.  Ending
@@ -20,7 +22,18 @@ open Eio.Std
    handlers of its events and the work that follows from them.  It exists for as long as the
    connection to the driver runs, and is shared with the connections made through that one to
    Playwright servers, so that a handler lives as long as the instance and no longer. *)
-type scope = { mutable switch : Switch.t option }
+type scope = {
+    mutable switch : Switch.t option;
+    (* What the events of the instance may cost at any moment: see {!handle}. *)
+    handler_concurrency : int;
+    handler_backlog : int;
+    mutable running : int;  (* handler calls in progress *)
+    waiting : (unit -> unit) Queue.t;  (* what starts those that wait for one of them to end, oldest first *)
+    mutable admitting : bool;  (* the waiting ones are being started, by a handler that has just ended *)
+}
+
+let default_handler_concurrency = 1024
+let default_handler_backlog = 65536
 
 type t = {
     transport : Transport.t;
@@ -92,8 +105,12 @@ let make ~scope ~owns_scope ~clock ~report ~trace ~render_value transport =
     conn
 
 (* The connection to a driver.  Running it makes the scope of the instance. *)
-let create ~clock ~report ?trace ~render_value transport =
-    make ~scope:{ switch = None } ~owns_scope:true ~clock:(clock :> float Eio.Time.clock_ty r) ~report ~trace ~render_value transport
+let create ~clock ~report ?trace ?(handler_concurrency = default_handler_concurrency) ?(handler_backlog = default_handler_backlog) ~render_value
+        transport =
+    if handler_concurrency < 1 then invalid_arg "Playwright: handler_concurrency must be positive";
+    if handler_backlog < 0 then invalid_arg "Playwright: handler_backlog must not be negative";
+    let scope = { switch = None; handler_concurrency; handler_backlog; running = 0; waiting = Queue.create (); admitting = false } in
+    make ~scope ~owns_scope:true ~clock:(clock :> float Eio.Time.clock_ty r) ~report ~trace ~render_value transport
 
 (* A connection that is relayed by [parent], which lends it its scope and settings. *)
 let create_relayed (parent : t) transport =
@@ -112,19 +129,25 @@ let stopped conn = conn.stopped_promise
 
 let is_cancellation = Fibers.is_cancellation
 
-(* Runs [f], which is user code or internal follow-up work, in a fiber of its own in the scope
-   of the instance.  The fiber starts immediately and runs until it first blocks, so callbacks
-   begin in event order.  It is cancelled when the instance is closed, and nothing is started
-   once the scope is gone. *)
-let fork conn what f =
+(* Runs [f] in a fiber of its own in the scope of the instance, and tells whether it did: nothing
+   is started once the scope is gone.  The fiber starts immediately and runs until it first
+   blocks.  It is cancelled when the instance is closed. *)
+let forked conn what f =
     match conn.scope.switch with
-    | None -> ()
+    | None -> false
     | Some sw ->
+        let started = ref false in
         (try
             Fiber.fork_daemon ~sw (fun () ->
+                started := true;
                 (try f () with ex when not (is_cancellation ex) -> conn.report what ex (Printexc.get_raw_backtrace ()));
                 `Stop_daemon)
-         with ex when is_cancellation ex -> ())
+         with ex when is_cancellation ex -> ());
+        !started
+
+(* Internal follow-up work: what the client itself does in answer to an event.  It is short and
+   there is no more of it than there are events, so it is not counted like {!handle}'s. *)
+let fork conn what f = ignore (forked conn what f)
 
 (* Every object of the connection, each after the objects below it, those in the order in which
    they were created: a page comes after its frames and workers, a context after its pages. *)
@@ -165,6 +188,61 @@ let close conn error =
         Hashtbl.reset conn.objects;
         Promise.resolve conn.closed_resolver error
     end
+
+(* {1 Handlers}
+
+   A handler is user code that an event calls: a listener, a route handler, an exposed function.
+   Each call gets a fiber of its own, because it may block, typically on the driver, whose
+   reply only the reader can deliver.  Calls start in the order of their events and, as long as
+   there is room, at once, in the state that the event left things in.
+
+   The reader cannot be made to wait for them, so events arrive at their own pace: a page that
+   logs ten thousand lines calls a console listener ten thousand times before the first reply
+   to anything those calls ask can be read.  Two numbers keep that within bounds:
+   - no more than [handler_concurrency] calls are in progress at a time; the others wait for
+     their turn, which costs little more than the event itself;
+   - no more than [handler_backlog] wait.  Beyond that the handlers are not keeping up, or not
+     returning at all, and the connection is given up rather than the memory: it is closed with
+     an error that says so, which is also reported.  No call is ever dropped: those that wait
+     still get their turn for as long as the instance lives. *)
+
+let end_handler scope =
+    scope.running <- scope.running - 1;
+    (* One loop starts all that can start, including after the calls that end while it runs:
+       started from the end of each of those in turn, they would nest without bound. *)
+    if not scope.admitting then begin
+        scope.admitting <- true;
+        while scope.running < scope.handler_concurrency && not (Queue.is_empty scope.waiting) do
+            (Queue.take scope.waiting) ()
+        done;
+        scope.admitting <- false
+    end
+
+let begin_handler conn what f =
+    let scope = conn.scope in
+    scope.running <- scope.running + 1;
+    if not (forked conn what (fun () -> Fun.protect f ~finally:(fun () -> end_handler scope))) then scope.running <- scope.running - 1
+
+let handle conn what f =
+    let scope = conn.scope in
+    if scope.switch <> None then
+        if scope.running < scope.handler_concurrency && Queue.is_empty scope.waiting then begin_handler conn what f
+        else begin
+            Queue.add (fun () -> begin_handler conn what f) scope.waiting;
+            (* The events that closing itself causes are few, and their handlers the last to be called. *)
+            if Queue.length scope.waiting > scope.handler_backlog && conn.closed = None then begin
+                let error =
+                    Error.target_closed
+                        ~message:
+                            (Printf.sprintf
+                                 "The Playwright connection was closed because event handlers do not keep up: %d calls are in progress and %d more are waiting (the last one for: %s)"
+                                 scope.running scope.handler_backlog what)
+                        ()
+                in
+                conn.report "event handlers" (Error.E error) (Printexc.get_callstack 0);
+                close conn error
+            end
+        end
 
 let enqueue conn (message : Json.t) =
     if conn.closed = None then begin
@@ -399,7 +477,11 @@ let run ?(end_message = fun () -> "The Playwright driver closed the connection")
             if conn.owns_scope then
                 Switch.run (fun sw ->
                     conn.scope.switch <- Some sw;
-                    Fun.protect ~finally:(fun () -> conn.scope.switch <- None) serve)
+                    Fun.protect
+                        ~finally:(fun () ->
+                            conn.scope.switch <- None;
+                            Queue.clear conn.scope.waiting)
+                        serve)
             else serve ())
 
 (* Fails with a {!Error.Timeout} error unless [f] finishes within [timeout] milliseconds;

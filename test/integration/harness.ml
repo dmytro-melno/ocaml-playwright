@@ -34,6 +34,18 @@ let scratch_file t name =
 
 let sleep t seconds = Eio.Time.sleep (Eio.Stdenv.clock t.env) seconds
 
+(* Waits until [condition] holds. *)
+let eventually t what condition =
+    let rec poll attempts =
+        if not (condition ()) then
+            if attempts = 0 then Alcotest.failf "%s: still not the case" what
+            else begin
+                sleep t 0.02;
+                poll (attempts - 1)
+            end
+    in
+    poll 250
+
 (* {1 Finding a browser} *)
 
 let system_chromium () =

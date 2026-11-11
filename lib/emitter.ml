@@ -1,65 +1,98 @@
 (* Typed event sources.
 
-   Events are emitted from the connection's reader fiber.  Public listeners may block (they
-   typically call back into the driver), so each one runs in its own fiber; fibers start in
-   emission order.  Internal listeners added with {!subscribe} run inline and must not block. *)
+   Events are emitted by the connection's reader, as part of bringing the client's state up to
+   date.  Public listeners are user code and may block, so each call of one is a handler call of
+   its own (see {!Connection.handle}); calls start in emission order.  Internal listeners added
+   with {!subscribe} run inline and must not block.
+
+   Registering a listener, removing one and emitting to one each take constant time, the last
+   two on average. *)
 
 type 'a listener = {
     fn : 'a -> unit;
     once : bool;
     inline : bool;
+    mutable listening : bool;  (* registered: not removed, nor called if [once] *)
+    mutable cancelled : bool;  (* removed by whoever registered it: calls that have not started are not made *)
 }
 
 type 'a t = {
-    mutable listeners : 'a listener list;  (* in registration order *)
+    mutable listeners : 'a listener list;  (* in registration order, those of [recent] excepted *)
+    mutable recent : 'a listener list;  (* registered since the last emission, newest first *)
+    mutable count : int;  (* those that are listening *)
+    mutable stale : int;  (* those in the lists that no longer are *)
     mutable watch : bool -> unit;  (* told when the first listener arrives and the last one leaves *)
 }
 
-let create () = { listeners = []; watch = ignore }
+let create () = { listeners = []; recent = []; count = 0; stale = 0; watch = ignore }
 
 (* Has [watch] called with [true] when the emitter gains its first listener and with [false]
    when it loses its last one.  Used to subscribe to driver events lazily. *)
 let set_watch t watch = t.watch <- watch
 
-let has_listeners t = t.listeners <> []
+let has_listeners t = t.count > 0
 
 let add t listener =
-    let first = t.listeners = [] in
-    t.listeners <- t.listeners @ [ listener ];
-    if first then t.watch true
+    t.recent <- listener :: t.recent;
+    t.count <- t.count + 1;
+    if t.count = 1 then t.watch true
 
-let remove t listener =
-    if List.memq listener t.listeners then begin
-        t.listeners <- List.filter (fun l -> l != listener) t.listeners;
-        if t.listeners = [] then t.watch false
+(* An emission that is under way holds the list that it started with, and passes over what is
+   no longer [listening].  So can the lists: they are swept when those that left outnumber those
+   that stay, which keeps leaving cheap and what is held in proportion to what is in use. *)
+let unregister t listener =
+    if listener.listening then begin
+        listener.listening <- false;
+        t.count <- t.count - 1;
+        t.stale <- t.stale + 1;
+        if t.stale > t.count then begin
+            t.listeners <- List.filter (fun l -> l.listening) t.listeners;
+            t.recent <- List.filter (fun l -> l.listening) t.recent;
+            t.stale <- 0
+        end;
+        if t.count = 0 then t.watch false
     end
 
-let on t fn = add t { fn; once = false; inline = false }
-let once t fn = add t { fn; once = true; inline = false }
+let remove t listener =
+    listener.cancelled <- true;
+    unregister t listener
 
-(* Removes the most recently added public listener that is physically equal to [fn]. *)
-let off t fn =
-    match List.find_opt (fun l -> l.fn == fn && not l.inline) (List.rev t.listeners) with
-    | Some listener -> remove t listener
-    | None -> ()
-
-(* Adds an internal listener and returns the function that removes it. *)
-let subscribe t fn =
-    let listener = { fn; once = false; inline = true } in
+let register t ~once ~inline fn =
+    let listener = { fn; once; inline; listening = true; cancelled = false } in
     add t listener;
     fun () -> remove t listener
 
-(* Returns whether there was a listener to deliver the event to. *)
-let emit conn t value =
+(* These return the function that removes the listener; it may be called more than once. *)
+let on t fn = register t ~once:false ~inline:false fn
+let once t fn = register t ~once:true ~inline:false fn
+
+(* Adds an internal listener. *)
+let subscribe t fn = register t ~once:false ~inline:true fn
+
+(* Removes the most recently added public listener that is physically equal to [fn]. *)
+let off t fn =
+    let is_it l = l.fn == fn && l.listening && not l.inline in
+    match List.find_opt is_it t.recent with
+    | Some listener -> remove t listener
+    | None -> Option.iter (remove t) (List.find_opt is_it (List.rev t.listeners))
+
+(* Returns whether there was a listener to deliver the event to.  Listeners added during the
+   emission are not called for it. *)
+let emit (conn : Connection.t) t value =
+    if t.recent <> [] then begin
+        t.listeners <- t.listeners @ List.rev t.recent;
+        t.recent <- []
+    end;
     List.fold_left
         (fun handled listener ->
-            (* A listener removed by an earlier one in this round must not run. *)
-            if not (List.memq listener t.listeners) then handled
+            (* Removed by an earlier listener, or taken by an emission that one of them caused. *)
+            if not listener.listening then handled
             else begin
-                if listener.once then remove t listener;
+                if listener.once then unregister t listener;
                 if listener.inline then
-                    try listener.fn value with ex -> conn.Connection.report "internal event listener" ex (Printexc.get_raw_backtrace ())
-                else Connection.fork conn "event listener" (fun () -> listener.fn value);
+                    try listener.fn value
+                    with ex when not (Fibers.is_cancellation ex) -> conn.report "internal event listener" ex (Printexc.get_raw_backtrace ())
+                else Connection.handle conn "event listener" (fun () -> if not listener.cancelled then listener.fn value);
                 true
             end)
         false t.listeners

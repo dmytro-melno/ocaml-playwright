@@ -190,7 +190,9 @@ end
 module Web_socket = struct
     type t = web_socket_route
 
-    let fork (channel : Channel.t) f = Connection.fork channel.conn "WebSocket route" (fun () -> try f () with Error.E _ -> ())
+    (* The messages of a socket are passed on in the order in which they came, also when nobody
+       handles them. *)
+    let fork (channel : Channel.t) f = Connection.handle channel.conn "WebSocket route" (fun () -> try f () with Error.E _ -> ())
 
     let encode = function Text text -> text, false | Binary bytes -> Base64.encode_string bytes, true
     let decode message ~is_base64 = if is_base64 then Binary (Json.Decode.binary (`String message)) else Text message

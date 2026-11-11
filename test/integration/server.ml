@@ -67,6 +67,8 @@ let serve t flow =
             let response =
                 match List.assoc_opt path t.routes with
                 | Some handler -> (try handler request with Failure message -> respond ~status:500 message)
+                (* Browsers ask for it when they feel like it, and log what they get for an answer. *)
+                | None when path = "/favicon.ico" -> respond ~status:204 ""
                 | None -> respond ~status:404 ("No route for " ^ path)
             in
             let head =

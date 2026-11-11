@@ -27,15 +27,14 @@ let detach (session : t) = Connection.detached session.cdp_channel.conn (fun () 
 
 (* [listener] receives the name and parameters of every event of the session. *)
 let on_event listener (session : t) =
-    let uncurried (name, params) = listener name params in
-    session.cdp_listeners <- (listener, uncurried) :: session.cdp_listeners;
-    Emitter.on session.cdpe_event uncurried
+    let remove = Emitter.on session.cdpe_event (fun (name, params) -> listener name params) in
+    session.cdp_listeners <- (listener, remove) :: session.cdp_listeners
 
 let off_event listener (session : t) =
     match List.find_opt (fun (l, _) -> l == listener) session.cdp_listeners with
-    | Some ((_, uncurried) as entry) ->
+    | Some ((_, remove) as entry) ->
         session.cdp_listeners <- List.filter (fun e -> e != entry) session.cdp_listeners;
-        Emitter.off session.cdpe_event uncurried
+        remove ()
     | None -> ()
 
-let on_close listener (session : t) = Emitter.on session.cdpe_close listener
+let on_close listener (session : t) = ignore (Emitter.on session.cdpe_close listener : unit -> unit)

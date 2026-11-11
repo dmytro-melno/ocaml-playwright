@@ -384,7 +384,7 @@ and cdp_session = {
     mutable cdp_detached : bool;
     cdpe_event : (string * Json.t) Emitter.t;
     cdpe_close : cdp_session Emitter.t;
-    mutable cdp_listeners : ((string -> Json.t -> unit) * (string * Json.t -> unit)) list;  (* public listeners and what stands for them *)
+    mutable cdp_listeners : ((string -> Json.t -> unit) * (unit -> unit)) list;  (* public listeners and what removes them *)
 }
 
 type playwright = {

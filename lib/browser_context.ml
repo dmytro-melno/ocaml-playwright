@@ -97,7 +97,7 @@ let route_from_har ?url ?not_found ?(update = false) ?update_content ?update_mod
     if update then ignore (Tracing.record_into_har ?url_glob:url ?content:update_content ?mode:update_mode context.tracing har : string)
     else begin
         let handler, close = Route.Har.open_ context.c_session ?not_found har in
-        Emitter.once context.ce_close (fun _ -> close ());
+        ignore (Emitter.once context.ce_close (fun _ -> close ()) : unit -> unit);
         add_route (Glob (Option.value url ~default:"**/*")) handler context
     end
 
@@ -137,17 +137,18 @@ let did_close (context : t) =
 let handle_event (context : t) name params =
     let conn = context.c_session.conn in
     let fork what f = Connection.fork conn what f in
+    let handle what f = Connection.handle conn what f in
     match Protocol.Browser_context.event_of_json conn name params with
-    | Some (Binding_call { binding }) -> fork "exposed binding" (fun () -> on_binding context binding)
+    | Some (Binding_call { binding }) -> handle "exposed binding" (fun () -> on_binding context binding)
     | Some Close -> did_close context
     | Some (Page { page }) ->
         let page = Types.page page in
         context.pages <- context.pages @ [ page ];
         emit context context.ce_page page;
         (match page.opener with Some opener when not opener.closed -> emit context opener.pe_popup page | _ -> ())
-    | Some (Route { route }) -> fork "route" (fun () -> on_route context (Types.route route))
+    | Some (Route { route }) -> handle "route" (fun () -> on_route context (Types.route route))
     | Some (Web_socket_route { web_socket_route }) ->
-        fork "WebSocket route" (fun () -> on_web_socket_route context (Types.web_socket_route web_socket_route))
+        handle "WebSocket route" (fun () -> on_web_socket_route context (Types.web_socket_route web_socket_route))
     | Some (Service_worker { worker }) ->
         let worker = Types.worker worker in
         worker.w_context <- Some context;
@@ -246,8 +247,8 @@ let start_har_recording (options : Context_options.t) (context : t) =
 
 (* {1 Events for the user} *)
 
-let on event listener (context : t) = Emitter.on (emitter context event) listener
-let once event listener (context : t) = Emitter.once (emitter context event) listener
+let on event listener (context : t) = ignore (Emitter.on (emitter context event) listener : unit -> unit)
+let once event listener (context : t) = ignore (Emitter.once (emitter context event) listener : unit -> unit)
 let off event listener (context : t) = Emitter.off (emitter context event) listener
 
 let expect_event (type a) ?timeout ?predicate (event : a event) action (context : t) : a =

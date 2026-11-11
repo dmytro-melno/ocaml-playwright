@@ -108,18 +108,20 @@ type peer = {
     reported : (string * exn) list ref;
 }
 
-(* Runs [f] against a connection whose other end is the test. *)
-let with_peer f =
+(* Runs [f] against a connection whose other end is the test.  [clock] stands in for the
+   system's where the test decides what time it is. *)
+let with_peer ?clock ?handler_concurrency ?handler_backlog f =
     Eio_main.run @@ fun env ->
     Switch.run @@ fun sw ->
     let sent = Eio.Stream.create max_int in
     let inbox = Eio.Stream.create max_int in
     let reported = ref [] in
     let transport : Transport.t = { send = Eio.Stream.add sent; receive = (fun () -> Eio.Stream.take inbox) } in
+    let clock = match clock with Some clock -> clock | None -> (Eio.Stdenv.clock env :> float Eio.Time.clock_ty r) in
     let conn =
-        Connection.create ~clock:(Eio.Stdenv.clock env)
+        Connection.create ~clock
             ~report:(fun what ex _ -> reported := (what, ex) :: !reported)
-            ~render_value:Yojson.Safe.to_string transport
+            ?handler_concurrency ?handler_backlog ~render_value:Yojson.Safe.to_string transport
     in
     Fiber.fork_daemon ~sw (fun () ->
         Connection.run conn;

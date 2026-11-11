@@ -385,7 +385,14 @@ type 'a with_screenshot_options =
 type t
 (** A running Playwright driver and everything that was created through it. *)
 
-val create : ?on_error:(string -> exn -> unit) -> sw:Eio.Switch.t -> env:Eio_unix.Stdenv.base -> unit -> t
+val create :
+    ?on_error:(string -> exn -> unit) ->
+    ?handler_concurrency:int ->
+    ?handler_backlog:int ->
+    sw:Eio.Switch.t ->
+    env:Eio_unix.Stdenv.base ->
+    unit ->
+    t
 (** Starts the Playwright driver. It is stopped, and all its browsers are closed, by {!close} or when [sw] finishes.
 
     The driver is the [playwright-core] package for Node.js in the version this library was built for, {!version}.
@@ -396,14 +403,27 @@ val create : ?on_error:(string -> exn -> unit) -> sw:Eio.Switch.t -> env:Eio_uni
     [on_error what exn] is called for exceptions that have no caller to be raised in, namely those escaping from
     event listeners and route handlers. The default prints them to standard error.
 
-    Setting the environment variable [DEBUG=pw:channel] logs the protocol messages to standard error. *)
+    [handler_concurrency] and [handler_backlog] bound what events may cost. Every call of a handler (an event
+    listener, a route handler, an exposed function) runs in a fiber of its own, and events arrive at the pace of the
+    browser, not of the handlers: a page that logs ten thousand lines calls a console listener ten thousand times
+    before the first of those calls can get an answer from the driver. At most [handler_concurrency] calls (1024 by
+    default) are in progress at a time; the others wait for their turn, in the order of their events. When more than
+    [handler_backlog] calls (65536 by default) are waiting, handlers are not keeping up or not returning, and the
+    instance is given up rather than the memory: its connection is closed with an error that says so, which is also
+    passed to [on_error].
+
+    Setting the environment variable [DEBUG=pw:channel] logs the protocol messages to standard error.
+
+    @raise Invalid_argument if [handler_concurrency] is less than 1 or [handler_backlog] is negative. *)
 
 val close : t -> unit
 (** Closes all browsers and stops the driver. Calls that are still running fail with a [Target_closed] error. Does
     nothing when already closed. *)
 
-val run : ?on_error:(string -> exn -> unit) -> env:Eio_unix.Stdenv.base -> (t -> 'a) -> 'a
-(** [run ~env f] calls [f] with a new driver, which it stops once [f] returns or raises. *)
+val run :
+    ?on_error:(string -> exn -> unit) -> ?handler_concurrency:int -> ?handler_backlog:int -> env:Eio_unix.Stdenv.base -> (t -> 'a) -> 'a
+(** [run ~env f] calls [f] with a new driver, which it stops once [f] returns or raises. The optional arguments are
+    those of {!create}. *)
 
 val chromium : t -> browser_type
 val firefox : t -> browser_type

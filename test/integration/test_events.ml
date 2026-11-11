@@ -174,6 +174,96 @@ let test_listeners t page =
     | [ (_, Failure message) ] -> Alcotest.(check string) "reported" "listener failed" message
     | reports -> Alcotest.failf "expected one report, got %d" (List.length reports)
 
+(* What waiting for an event promises about time, and about what the predicate sees. *)
+let test_waiting t page =
+    let log texts = ignore (Page.evaluate "texts => texts.forEach(text => console.log(text))" ~arg:(Js.list Js.string texts) page) in
+    (* An event that arrives in time counts, however long the action goes on after it, and
+       wherever it is among the others. *)
+    let message =
+        Page.expect_event Page.Console ~timeout:400.
+            ~predicate:(fun m -> ConsoleMessage.text m = "three")
+            (fun () ->
+                log [ "one"; "two"; "three"; "four" ];
+                sleep t 0.6)
+            page
+    in
+    Alcotest.(check string) "in time" "three" (ConsoleMessage.text message);
+    (* One that arrives later does not, and the action goes on to its end all the same. *)
+    let finished = ref false in
+    check_failure "too late" ~kind:Timeout ~message:{|Timeout 100ms exceeded while waiting for event "console"|} (fun () ->
+        Page.expect_event Page.Console ~timeout:100.
+            (fun () ->
+                sleep t 0.3;
+                log [ "late" ];
+                finished := true)
+            page);
+    Alcotest.(check bool) "the action was not interrupted" true !finished;
+    (* The predicate is called when the event arrives, not when the action is over: it sees the
+       page as it was then. *)
+    List.iter (fun name -> Server.page t.server ("/" ^ name) (Printf.sprintf "<title>%s</title>" name)) [ "first"; "second"; "third" ];
+    let seen = ref [] in
+    let frame =
+        Page.expect_event Page.Frame_navigated
+            ~predicate:(fun frame ->
+                seen := Frame.url frame :: !seen;
+                Frame.url frame = Server.url t.server "/third")
+            (fun () -> List.iter (fun name -> ignore (Page.goto (Server.url t.server ("/" ^ name)) page)) [ "first"; "second"; "third" ])
+            page
+    in
+    Alcotest.(check bool) "the frame" true (frame == Page.main_frame page);
+    Alcotest.(check (list string)) "each navigation as it happened" (List.map (fun name -> Server.url t.server ("/" ^ name)) [ "first"; "second"; "third" ])
+        (List.rev !seen);
+    (* A predicate may ask the driver. *)
+    Server.route t.server "/answer" (fun request -> Server.respond ("answer to " ^ request.query));
+    let response =
+        Page.expect_event Page.Response
+            ~predicate:(fun response -> Response.text response = "answer to b")
+            (fun () -> ignore (Page.evaluate "Promise.all(['a', 'b', 'c'].map(q => fetch('/answer?' + q)))" page))
+            page
+    in
+    check_contains "picked by its body" ~sub:"/answer?b" (Response.url response);
+    (* One that fails is the failure of the wait. *)
+    match Page.expect_event Page.Console ~predicate:(fun _ -> failwith "predicate") (fun () -> log [ "anything" ]) page with
+    | _ -> Alcotest.fail "the failure of the predicate should have been raised"
+    | exception Failure message -> Alcotest.(check string) "the predicate's own failure" "predicate" message
+
+(* Events come at the pace of the page, not of their handlers. *)
+let test_event_bursts t page =
+    let count = 3000 in
+    let in_progress = ref 0 and peak = ref 0 and finished = ref 0 and sum = ref 0 in
+    Page.on Page.Console
+        (fun message ->
+            incr in_progress;
+            peak := max !peak !in_progress;
+            (* The answer can only come once all the events before it have been read. *)
+            (match ConsoleMessage.args message with
+            | [ handle ] -> sum := !sum + Js.to_int (JSHandle.json_value handle)
+            | _ -> ());
+            decr in_progress;
+            incr finished)
+        page;
+    ignore (Page.evaluate (Printf.sprintf "for (let i = 0; i < %d; i++) console.log(i)" count) page);
+    eventually t "all the handlers have returned" (fun () -> !finished = count);
+    Alcotest.(check int) "every event was handled" (count * (count - 1) / 2) !sum;
+    if !peak > 1024 then Alcotest.failf "%d handlers were in progress at a time" !peak
+
+let test_handlers_falling_behind t () =
+    let reported = ref [] in
+    let pw = Playwright.create ~sw:t.sw ~env:t.env ~handler_concurrency:2 ~handler_backlog:10 ~on_error:(fun what ex -> reported := (what, ex) :: !reported) () in
+    let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
+    let page = Browser.new_page browser in
+    Page.on Page.Console (fun _ -> Fiber.await_cancel ()) page;
+    ignore (Page.evaluate "for (let i = 0; i < 12; i++) console.log(i)" page);
+    Alcotest.(check bool) "two calls in progress and ten waiting are within the limits" true (Browser.is_connected browser && !reported = []);
+    check_failure "one more is not" ~kind:Target_closed ~message:"event handlers do not keep up: 2 calls are in progress and 10 more are waiting" (fun () ->
+        Page.evaluate "console.log('one more')" page);
+    (match !reported with
+    | [ ("event handlers", Playwright.Error error) ] -> check_contains "reported" ~sub:"event handlers do not keep up" error.message
+    | reports -> Alcotest.failf "expected one report, got %d" (List.length reports));
+    Alcotest.(check bool) "the instance is over" false (Browser.is_connected browser);
+    Playwright.close pw;
+    Alcotest.(check bool) "the others are unaffected" true (Browser.is_connected t.browser)
+
 let test_closing t () =
     let context = Browser.new_context t.browser in
     let page = BrowserContext.new_page context in
@@ -249,5 +339,8 @@ let tests t =
         page_case t "downloads" (test_downloads t);
         page_case t "requests and responses" (test_requests t);
         page_case t "listeners" (test_listeners t);
+        page_case t "waiting for an event" (test_waiting t);
+        page_case t "bursts of events" (test_event_bursts t);
+        case t "handlers that fall behind" (test_handlers_falling_behind t);
         case t "closing" (test_closing t);
         page_case t "workers" (test_workers t) ] ]
