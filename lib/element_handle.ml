@@ -87,7 +87,7 @@ let select_option ?timeout ?force options (handle : t) =
     Protocol.Element_handle.select_option ~timeout:(action_timeout ?timeout handle) ~options ?force handle.h_channel
 
 let set_input ?timeout files (handle : t) =
-    let converted = Frame.convert_input_files files in
+    let converted = Frame.convert_input_files (frame_of handle) files in
     let payloads =
         Option.map
             (List.map (fun (p : Protocol.Frame.Set_input_files_payloads.t) : Protocol.Element_handle.Set_input_files_payloads.t ->
@@ -95,9 +95,10 @@ let set_input ?timeout files (handle : t) =
             converted.payloads
     in
     Protocol.Element_handle.set_input_files ~timeout:(action_timeout ?timeout handle) ?payloads ?local_directory:converted.local_directory
-        ?local_paths:converted.local_paths handle.h_channel
+        ?directory_stream:converted.directory_stream ?local_paths:converted.local_paths ?streams:converted.streams handle.h_channel
 
 let set_input_files ?timeout paths handle = set_input ?timeout (Frame.Paths paths) handle
+let set_input_payloads ?timeout payloads handle = set_input ?timeout (Frame.Payloads payloads) handle
 
 let screenshot ?timeout ?path ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (handle : t) =
     Protocol.Element_handle.screenshot ~timeout:(action_timeout ?timeout handle) ?type_:(Screenshot.image_type ?type_ ?path ()) ?quality

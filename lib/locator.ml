@@ -74,8 +74,8 @@ struct
     let get_by_alt_text_regex regex t = T.find t (Selector.by_alt_text (Regex regex))
     let get_by_title ?exact text t = T.find t (Selector.by_title ?exact (Text text))
     let get_by_title_regex regex t = T.find t (Selector.by_title (Regex regex))
-    let get_by_test_id id t = T.find t (Selector.by_test_id ~attribute:(T.session t).test_id_attribute (Text id))
-    let get_by_test_id_regex regex t = T.find t (Selector.by_test_id ~attribute:(T.session t).test_id_attribute (Regex regex))
+    let get_by_test_id id t = T.find t (Selector.by_test_id ~attribute:(T.session t).selectors.test_id_attribute (Text id))
+    let get_by_test_id_regex regex t = T.find t (Selector.by_test_id ~attribute:(T.session t).selectors.test_id_attribute (Regex regex))
 
     let get_by_role ?checked ?disabled ?selected ?expanded ?include_hidden ?level ?name ?name_regex ?description ?description_regex ?exact
         ?pressed (role : role) t =
@@ -159,6 +159,7 @@ let set_checked ?timeout ?force ?position ?trial checked (l : t) =
 let select_option ?timeout ?force options (l : t) = Frame.select_option ~strict:true ?timeout ?force l.selector options l.l_frame
 let set_input ?timeout files (l : t) = Frame.set_input ~strict:true ?timeout l.selector files l.l_frame
 let set_input_files ?timeout paths (l : t) = set_input ?timeout (Frame.Paths paths) l
+let set_input_payloads ?timeout payloads (l : t) = set_input ?timeout (Frame.Payloads payloads) l
 
 let dispatch_event ?timeout ?event_init type_ (l : t) = Frame.dispatch_event ~strict:true ?timeout ?event_init l.selector type_ l.l_frame
 

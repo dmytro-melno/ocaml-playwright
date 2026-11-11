@@ -16,7 +16,7 @@ type t = {
     clock : float Eio.Time.clock_ty r;
     objects : (string, channel) Hashtbl.t;
     pending : (string, (Json.t, Error.t) result Promise.u) Hashtbl.t;
-    outbox : string Eio.Stream.t;
+    outbox : Json.t Eio.Stream.t;
     id_prefix : string;
     mutable last_id : int;
     mutable closed : Error.t option;
@@ -102,9 +102,8 @@ let close conn error =
     end
 
 let enqueue conn (message : Json.t) =
-    let text = Json.to_string message in
-    Option.iter (fun trace -> trace ("SEND> " ^ text)) conn.trace;
-    Eio.Stream.add conn.outbox text
+    Option.iter (fun trace -> trace ("SEND> " ^ Json.to_string message)) conn.trace;
+    Eio.Stream.add conn.outbox message
 
 (* Sends a command and waits for its reply.  [timeout] is in milliseconds and enforced by the
    driver; [0.] disables it.  If the calling fiber is cancelled the driver is asked to abort the
@@ -193,8 +192,9 @@ let dispatch conn (message : Json.t) =
             | "__dispose__" -> dispose channel ~collected:(D.opt "reason" D.string params = Some "gc")
             | event -> channel.on_event event params))
 
-(* Reads and dispatches messages until the transport ends or the connection is closed. *)
-let run conn =
+(* Reads and dispatches messages until the transport ends or the connection is closed.
+   [end_message] describes the end of the transport to the calls that it interrupts. *)
+let run ?(end_message = fun () -> "The Playwright driver closed the connection") conn =
     let write () =
         while true do
             conn.transport.send (Eio.Stream.take conn.outbox)
@@ -203,10 +203,10 @@ let run conn =
     let read () =
         while conn.closed = None do
             match conn.transport.receive () with
-            | None -> close conn (Error.target_closed ~message:"The Playwright driver closed the connection" ())
-            | Some text ->
-                Option.iter (fun trace -> trace ("<RECV " ^ text)) conn.trace;
-                (try dispatch conn (Json.of_string text)
+            | None -> close conn (Error.target_closed ~message:(end_message ()) ())
+            | Some message ->
+                Option.iter (fun trace -> trace ("<RECV " ^ Json.to_string message)) conn.trace;
+                (try dispatch conn message
                  with ex when not (is_cancellation ex) -> conn.report "protocol message" ex (Printexc.get_raw_backtrace ()))
         done
     in

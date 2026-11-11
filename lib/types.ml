@@ -13,13 +13,19 @@ type lifecycle_event = Protocol.Lifecycle_event.t
 (* State shared by everything created over one connection. *)
 type session = {
     conn : Connection.t;
-    is_remote : bool;  (* the driver runs on another machine: files must be streamed *)
-    mutable local_utils : Channel.t option;
+    is_remote : bool;  (* the browser runs behind a Playwright server: files must be streamed to and from it *)
+    mutable local_utils : Channel.t option;  (* always the utilities of the local driver *)
+    selectors : selectors;
+    url_matchers : (string, string -> bool) Hashtbl.t;  (* compiled globs, by base URL and glob *)
+    mutable devices : device list;
+}
+
+(* Selector settings apply to every context, including those of remote sessions, so a remote
+   session shares this record with the local one. *)
+and selectors = {
     mutable test_id_attribute : string;
     mutable selector_engines : Protocol.Selector_engine.t list;
     mutable all_contexts : browser_context list;
-    url_matchers : (string, string -> bool) Hashtbl.t;  (* compiled globs, by base URL and glob *)
-    mutable devices : device list;
 }
 
 and device = {
@@ -377,6 +383,7 @@ and cdp_session = {
     cdp_channel : Channel.t;
     cdpe_event : (string * Json.t) Emitter.t;
     cdpe_close : cdp_session Emitter.t;
+    mutable cdp_listeners : ((string -> Json.t -> unit) * (string * Json.t -> unit)) list;  (* public listeners and what stands for them *)
 }
 
 type playwright = {

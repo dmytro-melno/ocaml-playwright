@@ -46,8 +46,10 @@ let on_disconnected listener (browser : t) = Emitter.on browser.e_disconnected l
 let off_disconnected listener (browser : t) = Emitter.off browser.e_disconnected listener
 
 let selector_options (session : session) =
-    let engines = match session.selector_engines with [] -> None | engines -> Some engines in
-    let test_id_attribute = if session.test_id_attribute = default_test_id_attribute then None else Some session.test_id_attribute in
+    let engines = match session.selectors.selector_engines with [] -> None | engines -> Some engines in
+    let test_id_attribute =
+        if session.selectors.test_id_attribute = default_test_id_attribute then None else Some session.selectors.test_id_attribute
+    in
     engines, test_id_attribute
 
 let new_context_with (o : Context_options.t) (browser : t) =
@@ -75,12 +77,12 @@ let new_context_with (o : Context_options.t) (browser : t) =
     Browser_context.start_har_recording o context;
     context
 
-let new_context = Context_options.collect new_context_with
+let new_context ?proxy = Context_options.collect (fun options browser -> new_context_with { options with proxy } browser)
 
 (* A page in a context of its own, which is closed together with the page. *)
-let new_page =
+let new_page ?proxy =
     Context_options.collect (fun options browser ->
-        let context = new_context_with options browser in
+        let context = new_context_with { options with proxy } browser in
         let page = Browser_context.new_page context in
         page.owned_context <- Some context;
         context.owner_page <- Some page;

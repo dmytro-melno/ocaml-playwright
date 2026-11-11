@@ -32,10 +32,14 @@ let constructors : (string * (session -> Channel.t -> unit)) list =
       Protocol.Tracing.type_name, Tracing.create;
       Protocol.Api_request_context.type_name, Api_request.Context.create;
       Protocol.Cdp_session.type_name, (fun _ -> Cdp_session.create);
+      Protocol.Json_pipe.type_name, (fun _ -> Json_pipe.create);
       ( Protocol.Local_utils.type_name,
         fun session channel ->
-            session.local_utils <- Some channel;
-            session.devices <- devices channel ) ]
+            (* Local files are worked on by the local driver, also on behalf of a remote session. *)
+            if session.local_utils = None then begin
+                session.local_utils <- Some channel;
+                session.devices <- devices channel
+            end ) ]
 
 (* Objects of the remaining types (artifacts, streams, binding calls, ...) carry no client-side
    state and are used through their channels. *)
@@ -44,10 +48,16 @@ let create (session : session) (channel : Channel.t) =
     | Some construct -> construct session channel
     | None -> ()
 
-let new_session ?(is_remote = false) conn : session =
+(* [parent] is the session of the local driver, for the session of a connection to a Playwright
+   server that was made through it. *)
+let new_session ?parent conn : session =
     let session =
-        { conn; is_remote; local_utils = None; test_id_attribute = Browser.default_test_id_attribute; selector_engines = []; all_contexts = [];
-          url_matchers = Hashtbl.create 16; devices = [] }
+        match parent with
+        | Some (parent : session) -> { parent with conn; is_remote = true }
+        | None ->
+            { conn; is_remote = false; local_utils = None;
+              selectors = { test_id_attribute = Browser.default_test_id_attribute; selector_engines = []; all_contexts = [] };
+              url_matchers = Hashtbl.create 16; devices = [] }
     in
     conn.factory <- create session;
     session

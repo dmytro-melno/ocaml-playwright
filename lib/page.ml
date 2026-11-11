@@ -375,7 +375,7 @@ let remove_locator_handler (locator : locator) (page : t) =
 
 (* {1 Output} *)
 
-let screenshot ?timeout ?path ?type_ ?quality ?full_page ?clip ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (page : t) =
+let screenshot ?full_page ?clip ?timeout ?path ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (page : t) =
     Protocol.Page.screenshot ~timeout:(Timeouts.action ?timeout page.p_timeouts) ?type_:(Screenshot.image_type ?type_ ?path ()) ?quality
         ?full_page ?clip ?omit_background ?caret ?animations ?scale ?mask:(Option.map Screenshot.mask mask) ?mask_color ?style page.p_channel
     |> Screenshot.save ?path

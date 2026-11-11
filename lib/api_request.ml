@@ -2,7 +2,7 @@
 
 open Types
 
-type file_payload = { name : string; mime_type : string; buffer : string }
+type file_payload = Protocol.Frame.Set_input_files_payloads.t = { name : string; mime_type : string option; buffer : string }
 type multipart_value = [ `Text of string | `File of file_payload ]
 
 module Context = struct
@@ -44,7 +44,7 @@ module Context = struct
                      match value with
                      | `Text value -> { name; value = Some value; file = None }
                      | `File (file : file_payload) ->
-                         { name; value = None; file = Some { name = file.name; mime_type = Some file.mime_type; buffer = file.buffer } }))
+                         { name; value = None; file = Some { name = file.name; mime_type = file.mime_type; buffer = file.buffer } }))
                 multipart
         in
         let post_data =

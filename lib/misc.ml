@@ -55,7 +55,8 @@ end
 module Selectors = struct
     (* Makes a custom selector engine available to every context, present and future. *)
     let register ?content_script ?path ?script name (session : session) =
-        if List.exists (fun (engine : Protocol.Selector_engine.t) -> engine.name = name) session.selector_engines then
+        let selectors = session.selectors in
+        if List.exists (fun (engine : Protocol.Selector_engine.t) -> engine.name = name) selectors.selector_engines then
             Error.raise_ "\"%s\" selector engine has been already registered" name;
         let source =
             match path, script with
@@ -64,14 +65,17 @@ module Selectors = struct
             | _ -> invalid_arg "Playwright: pass either ~script or ~path"
         in
         let selector_engine : Protocol.Selector_engine.t = { name; source; content_script } in
-        List.iter (fun (context : browser_context) -> Protocol.Browser_context.register_selector_engine ~selector_engine context.c_channel) session.all_contexts;
-        session.selector_engines <- session.selector_engines @ [ selector_engine ]
+        List.iter
+            (fun (context : browser_context) ->
+                try Protocol.Browser_context.register_selector_engine ~selector_engine context.c_channel with Error.E { kind = Target_closed; _ } -> ())
+            selectors.all_contexts;
+        selectors.selector_engines <- selectors.selector_engines @ [ selector_engine ]
 
     (* Changes the attribute that [get_by_test_id] looks at. *)
     let set_test_id_attribute name (session : session) =
-        session.test_id_attribute <- name;
+        session.selectors.test_id_attribute <- name;
         List.iter
             (fun (context : browser_context) ->
                 try Protocol.Browser_context.set_test_id_attribute_name ~test_id_attribute_name:name context.c_channel with Error.E _ -> ())
-            session.all_contexts
+            session.selectors.all_contexts
 end

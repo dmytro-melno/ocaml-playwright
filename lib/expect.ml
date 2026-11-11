@@ -18,11 +18,28 @@ let text_values ?match_substring ?normalize_white_space ?ignore_case (items : Se
 let show_text : Selector.text -> string = function Text text -> Printf.sprintf "%S" text | Regex literal -> literal
 let show_texts items = "[" ^ String.concat ", " (List.map show_text items) ^ "]"
 
+(* Removes the indentation that all lines of a snapshot template have in common, so that templates
+   can be indented along with the code they are written in. *)
+let unindent text =
+    let lines = String.split_on_char '\n' text in
+    let indent line =
+        let rec go i = if i < String.length line && (line.[i] = ' ' || line.[i] = '\t') then go (i + 1) else i in
+        go 0
+    in
+    let blank line = String.trim line = "" in
+    let common = List.fold_left (fun acc line -> if blank line then acc else min acc (indent line)) max_int lines in
+    let rec drop_blank = function line :: rest when blank line -> drop_blank rest | lines -> lines in
+    let lines = drop_blank lines |> List.rev |> drop_blank |> List.rev in
+    String.concat "\n" (List.map (fun line -> if blank line then "" else String.sub line common (String.length line - common)) lines)
+
 (* Raises unless the outcome is the one wanted. *)
 let verdict ~is_not ~subject ~condition (outcome : Frame.expectation) =
     if outcome.matches = is_not then begin
         let received =
             match outcome.received, outcome.received_aria_snapshot with
+            | Some (Js.Object fields), _ when List.mem_assoc "raw" fields ->
+                (* What an ARIA snapshot assertion received. *)
+                Printf.sprintf "\nReceived:\n%s" (match List.assoc "raw" fields with Js.String raw -> raw | other -> Js.show other)
             | Some value, _ -> Printf.sprintf "\nReceived: %s" (Js.show value)
             | None, Some snapshot -> Printf.sprintf "\nReceived:\n%s" snapshot
             | None, None -> ""
@@ -133,6 +150,10 @@ struct
     let to_have_js_property ?timeout name value l =
         locator ?timeout ~expression_arg:(`String name) ~expected_value:value "to.have.property"
             ~condition:(Printf.sprintf "to have JavaScript property %s %s" name (Js.show value)) l
+
+    let to_match_aria_snapshot ?timeout snapshot l =
+        let snapshot = unindent snapshot in
+        locator ?timeout ~expected_value:(Js.String snapshot) "to.match.aria" ~condition:("to match the ARIA snapshot\n" ^ snapshot) l
 
     let to_have_count ?timeout count l =
         locator ?timeout ~expected_number:(float_of_int count) "to.have.count" ~condition:(Printf.sprintf "to have count %d" count) l

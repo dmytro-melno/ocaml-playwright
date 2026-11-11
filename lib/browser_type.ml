@@ -91,17 +91,12 @@ let launch_persistent_context =
             if c.storage_state <> None then invalid_arg "Playwright: a persistent context takes its storage state from the user data directory";
             let selector_engines, test_id_attribute_name = Browser.selector_options t.bt_session in
             let user_data_dir = if user_data_dir = "" then user_data_dir else Files.absolute user_data_dir in
-            let proxy =
-                match c.proxy, o.proxy with
-                | Some p, _ -> Some ({ server = p.server; bypass = p.bypass; username = p.username; password = p.password } : Protocol.Launch_options_proxy.t)
-                | None, proxy -> proxy
-            in
             let result =
                 explain_missing_browser (fun () ->
                     Protocol.Browser_type.launch_persistent_context ~timeout:o.timeout ?channel:o.channel ?executable_path:o.executable_path
                         ?args:o.args ?ignore_all_default_args:o.ignore_all_default_args ?ignore_default_args:o.ignore_default_args
                         ?handle_sigint:o.handle_sigint ?handle_sigterm:o.handle_sigterm ?handle_sighup:o.handle_sighup ?env:o.env
-                        ?headless:o.headless ?proxy ?downloads_path:o.downloads_path ?traces_dir:o.traces_dir
+                        ?headless:o.headless ?proxy:o.proxy ?downloads_path:o.downloads_path ?traces_dir:o.traces_dir
                         ?chromium_sandbox:o.chromium_sandbox ?firefox_user_prefs:o.firefox_user_prefs
                         ?no_default_viewport:c.no_default_viewport ?viewport:c.viewport ?screen:c.screen
                         ?ignore_https_errors:c.ignore_https_errors ?java_script_enabled:c.java_script_enabled ?bypass_csp:c.bypass_csp

@@ -122,7 +122,8 @@ let handle_event (context : t) name params =
     | Some Close ->
         context.close_state <- `Closed;
         Option.iter (fun (browser : browser) -> browser.contexts <- List.filter (fun c -> c != context) browser.contexts) context.browser;
-        context.c_session.all_contexts <- List.filter (fun c -> c != context) context.c_session.all_contexts;
+        (let selectors = context.c_session.selectors in
+         selectors.all_contexts <- List.filter (fun c -> c != context) selectors.all_contexts);
         if not (Promise.is_resolved context.c_closed) then Promise.resolve context.c_closed_resolver ();
         emit context context.ce_close context
     | Some (Page { page }) ->
@@ -214,7 +215,7 @@ let create session (channel : Channel.t) =
     subscribe context.ce_response `Response;
     subscribe context.ce_request_finished `Request_finished;
     subscribe context.ce_request_failed `Request_failed;
-    session.all_contexts <- context :: session.all_contexts;
+    session.selectors.all_contexts <- context :: session.selectors.all_contexts;
     channel.impl <- Browser_context context;
     channel.on_event <- handle_event context
 

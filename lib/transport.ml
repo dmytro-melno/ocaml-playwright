@@ -2,8 +2,8 @@
    byte length as a 32-bit little-endian integer. *)
 
 type t = {
-    send : string -> unit;  (* Writes one complete message. Must not be called concurrently. *)
-    receive : unit -> string option;  (* [None] once the peer has closed the stream between messages. *)
+    send : Json.t -> unit;  (* Sends one message. Must not be called concurrently. *)
+    receive : unit -> Json.t option;  (* [None] once the peer has closed the stream between messages. *)
 }
 
 exception Violation of string
@@ -62,8 +62,10 @@ let of_flows (source : _ Eio.Flow.source) (sink : _ Eio.Flow.sink) =
                 if size > max_message_size then raise (Violation (Printf.sprintf "message of %d bytes exceeds the limit" size));
                 Some (take size)
             with End_of_file -> raise (Violation "stream ended inside a message"))
+            |> Option.map (fun text -> try Json.of_string text with Json.Decode_error reason -> raise (Violation ("malformed message: " ^ reason)))
     in
     let send message =
+        let message = Json.to_string message in
         let size = String.length message in
         if size > max_message_size then invalid_arg "Playwright: message exceeds the transport limit";
         let header = Cstruct.create 4 in

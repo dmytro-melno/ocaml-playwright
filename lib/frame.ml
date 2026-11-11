@@ -72,27 +72,75 @@ type input_files =
 
 let max_payload_size = 50 * 1024 * 1024
 
-(* How files are handed to the driver: it reads local paths itself, and takes in-memory payloads
-   inline. *)
+(* How files are handed to the driver: it takes in-memory payloads inline and reads local paths
+   itself.  A driver on another machine cannot do the latter, so files are streamed to it. *)
 type converted_files = {
     payloads : Protocol.Frame.Set_input_files_payloads.t list option;
     local_paths : string list option;
     local_directory : string option;
+    streams : Channel.t list option;
+    directory_stream : Channel.t option;
 }
 
-let convert_input_files = function
+let no_files = { payloads = None; local_paths = None; local_directory = None; streams = None; directory_stream = None }
+let upload_chunk_size = 1 lsl 20
+
+(* The files below [directory], as paths relative to it. *)
+let rec files_below directory =
+    Sys.readdir directory |> Array.to_list |> List.sort compare
+    |> List.concat_map (fun name ->
+        let path = Filename.concat directory name in
+        if Files.is_directory path then List.map (fun below -> name ^ "/" ^ below) (files_below path) else [ name ])
+
+let upload (context : browser_context) ?directory files =
+    let files =
+        match directory with
+        | Some directory -> List.map (fun name -> name, Filename.concat directory name) (files_below directory)
+        | None -> List.map (fun path -> Filename.basename path, path) files
+    in
+    let items =
+        List.map
+            (fun (name, path) : Protocol.Browser_context.Create_temp_files_items.t -> { name; last_modified_ms = Some ((Unix.stat path).st_mtime *. 1000.) })
+            files
+    in
+    let result = Protocol.Browser_context.create_temp_files ?root_dir_name:(Option.map Filename.basename directory) ~items context.c_channel in
+    List.iter2
+        (fun (_, path) stream ->
+            In_channel.with_open_bin path (fun ic ->
+                let buffer = Bytes.create upload_chunk_size in
+                let rec copy () =
+                    let n = In_channel.input ic buffer 0 upload_chunk_size in
+                    if n > 0 then begin
+                        Protocol.Writable_stream.write ~binary:(Bytes.sub_string buffer 0 n) stream;
+                        copy ()
+                    end
+                in
+                copy ());
+            Protocol.Writable_stream.close stream)
+        files result.writable_streams;
+    match directory with
+    | Some _ -> { no_files with directory_stream = result.root_dir }
+    | None -> { no_files with streams = Some result.writable_streams }
+
+(* [frame] is the frame that the files are for, when known. *)
+let convert_input_files (frame : t option) = function
     | Payloads payloads ->
         let size = List.fold_left (fun size (payload : Protocol.Frame.Set_input_files_payloads.t) -> size + String.length payload.buffer) 0 payloads in
         if size > max_payload_size then
             Error.raise_ "Cannot set buffer larger than 50Mb, please write it to a file and pass its path instead.";
-        { payloads = Some payloads; local_paths = None; local_directory = None }
+        { no_files with payloads = Some payloads }
     | Paths paths ->
         let paths = List.map Files.absolute paths in
-        (match List.partition Files.is_directory paths with
-        | [], files -> { payloads = None; local_paths = Some files; local_directory = None }
-        | [ directory ], [] -> { payloads = None; local_paths = None; local_directory = Some directory }
-        | _ :: _ :: _, [] -> Error.raise_ "Multiple directories are not supported"
-        | _ -> Error.raise_ "File paths must be all files or a single directory")
+        let files, directory =
+            match List.partition Files.is_directory paths with
+            | [], files -> files, None
+            | [ directory ], [] -> [], Some directory
+            | _ :: _ :: _, [] -> Error.raise_ "Multiple directories are not supported"
+            | _ -> Error.raise_ "File paths must be all files or a single directory"
+        in
+        (match frame with
+        | Some { f_session = { is_remote = true; _ }; page = Some page; _ } -> upload page.context ?directory files
+        | _ -> { no_files with local_paths = (if directory = None then Some files else None); local_directory = directory })
 
 type select_option = [ `Value of string | `Label of string | `Index of int | `Value_or_label of string ]
 
@@ -346,11 +394,13 @@ struct
 
     let set_input ?timeout ?strict selector files t =
         let frame = T.frame t in
-        let converted = convert_input_files files in
+        let converted = convert_input_files (Some frame) files in
         Protocol.Frame.set_input_files ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?payloads:converted.payloads
-            ?local_directory:converted.local_directory ?local_paths:converted.local_paths frame.f_channel
+            ?local_directory:converted.local_directory ?directory_stream:converted.directory_stream ?local_paths:converted.local_paths
+            ?streams:converted.streams frame.f_channel
 
     let set_input_files ?timeout ?strict selector paths t = set_input ?timeout ?strict selector (Paths paths) t
+    let set_input_payloads ?timeout ?strict selector payloads t = set_input ?timeout ?strict selector (Payloads payloads) t
 
     let text_content ?timeout ?strict selector t =
         let frame = T.frame t in

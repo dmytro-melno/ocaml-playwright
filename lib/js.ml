@@ -16,6 +16,8 @@ type t = Types.js =
     | Typed_array of { kind : Types.typed_array_kind; bytes : string }
     | Handle of Types.js_handle
 
+type typed_array_kind = Types.typed_array_kind
+
 let typed_array_kinds =
     [ `I8, "i8"; `Ui8, "ui8"; `Ui8c, "ui8c"; `I16, "i16"; `Ui16, "ui16"; `I32, "i32"; `Ui32, "ui32"; `F32, "f32"; `F64, "f64";
       `Bi64, "bi64"; `Bui64, "bui64" ]
@@ -189,3 +191,5 @@ let is_nullish = function Undefined | Null -> true | _ -> false
 let member name = function
     | Object fields -> Option.value (List.assoc_opt name fields) ~default:Undefined
     | value -> expected "an object" value
+
+let pp ppf value = Format.pp_print_string ppf (show value)

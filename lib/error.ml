@@ -56,6 +56,7 @@ let of_wire ?(log = []) ?(details = `Null) ~render_value (j : Json.t) : t =
         { kind = Other; name = "Error"; message = message ^ call_log log; stack = None; log; details }
 
 let to_string e = if e.name = "Error" then e.message else e.name ^ ": " ^ e.message
+let pp ppf e = Format.pp_print_string ppf (to_string e)
 
 let () =
     Printexc.register_printer (function

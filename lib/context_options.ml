@@ -70,8 +70,8 @@ let collect k ?(device : device option) ?viewport ?(no_viewport = false) ?screen
     ?(reduced_motion : [ `No_override | `No_preference | `Reduce ] option) ?(forced_colors : [ `Active | `No_override | `None ] option)
     ?(contrast : [ `More | `No_override | `No_preference ] option) ?accept_downloads ?base_url ?record_video_dir ?record_video_size
     ?record_har_path ?(record_har_content : [ `Attach | `Embed | `Omit ] option) ?(record_har_mode : [ `Full | `Minimal ] option)
-    ?record_har_url_filter ?strict_selectors ?(service_workers : [ `Allow | `Block ] option) ?(proxy : Proxy.t option)
-    ?(storage_state : Yojson.Safe.t option) ?storage_state_path target =
+    ?record_har_url_filter ?strict_selectors ?(service_workers : [ `Allow | `Block ] option) ?(storage_state : Yojson.Safe.t option)
+    ?storage_state_path target =
     let or_device explicit from_device = match explicit with Some _ -> explicit | None -> Option.map from_device device in
     let viewport = or_device (Option.map size viewport) (fun device -> device.device_viewport) in
     let screen = match Option.map size screen with Some _ as screen -> screen | None -> Option.bind device (fun device -> device.device_screen) in
@@ -110,7 +110,7 @@ let collect k ?(device : device option) ?viewport ?(no_viewport = false) ?screen
           has_touch = or_device has_touch (fun device -> device.device_has_touch);
           color_scheme; reduced_motion; forced_colors; contrast;
           accept_downloads = Option.map (fun accept -> if accept then `Accept else `Deny) accept_downloads;
-          base_url; record_video; strict_selectors; service_workers; proxy; storage_state;
+          base_url; record_video; strict_selectors; service_workers; proxy = None; storage_state;
           record_har =
               Option.map (fun har_path -> { har_path; har_content = record_har_content; har_mode = record_har_mode; har_url_filter = record_har_url_filter }) record_har_path }
     in
