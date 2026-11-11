@@ -189,6 +189,15 @@ Closing is thorough, and safe to do from anywhere:
   `Page.Close` and the functions given to `Browser.on_disconnected` are called), and the
   listeners and handlers that are still running are cancelled.
 
+A program that runs for long should know what a context holds on to. The driver keeps every
+request and response of a context, and the arguments of every console message, for as long
+as the context lives, and the library keeps its side of each: a few kilobytes per request.
+Both let go of the oldest once there are very many, ten thousand requests or a hundred
+thousand handles, so memory is bounded; a call on an object that was let go fails with an
+error that says that it has been collected. Still, a program that works through tasks for
+hours, such as a crawler or an agent, does well to give each task a context of its own and
+to close it afterwards, which releases everything at once.
+
 ### Identity
 
 There is one page, however a program got hold of it: the page that `BrowserContext.pages`
