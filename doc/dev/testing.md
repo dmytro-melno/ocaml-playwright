@@ -66,6 +66,11 @@ PLAYWRIGHT_OCAML_DRIVER_IO=threads ./_build/default/test/integration/main.exe
 The test for video recording is skipped unless Playwright's ffmpeg is installed
 (`dune exec ocaml-playwright -- install ffmpeg`).
 
+The test of failing launches leaves a few empty directories named `playwright-artifacts-*`
+and `playwright_*dev_profile-*` in the system's temporary directory. They are created by
+the driver, which does not remove them when a browser cannot be started; the official
+clients behave the same.
+
 Tests are run with Chromium only. Firefox and WebKit go through the same code in this
 library; what differs between browsers is inside the driver.
 

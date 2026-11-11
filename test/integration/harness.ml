@@ -68,11 +68,10 @@ let run f =
         with Playwright.Error error when not required -> skip (Playwright.Error.to_string error)
     in
     let scratch = Filename.temp_dir "playwright-test" "" in
-    Fun.protect
-        ~finally:(fun () -> rm_rf scratch)
-        (fun () ->
-            f { env; sw; pw; browser; executable_path; server = Server.start ~sw ~net:(Eio.Stdenv.net env); reported; scratch };
-            Playwright.close pw)
+    (* Not with [Fun.protect]: when asked for a part of the tests only, Alcotest leaves through [exit]. *)
+    at_exit (fun () -> rm_rf scratch);
+    f { env; sw; pw; browser; executable_path; server = Server.start ~sw ~net:(Eio.Stdenv.net env); reported; scratch };
+    Playwright.close pw
 
 (* {1 Test cases} *)
 
