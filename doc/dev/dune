@@ -1,0 +1,26 @@
+; [protocol-coverage.md] is written by the generator of the protocol layer: what the protocol
+; offers and the client does not use.  It is checked in, [dune build @gen --auto-promote]
+; refreshes it and [dune runtest] fails when it is stale, which is how an update of the
+; protocol gets noticed here.
+
+(rule
+ (targets protocol-coverage.md.gen)
+ (deps
+  %{project_root}/protocol/manifest.json
+  (glob_files %{project_root}/protocol/spec/*.yml)
+  (glob_files %{project_root}/lib/*.ml))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run %{exe:../../tools/gen_protocol/gen_protocol.exe} --coverage %{project_root}/protocol/manifest.json %{project_root}/protocol/spec
+    %{project_root}/lib))))
+
+(rule
+ (alias gen)
+ (action
+  (diff protocol-coverage.md protocol-coverage.md.gen)))
+
+(rule
+ (alias runtest)
+ (action
+  (diff protocol-coverage.md protocol-coverage.md.gen)))
