@@ -123,7 +123,7 @@ function untar(archive) {
 }
 
 (async () => {
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(10 * 60 * 1000) });
   if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
   const tarball = Buffer.from(await response.arrayBuffer());
   const [algorithm, expected] = [integrity.slice(0, integrity.indexOf('-')), integrity.slice(integrity.indexOf('-') + 1)];
@@ -138,20 +138,24 @@ function untar(archive) {
 
 let read_file path = try In_channel.with_open_bin path In_channel.input_all with Sys_error _ -> ""
 
-(* Runs a command to completion on a system thread, so that other fibers keep running, and
-   returns its exit code and combined output. *)
+let rec wait_for pid =
+    match Unix.waitpid [] pid with
+    | _, Unix.WEXITED code -> code
+    | _, (WSIGNALED signal | WSTOPPED signal) -> 128 + abs signal
+    | exception Unix.Unix_error (Unix.EINTR, _, _) -> wait_for pid
+
+(* Runs a command to completion with its output going to the file [log], and returns its exit
+   code. *)
 let run_process ~log executable args =
-    Eio_unix.run_in_systhread ~label:"playwright-install" (fun () ->
-        let out = Unix.openfile log [ O_WRONLY; O_CREAT; O_TRUNC; O_CLOEXEC ] 0o644 in
-        let null = Unix.openfile (if Sys.win32 then "NUL" else "/dev/null") [ O_RDONLY; O_CLOEXEC ] 0 in
-        let env = Array.append (Unix.environment ()) [| "NODE_USE_ENV_PROXY=1" |] in
-        let pid =
-            Fun.protect
-                ~finally:(fun () -> Unix.close out; Unix.close null)
-                (fun () -> Unix.create_process_env executable (Array.of_list (executable :: args)) env null out out)
-        in
-        let rec wait () = try snd (Unix.waitpid [] pid) with Unix.Unix_error (Unix.EINTR, _, _) -> wait () in
-        match wait () with Unix.WEXITED code -> code | WSIGNALED _ | WSTOPPED _ -> 255)
+    let out = Unix.openfile log [ O_WRONLY; O_CREAT; O_TRUNC; O_CLOEXEC ] 0o644 in
+    let null = Unix.openfile (if Sys.win32 then "NUL" else "/dev/null") [ O_RDONLY; O_CLOEXEC ] 0 in
+    let env = Array.append (Unix.environment ()) [| "NODE_USE_ENV_PROXY=1" |] in
+    let pid =
+        Fun.protect
+            ~finally:(fun () -> Unix.close out; Unix.close null)
+            (fun () -> Unix.create_process_env executable (Array.of_list (executable :: args)) env null out out)
+    in
+    wait_for pid
 
 (* Downloads the pinned driver into [target].  The package is unpacked into a scratch directory
    and renamed into place, so concurrent installations and interrupted ones are both harmless. *)
@@ -178,7 +182,8 @@ let install ~node target =
 
 let installed_dir () = cache_dir () / ("driver-" ^ version)
 
-(* Finds the driver, installing it first when [install_if_missing] allows. *)
+(* Finds the driver, installing it first when [install_if_missing] allows.  That blocks until
+   the download is complete. *)
 let locate ?(install_if_missing = true) () =
     let node = find_node () in
     let cli =
@@ -198,3 +203,17 @@ let locate ?(install_if_missing = true) () =
             | None -> Error.raise_ "The Playwright %s driver is not installed in %S" version target)
     in
     { node; cli }
+
+(* The command that runs the driver's own command line tool with [args]. *)
+let command args =
+    let driver = locate () in
+    driver.node :: driver.cli :: args
+
+(* Runs that tool to its end, on the standard streams of this process, and returns its exit code. *)
+let run_command args =
+    match command args with
+    | [] -> assert false
+    | node :: _ as argv ->
+        (match Unix.create_process node (Array.of_list argv) Unix.stdin Unix.stdout Unix.stderr with
+        | pid -> wait_for pid
+        | exception Unix.Unix_error (code, _, _) -> Error.raise_ "Could not run %s: %s" node (Unix.error_message code))

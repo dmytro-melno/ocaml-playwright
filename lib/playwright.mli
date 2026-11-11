@@ -413,6 +413,22 @@ val device : string -> t -> Device.t option
 val version : string
 (** The version of Playwright that this library drives, e.g. ["1.65.0"]. *)
 
+(** Playwright's command line tool, which installs browsers, shows traces and more. The [ocaml-playwright]
+    program that comes with this library gives access to it from a shell. *)
+module Driver : sig
+    val command : string list -> string list
+    (** [command args] is the command line that runs Playwright's own command line tool with [args]: the path of
+        a program followed by its arguments. [command ["install"; "chromium"]] is the one that installs a
+        browser, for example, and [command ["show-trace"; "trace.zip"]] the one that opens a trace.
+
+        The driver is installed first if it is not there yet, which blocks until it has been downloaded. *)
+
+    val run : string list -> int
+    (** Runs {!command} to its end, with the standard input and output of this process, and returns its exit
+        status. Nothing else runs meanwhile; a program that has other fibers to run calls it through
+        [Eio_unix.run_in_systhread]. *)
+end
+
 (** {1 Shared signatures} *)
 
 (** Finding elements the way users and assistive technology perceive them. These functions are provided by {!Page},

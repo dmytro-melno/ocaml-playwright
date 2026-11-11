@@ -1,0 +1,10 @@
+(lang dune 3.10)
+
+; Builds the library for Windows as well, with a cross compiler that findlib knows as the
+; "windows" toolchain.  See doc/dev/windows.md.
+;
+;   dune build --workspace dune-workspace.windows @install
+
+(context
+ (default
+  (targets native windows)))

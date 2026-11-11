@@ -1,7 +1,7 @@
 (library
  (name playwright)
  (public_name playwright)
- (libraries eio eio.unix yojson base64 unix))
+ (libraries eio eio.unix yojson base64 unix threads.posix))
 
 ; [protocol.ml] is generated from protocol/ but checked in, so that building the library needs
 ; neither the generator nor its dependencies.  [dune build @gen --auto-promote] refreshes it and

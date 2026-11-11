@@ -1,0 +1,8 @@
+; Playwright's command line tool in the version that the library drives:
+; [ocaml-playwright install chromium], [ocaml-playwright show-trace trace.zip], ...
+
+(executable
+ (name main)
+ (public_name ocaml-playwright)
+ (package playwright)
+ (libraries playwright unix))

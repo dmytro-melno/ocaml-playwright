@@ -435,7 +435,8 @@ let wire_trace () =
 let initialize_timeout = 60_000.
 
 let create ?(on_error = fun what ex -> report_to_stderr what ex (Printexc.get_raw_backtrace ())) ~sw ~(env : Eio_unix.Stdenv.base) () : t =
-    let driver = Driver.locate () in
+    (* Installing the driver can take a while, during which other fibers go on. *)
+    let driver = Eio_unix.run_in_systhread ~label:"playwright-driver" (fun () -> Driver.locate ()) in
     let process = Driver_process.spawn ~sw ~env driver in
     let conn =
         Connection.create ~sw ~clock:(Eio.Stdenv.clock env)
@@ -448,14 +449,13 @@ let create ?(on_error = fun what ex -> report_to_stderr what ex (Printexc.get_ra
     Fiber.fork_daemon ~sw (fun () ->
         Connection.run conn;
         `Stop_daemon);
-    let stopped = ref false in
+    (* Runs to the end even when the caller is being cancelled: the driver and its browsers must
+       not be left behind.  The driver itself is given a bounded time to comply. *)
     let stop () =
-        if not !stopped then begin
-            stopped := true;
+        Eio.Cancel.protect (fun () ->
             Connection.close conn (Error.target_closed ~message:"Playwright has been closed" ());
             Promise.await (Connection.stopped conn);
-            process.stop ()
-        end
+            process.stop ())
     in
     Switch.on_release sw stop;
     match
@@ -511,4 +511,9 @@ module APIRequest = struct
         in
         Option.iter (fun timeout -> context.a_timeouts.default <- Some timeout) timeout;
         context
+end
+
+module Driver = struct
+    let command = Driver.command
+    let run = Driver.run_command
 end

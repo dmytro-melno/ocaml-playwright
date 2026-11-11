@@ -11,14 +11,16 @@ exception Violation of string
 let max_message_size = 1 lsl 30
 let buffer_size = 1 lsl 16
 
-let of_flows (source : _ Eio.Flow.source) (sink : _ Eio.Flow.sink) =
+(* Frames messages over a byte stream.  [read] fills part of a buffer and returns how much, raising
+   [End_of_file] at the end of the stream; [write] sends all the buffers. *)
+let of_stream ~(read : Cstruct.t -> int) ~(write : Cstruct.t list -> unit) =
     let buffer = Cstruct.create buffer_size in
     let pos = ref 0 in
     let len = ref 0 in
     let refill () =
         pos := 0;
         len := 0;
-        len := Eio.Flow.single_read source buffer
+        len := read buffer
     in
     (* Small reads are served from [buffer]; a large message body is read straight into its
        destination instead of being copied through it. *)
@@ -32,7 +34,7 @@ let of_flows (source : _ Eio.Flow.source) (sink : _ Eio.Flow.sink) =
                 len := !len - n;
                 fill dst (off + n)
             end
-            else if wanted >= buffer_size then fill dst (off + Eio.Flow.single_read source (Cstruct.shift dst off))
+            else if wanted >= buffer_size then fill dst (off + read (Cstruct.shift dst off))
             else begin
                 refill ();
                 fill dst off
@@ -70,6 +72,8 @@ let of_flows (source : _ Eio.Flow.source) (sink : _ Eio.Flow.sink) =
         if size > max_message_size then invalid_arg "Playwright: message exceeds the transport limit";
         let header = Cstruct.create 4 in
         Cstruct.LE.set_uint32 header 0 (Int32.of_int size);
-        Eio.Flow.write sink [ header; Cstruct.of_string message ]
+        write [ header; Cstruct.of_string message ]
     in
     { send; receive }
+
+let of_flows (source : _ Eio.Flow.source) (sink : _ Eio.Flow.sink) = of_stream ~read:(Eio.Flow.single_read source) ~write:(Eio.Flow.write sink)

@@ -12,6 +12,7 @@ module Url_regex = Playwright__Url_regex
 module Selector = Playwright__Selector
 module Js = Playwright__Js
 module Driver = Playwright__Driver
+module Driver_process = Playwright__Driver_process
 module Expect = Playwright__Expect
 
 (* JSON documents, compared the way a JavaScript peer sees them: 7 and 7.0 are the same number. *)
