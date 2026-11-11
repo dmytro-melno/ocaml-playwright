@@ -21,7 +21,9 @@ let handle_event (frame : t) : Protocol.Frame.event -> unit =
             add;
         Option.iter (fun state -> frame.load_states <- List.filter (fun s -> s <> state) frame.load_states) remove;
         (match frame.parent_frame, frame.page, add with
-        | None, Some page, Some `Load -> emit session page.pe_load page
+        | None, Some page, Some `Load ->
+            emit session page.pe_load page;
+            emit session page.context.ce_page_load page
         | None, Some page, Some `Domcontentloaded -> emit session page.pe_dom_content_loaded page
         | _ -> ())
     | Navigated { url; name; new_document; error } ->
@@ -29,7 +31,11 @@ let handle_event (frame : t) : Protocol.Frame.event -> unit =
         frame.f_name <- name;
         let request = Option.bind new_document (fun (document : Protocol.Frame.Navigated_event_new_document.t) -> Option.map Types.request document.request) in
         emit session frame.fe_navigated { n_url = url; n_error = error; n_request = request };
-        (match error, frame.page with None, Some page -> emit session page.pe_frame_navigated frame | _ -> ())
+        (match error, frame.page with
+        | None, Some page ->
+            emit session page.pe_frame_navigated frame;
+            emit session page.context.ce_frame_navigated frame
+        | _ -> ())
 
 let create session (channel : Protocol.Frame.t) : t =
     let init = Protocol.Frame.initializer_ channel in
@@ -252,7 +258,7 @@ struct
         let frame = T.frame t in
         Protocol.Frame.set_content ~timeout:(navigation_timeout ?timeout frame) ~html ~wait_until frame.f_channel
 
-    let content t = Protocol.Frame.content (T.frame t).f_channel
+    let content ?include_shadow t = Protocol.Frame.content ?include_shadow (T.frame t).f_channel
     let title t = Protocol.Frame.title (T.frame t).f_channel
     let wait_for_load_state ?timeout ?state t = wait_for_load_state ?timeout ?state (T.frame t)
     let wait_for_url ?timeout ?wait_until glob t = wait_for_url ?timeout ?wait_until glob (T.frame t)
@@ -327,29 +333,29 @@ struct
         Protocol.Frame.dispatch_event ~timeout:(action_timeout ?timeout frame) ~selector ?strict ~type_ ~event_init:(Js.to_argument event_init)
             frame.f_channel
 
-    let click ?timeout ?strict ?force ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?trial ?steps selector t =
+    let click ?timeout ?strict ?force ?scroll ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?trial ?steps selector t =
         let frame = T.frame t in
-        Protocol.Frame.click ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?no_wait_after ?modifiers
+        Protocol.Frame.click ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?scroll ?no_wait_after ?modifiers
             ?position:(Option.map point position) ?delay ?button ?click_count ?trial ?steps frame.f_channel
 
-    let dblclick ?timeout ?strict ?force ?modifiers ?position ?delay ?button ?trial ?steps selector t =
+    let dblclick ?timeout ?strict ?force ?scroll ?modifiers ?position ?delay ?button ?trial ?steps selector t =
         let frame = T.frame t in
-        Protocol.Frame.dblclick ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?modifiers
+        Protocol.Frame.dblclick ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?scroll ?modifiers
             ?position:(Option.map point position) ?delay ?button ?trial ?steps frame.f_channel
 
-    let tap ?timeout ?strict ?force ?modifiers ?position ?trial selector t =
+    let tap ?timeout ?strict ?force ?scroll ?modifiers ?position ?trial selector t =
         let frame = T.frame t in
-        Protocol.Frame.tap ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?modifiers ?position:(Option.map point position)
+        Protocol.Frame.tap ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?scroll ?modifiers ?position:(Option.map point position)
             ?trial frame.f_channel
 
-    let hover ?timeout ?strict ?force ?modifiers ?position ?trial selector t =
+    let hover ?timeout ?strict ?force ?scroll ?modifiers ?position ?trial selector t =
         let frame = T.frame t in
-        Protocol.Frame.hover ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?modifiers ?position:(Option.map point position)
+        Protocol.Frame.hover ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?scroll ?modifiers ?position:(Option.map point position)
             ?trial frame.f_channel
 
-    let drag_and_drop ?timeout ?strict ?force ?trial ?source_position ?target_position ?steps ~source ~target t =
+    let drag_and_drop ?timeout ?strict ?force ?scroll ?trial ?source_position ?target_position ?steps ~source ~target t =
         let frame = T.frame t in
-        Protocol.Frame.drag_and_drop ~timeout:(action_timeout ?timeout frame) ~source ~target ?force ?trial
+        Protocol.Frame.drag_and_drop ~timeout:(action_timeout ?timeout frame) ~source ~target ?force ?scroll ?trial
             ?source_position:(Option.map point source_position) ?target_position:(Option.map point target_position) ?strict ?steps
             frame.f_channel
 
@@ -373,19 +379,19 @@ struct
         let frame = T.frame t in
         Protocol.Frame.type_ ~timeout:(action_timeout ?timeout frame) ~selector ?strict ~text ?delay frame.f_channel
 
-    let check ?timeout ?strict ?force ?position ?trial selector t =
+    let check ?timeout ?strict ?force ?scroll ?position ?trial selector t =
         let frame = T.frame t in
-        Protocol.Frame.check ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?position:(Option.map point position) ?trial
+        Protocol.Frame.check ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?scroll ?position:(Option.map point position) ?trial
             frame.f_channel
 
-    let uncheck ?timeout ?strict ?force ?position ?trial selector t =
+    let uncheck ?timeout ?strict ?force ?scroll ?position ?trial selector t =
         let frame = T.frame t in
-        Protocol.Frame.uncheck ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?position:(Option.map point position) ?trial
+        Protocol.Frame.uncheck ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?scroll ?position:(Option.map point position) ?trial
             frame.f_channel
 
-    let set_checked ?timeout ?strict ?force ?position ?trial selector checked t =
-        if checked then check ?timeout ?strict ?force ?position ?trial selector t
-        else uncheck ?timeout ?strict ?force ?position ?trial selector t
+    let set_checked ?timeout ?strict ?force ?scroll ?position ?trial selector checked t =
+        if checked then check ?timeout ?strict ?force ?scroll ?position ?trial selector t
+        else uncheck ?timeout ?strict ?force ?scroll ?position ?trial selector t
 
     let select_option ?timeout ?strict ?force selector options t =
         let frame = T.frame t in

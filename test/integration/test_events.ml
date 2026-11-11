@@ -56,7 +56,8 @@ let test_dialogs _ page =
     Alcotest.(check int) "the removed listener was not called" 2 (List.length !seen);
     let dialog = Page.expect_event Page.Dialog (fun () -> ignore (Page.evaluate "setTimeout(() => alert('later'), 0)" page)) page in
     Alcotest.(check string) "alert" "later" (Dialog.message dialog);
-    Dialog.accept dialog
+    let closed = Page.expect_event Page.Dialog_closed (fun () -> Dialog.accept dialog) page in
+    Alcotest.(check string) "and that it was closed" "later" (Dialog.message closed)
 
 let test_popups t page =
     Server.page t.server "/popup" "<title>Popup</title>";

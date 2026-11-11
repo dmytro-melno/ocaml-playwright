@@ -9,9 +9,29 @@ module Geolocation = struct
 end
 
 module Http_credentials = struct
-    type t = { username : string; password : string; origin : string option }
+    type t = { username : string; password : string; origin : string option; send : [ `Always | `Unauthorized ] option }
 
-    let make ?origin ~username ~password () = { username; password; origin }
+    let make ?origin ?send ~username ~password () = { username; password; origin; send }
+    let to_protocol (c : t) : Protocol.Http_credentials.t = { username = c.username; password = c.password; origin = c.origin; send = c.send }
+
+    (* The driver takes no credentials to mean that none were given. *)
+    let list = function None | Some [] -> None | Some credentials -> Some (List.map to_protocol credentials)
+end
+
+module Client_certificate = struct
+    type source = [ `Content of string | `Path of string ]
+    type t = { origin : string; cert : source option; key : source option; pfx : source option; passphrase : string option }
+
+    let pem ?passphrase ~origin ~cert ~key () = { origin; cert = Some cert; key = Some key; pfx = None; passphrase }
+    let pfx ?passphrase ~origin pfx = { origin; cert = None; key = None; pfx = Some pfx; passphrase }
+
+    (* The driver is given what the files hold: it may run on another machine. *)
+    let load : source -> string = function `Content content -> content | `Path path -> Files.read path
+
+    let to_protocol (c : t) : Protocol.Context_options_client_certificates.t =
+        { origin = c.origin; cert = Option.map load c.cert; key = Option.map load c.key; passphrase = c.passphrase; pfx = Option.map load c.pfx }
+
+    let list = function None | Some [] -> None | Some certificates -> Some (List.map to_protocol certificates)
 end
 
 module Proxy = struct
@@ -42,6 +62,7 @@ type t = {
     extra_http_headers : Protocol.Name_value.t list option;
     offline : bool option;
     http_credentials : Protocol.Http_credentials.t list option;
+    client_certificates : Protocol.Context_options_client_certificates.t list option;
     device_scale_factor : float option;
     is_mobile : bool option;
     has_touch : bool option;
@@ -65,7 +86,7 @@ let size (width, height) : size = { width; height }
    options take precedence over what [device] prescribes. *)
 let collect k ?(device : device option) ?viewport ?(no_viewport = false) ?screen ?ignore_https_errors ?java_script_enabled ?bypass_csp
     ?user_agent ?locale ?timezone_id ?(geolocation : Geolocation.t option) ?permissions ?extra_http_headers ?offline
-    ?(http_credentials : Http_credentials.t option) ?device_scale_factor ?is_mobile ?has_touch
+    ?(http_credentials : Http_credentials.t list option) ?(client_certificates : Client_certificate.t list option) ?device_scale_factor ?is_mobile ?has_touch
     ?(color_scheme : [ `Dark | `Light | `No_override | `No_preference ] option)
     ?(reduced_motion : [ `No_override | `No_preference | `Reduce ] option) ?(forced_colors : [ `Active | `No_override | `None ] option)
     ?(contrast : [ `More | `No_override | `No_preference ] option) ?accept_downloads ?base_url ?record_video_dir ?record_video_size
@@ -103,8 +124,8 @@ let collect k ?(device : device option) ?viewport ?(no_viewport = false) ?screen
           permissions;
           extra_http_headers = Option.map Network.name_values extra_http_headers;
           offline;
-          http_credentials =
-              Option.map (fun (c : Http_credentials.t) : Protocol.Http_credentials.t list -> [ { username = c.username; password = c.password; origin = c.origin; send = None } ]) http_credentials;
+          http_credentials = Http_credentials.list http_credentials;
+          client_certificates = Client_certificate.list client_certificates;
           device_scale_factor = or_device device_scale_factor (fun device -> device.device_scale_factor);
           is_mobile = or_device is_mobile (fun device -> device.device_is_mobile);
           has_touch = or_device has_touch (fun device -> device.device_has_touch);

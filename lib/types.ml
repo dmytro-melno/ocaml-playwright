@@ -101,6 +101,7 @@ and browser = {
     b_closed : unit Promise.t;
     b_closed_resolver : unit Promise.u;
     e_disconnected : browser Emitter.t;
+    e_context : browser_context Emitter.t;
 }
 
 and browser_context = {
@@ -125,6 +126,7 @@ and browser_context = {
     ce_close : browser_context Emitter.t;
     ce_console : console_message Emitter.t;
     ce_dialog : dialog Emitter.t;
+    ce_dialog_closed : dialog Emitter.t;
     ce_page : page Emitter.t;
     ce_web_error : web_error Emitter.t;
     ce_request : request Emitter.t;
@@ -132,6 +134,13 @@ and browser_context = {
     ce_request_finished : request Emitter.t;
     ce_response : response Emitter.t;
     ce_service_worker : worker Emitter.t;
+    (* The driver tells the pages and frames of these, which pass them on: see {!Page} and {!Frame}. *)
+    ce_download : download Emitter.t;
+    ce_frame_attached : frame Emitter.t;
+    ce_frame_detached : frame Emitter.t;
+    ce_frame_navigated : frame Emitter.t;
+    ce_page_close : page Emitter.t;
+    ce_page_load : page Emitter.t;
 }
 
 and page = {
@@ -166,6 +175,7 @@ and page = {
     (* The driver tells the context of these, which fires them: see {!Browser_context}. *)
     pe_console : console_message Emitter.t;
     pe_dialog : dialog Emitter.t;
+    pe_dialog_closed : dialog Emitter.t;
     pe_page_error : Error.t Emitter.t;
     pe_popup : page Emitter.t;
     pe_request : request Emitter.t;
@@ -385,7 +395,7 @@ and tracing = {
     mutable traces_dir : string option;
     mutable stacks_id : string option;
     mutable har_id : string option;
-    har_recorders : (string, string) Hashtbl.t;  (* recording id to output path *)
+    har_recorders : (string, string * string option) Hashtbl.t;  (* recording id to output path and directory for resources *)
 }
 
 and api_request_context = {

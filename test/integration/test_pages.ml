@@ -19,7 +19,10 @@ let test_goto t page =
     Alcotest.(check string) "resource type" "document" (Request.resource_type request);
     Alcotest.(check bool) "navigation request" true (Request.is_navigation_request request);
     Alcotest.(check bool) "frame" true (Frame.equal (Request.frame request) (Page.main_frame page));
-    Alcotest.(check bool) "no response for about:blank" true (Option.is_none (Page.goto "about:blank" page))
+    Alcotest.(check bool) "no response for about:blank" true (Option.is_none (Page.goto "about:blank" page));
+    Page.set_content {|<div id="host"></div><script>host.attachShadow({ mode: 'open' }).innerHTML = '<p>In the ' + 'shadow</p>'</script>|} page;
+    Alcotest.(check bool) "shadow roots are not content" false (contains ~sub:"<p>In the shadow</p>" (Page.content page));
+    check_contains "unless asked for" ~sub:{|<template shadowrootmode="open"><p>In the shadow</p></template>|} (Page.content ~include_shadow:true page)
 
 let test_http_errors_and_redirects t page =
     Server.route t.server "/missing" (fun _ -> Server.html ~status:404 "<h1>Not here</h1>");

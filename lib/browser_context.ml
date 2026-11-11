@@ -11,38 +11,59 @@ type _ event =
     | Close : browser_context event
     | Console : console_message event
     | Dialog : dialog event
+    | Dialog_closed : dialog event
+    | Download : download event
+    | Frame_attached : frame event
+    | Frame_detached : frame event
+    | Frame_navigated : frame event
     | Page : page event
-    | Web_error : web_error event
+    | Page_close : page event
+    | Page_load : page event
     | Request : request event
     | Request_failed : request event
     | Request_finished : request event
     | Response : response event
     | Service_worker : worker event
+    | Web_error : web_error event
 
 let emitter : type a. t -> a event -> a Emitter.t =
     fun context -> function
     | Close -> context.ce_close
     | Console -> context.ce_console
     | Dialog -> context.ce_dialog
+    | Dialog_closed -> context.ce_dialog_closed
+    | Download -> context.ce_download
+    | Frame_attached -> context.ce_frame_attached
+    | Frame_detached -> context.ce_frame_detached
+    | Frame_navigated -> context.ce_frame_navigated
     | Page -> context.ce_page
-    | Web_error -> context.ce_web_error
+    | Page_close -> context.ce_page_close
+    | Page_load -> context.ce_page_load
     | Request -> context.ce_request
     | Request_failed -> context.ce_request_failed
     | Request_finished -> context.ce_request_finished
     | Response -> context.ce_response
     | Service_worker -> context.ce_service_worker
+    | Web_error -> context.ce_web_error
 
 let event_name : type a. a event -> string = function
     | Close -> "close"
     | Console -> "console"
     | Dialog -> "dialog"
+    | Dialog_closed -> "dialogclosed"
+    | Download -> "download"
+    | Frame_attached -> "frameattached"
+    | Frame_detached -> "framedetached"
+    | Frame_navigated -> "framenavigated"
     | Page -> "page"
-    | Web_error -> "weberror"
+    | Page_close -> "pageclose"
+    | Page_load -> "pageload"
     | Request -> "request"
     | Request_failed -> "requestfailed"
     | Request_finished -> "requestfinished"
     | Response -> "response"
     | Service_worker -> "serviceworker"
+    | Web_error -> "weberror"
 
 let emit (context : t) emitter value = ignore (Emitter.emit context.c_session.conn emitter value)
 (* Like the original, this is true from the moment that the context is being closed. *)
@@ -188,7 +209,10 @@ let handle_event (context : t) (event : Protocol.Browser_context.event) =
             fork "dialog" (fun () ->
                 try if dialog.d_type = "beforeunload" then Protocol.Dialog.accept channel else Protocol.Dialog.dismiss channel
                 with Error.E _ -> ())
-    | Dialog_closed _ -> ()
+    | Dialog_closed { dialog } ->
+        let dialog = Types.dialog dialog in
+        emit context context.ce_dialog_closed dialog;
+        Option.iter (fun (page : page) -> emit context page.pe_dialog_closed dialog) dialog.d_page
     | Request { request; page } ->
         let request = Types.request request in
         emit context context.ce_request request;
@@ -222,13 +246,16 @@ let create session (channel : Protocol.Browser_context.t) : t =
           tracing = Types.tracing init.tracing; request; service_workers = []; close_state = Closing.create (); c_close_reason = None; c_closed;
           c_closed_resolver; ce_close = Emitter.create (); ce_console = Emitter.create (); ce_dialog = Emitter.create ();
           ce_page = Emitter.create (); ce_web_error = Emitter.create (); ce_request = Emitter.create (); ce_request_failed = Emitter.create ();
-          ce_request_finished = Emitter.create (); ce_response = Emitter.create (); ce_service_worker = Emitter.create () }
+          ce_request_finished = Emitter.create (); ce_response = Emitter.create (); ce_service_worker = Emitter.create (); ce_dialog_closed = Emitter.create ();
+          ce_download = Emitter.create (); ce_frame_attached = Emitter.create (); ce_frame_detached = Emitter.create ();
+          ce_frame_navigated = Emitter.create (); ce_page_close = Emitter.create (); ce_page_load = Emitter.create () }
     in
     let subscribe emitter event =
         Events.subscribe_on_demand session.conn emitter (fun ~enabled -> Protocol.Browser_context.update_subscription ~event ~enabled channel)
     in
     subscribe context.ce_console `Console;
     subscribe context.ce_dialog `Dialog;
+    subscribe context.ce_dialog_closed `Dialog_closed;
     subscribe context.ce_request `Request;
     subscribe context.ce_response `Response;
     subscribe context.ce_request_finished `Request_finished;
@@ -325,9 +352,9 @@ let set_storage_state (state : Yojson.Safe.t) (context : t) =
         ~storage_state:(Protocol.Browser_context.Set_storage_state_storage_state.of_json context.c_session.conn state)
         context.c_channel
 
-let storage_state ?path ?indexed_db (context : t) : Yojson.Safe.t =
+let storage_state ?path ?indexed_db ?opfs ?credentials (context : t) : Yojson.Safe.t =
     let state =
-        Protocol.Browser_context.storage_state ?indexed_db context.c_channel |> Protocol.Browser_context.Storage_state_result.to_json
+        Protocol.Browser_context.storage_state ?indexed_db ?opfs ?credentials context.c_channel |> Protocol.Browser_context.Storage_state_result.to_json
     in
     Option.iter (fun path -> Files.write path (Yojson.Safe.pretty_to_string state)) path;
     state

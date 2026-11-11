@@ -134,20 +134,20 @@ let hash (locator : t) = Hashtbl.hash (Frame.hash locator.l_frame, locator.selec
 
    Every action resolves the locator afresh and insists that it matches exactly one element. *)
 
-let click ?timeout ?force ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?trial ?steps (l : t) =
-    Frame.click ~strict:true ?timeout ?force ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?trial ?steps l.selector l.l_frame
+let click ?timeout ?force ?scroll ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?trial ?steps (l : t) =
+    Frame.click ~strict:true ?timeout ?force ?scroll ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?trial ?steps l.selector l.l_frame
 
-let dblclick ?timeout ?force ?modifiers ?position ?delay ?button ?trial ?steps (l : t) =
-    Frame.dblclick ~strict:true ?timeout ?force ?modifiers ?position ?delay ?button ?trial ?steps l.selector l.l_frame
+let dblclick ?timeout ?force ?scroll ?modifiers ?position ?delay ?button ?trial ?steps (l : t) =
+    Frame.dblclick ~strict:true ?timeout ?force ?scroll ?modifiers ?position ?delay ?button ?trial ?steps l.selector l.l_frame
 
-let tap ?timeout ?force ?modifiers ?position ?trial (l : t) =
-    Frame.tap ~strict:true ?timeout ?force ?modifiers ?position ?trial l.selector l.l_frame
+let tap ?timeout ?force ?scroll ?modifiers ?position ?trial (l : t) =
+    Frame.tap ~strict:true ?timeout ?force ?scroll ?modifiers ?position ?trial l.selector l.l_frame
 
-let hover ?timeout ?force ?modifiers ?position ?trial (l : t) =
-    Frame.hover ~strict:true ?timeout ?force ?modifiers ?position ?trial l.selector l.l_frame
+let hover ?timeout ?force ?scroll ?modifiers ?position ?trial (l : t) =
+    Frame.hover ~strict:true ?timeout ?force ?scroll ?modifiers ?position ?trial l.selector l.l_frame
 
-let drag_to ?timeout ?force ?trial ?source_position ?target_position ?steps ~(target : t) (l : t) =
-    Frame.drag_and_drop ~strict:true ?timeout ?force ?trial ?source_position ?target_position ?steps ~source:l.selector
+let drag_to ?timeout ?force ?scroll ?trial ?source_position ?target_position ?steps ~(target : t) (l : t) =
+    Frame.drag_and_drop ~strict:true ?timeout ?force ?scroll ?trial ?source_position ?target_position ?steps ~source:l.selector
         ~target:(same_frame "the target" l.l_frame target) l.l_frame
 
 let fill ?timeout ?force value (l : t) = Frame.fill ~strict:true ?timeout ?force l.selector ~value l.l_frame
@@ -156,11 +156,11 @@ let focus ?timeout (l : t) = Frame.focus ~strict:true ?timeout l.selector l.l_fr
 let blur ?timeout (l : t) = Frame.blur ~strict:true ?timeout l.selector l.l_frame
 let press ?timeout ?delay ?no_wait_after key (l : t) = Frame.press ~strict:true ?timeout ?delay ?no_wait_after l.selector ~key l.l_frame
 let press_sequentially ?timeout ?delay text (l : t) = Frame.type_ ~strict:true ?timeout ?delay l.selector ~text l.l_frame
-let check ?timeout ?force ?position ?trial (l : t) = Frame.check ~strict:true ?timeout ?force ?position ?trial l.selector l.l_frame
-let uncheck ?timeout ?force ?position ?trial (l : t) = Frame.uncheck ~strict:true ?timeout ?force ?position ?trial l.selector l.l_frame
+let check ?timeout ?force ?scroll ?position ?trial (l : t) = Frame.check ~strict:true ?timeout ?force ?scroll ?position ?trial l.selector l.l_frame
+let uncheck ?timeout ?force ?scroll ?position ?trial (l : t) = Frame.uncheck ~strict:true ?timeout ?force ?scroll ?position ?trial l.selector l.l_frame
 
-let set_checked ?timeout ?force ?position ?trial checked (l : t) =
-    Frame.set_checked ~strict:true ?timeout ?force ?position ?trial l.selector checked l.l_frame
+let set_checked ?timeout ?force ?scroll ?position ?trial checked (l : t) =
+    Frame.set_checked ~strict:true ?timeout ?force ?scroll ?position ?trial l.selector checked l.l_frame
 
 let select_option ?timeout ?force options (l : t) = Frame.select_option ~strict:true ?timeout ?force l.selector options l.l_frame
 let set_input ?timeout files (l : t) = Frame.set_input ~strict:true ?timeout l.selector files l.l_frame

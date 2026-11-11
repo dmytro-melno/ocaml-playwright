@@ -32,7 +32,10 @@ let did_close (browser : t) =
     end
 
 let handle_event (browser : t) : Protocol.Browser.event -> unit = function
-    | Context { context } -> setup_context browser (Types.browser_context context)
+    | Context { context } ->
+        let context = Types.browser_context context in
+        setup_context browser context;
+        ignore (Emitter.emit browser.b_session.conn browser.e_context context)
     | Close -> did_close browser
 
 let create session (channel : Protocol.Browser.t) : t =
@@ -41,7 +44,7 @@ let create session (channel : Protocol.Browser.t) : t =
     let b_closed, b_closed_resolver = Promise.create () in
     let browser =
         { b_channel = channel; b_session = session; browser_type; b_name = init.name; version = init.version; contexts = []; b_close_state = Closing.create ();
-          b_close_reason = None; b_traces_dir = None; disconnect = None; b_closed; b_closed_resolver; e_disconnected = Emitter.create () }
+          b_close_reason = None; b_traces_dir = None; disconnect = None; b_closed; b_closed_resolver; e_disconnected = Emitter.create (); e_context = Emitter.create () }
     in
     Protocol.Browser.listen channel (handle_event browser);
     Channel.on_lost channel (fun _ -> did_close browser);
@@ -57,6 +60,7 @@ let version (browser : t) = browser.version
 let name (browser : t) = browser.b_name
 let is_connected (browser : t) = not (Closing.is_closed browser.b_close_state)
 let on_disconnected listener (browser : t) = Disposable.make (Emitter.on browser.e_disconnected listener)
+let on_context listener (browser : t) = Disposable.make (Emitter.on browser.e_context listener)
 
 let selector_options (session : session) =
     let engines = match session.selectors.selector_engines with [] -> None | engines -> Some engines in
@@ -77,7 +81,7 @@ let new_context_with (o : Context_options.t) (browser : t) =
     let storage_state = Option.map (Protocol.Browser.New_context_storage_state.of_json session.conn) o.storage_state in
     let context =
         Protocol.Browser.new_context ?no_default_viewport:o.no_default_viewport ?viewport:o.viewport ?screen:o.screen
-            ?ignore_https_errors:o.ignore_https_errors ?java_script_enabled:o.java_script_enabled ?bypass_csp:o.bypass_csp
+            ?ignore_https_errors:o.ignore_https_errors ?client_certificates:o.client_certificates ?java_script_enabled:o.java_script_enabled ?bypass_csp:o.bypass_csp
             ?user_agent:o.user_agent ?locale:o.locale ?timezone_id:o.timezone_id ?geolocation:o.geolocation ?permissions:o.permissions
             ?extra_http_headers:o.extra_http_headers ?offline:o.offline ?http_credentials:o.http_credentials
             ?device_scale_factor:o.device_scale_factor ?is_mobile:o.is_mobile ?has_touch:o.has_touch ?color_scheme:o.color_scheme

@@ -12,6 +12,7 @@ type _ event =
     | Console : console_message event
     | Crash : page event
     | Dialog : dialog event
+    | Dialog_closed : dialog event
     | Dom_content_loaded : page event
     | Download : download event
     | File_chooser : file_chooser event
@@ -34,6 +35,7 @@ let emitter : type a. t -> a event -> a Emitter.t =
     | Console -> page.pe_console
     | Crash -> page.pe_crash
     | Dialog -> page.pe_dialog
+    | Dialog_closed -> page.pe_dialog_closed
     | Dom_content_loaded -> page.pe_dom_content_loaded
     | Download -> page.pe_download
     | File_chooser -> page.pe_file_chooser
@@ -55,6 +57,7 @@ let event_name : type a. a event -> string = function
     | Console -> "console"
     | Crash -> "crash"
     | Dialog -> "dialog"
+    | Dialog_closed -> "dialogclosed"
     | Dom_content_loaded -> "domcontentloaded"
     | Download -> "download"
     | File_chooser -> "filechooser"
@@ -139,7 +142,8 @@ let did_close (page : t) =
         page.closed <- true;
         Ownership.remove_page page;
         if not (Promise.is_resolved page.p_gone) then Promise.resolve page.p_gone_resolver (close_error page);
-        emit page page.pe_close page
+        emit page page.pe_close page;
+        emit page page.context.ce_page_close page
     end
 
 let handle_event (page : t) (event : Protocol.Page.event) =
@@ -151,7 +155,9 @@ let handle_event (page : t) (event : Protocol.Page.event) =
         if not (Promise.is_resolved page.p_gone) then Promise.resolve page.p_gone_resolver (Error.target_closed ~message:"Page crashed" ());
         emit page page.pe_crash page
     | Download { url; suggested_filename; artifact } ->
-        emit page page.pe_download { dl_page = page; dl_url = url; suggested_filename; dl_artifact = artifact }
+        let download = { dl_page = page; dl_url = url; suggested_filename; dl_artifact = artifact } in
+        emit page page.pe_download download;
+        emit page page.context.ce_download download
     | Viewport_size_changed { viewport_size } ->
         page.viewport_size <-
             Option.map (fun (size : Protocol.Page.Viewport_size_changed_event_viewport_size.t) -> { width = size.width; height = size.height }) viewport_size
@@ -160,11 +166,13 @@ let handle_event (page : t) (event : Protocol.Page.event) =
     | Frame_attached { frame } ->
         let frame = Types.frame frame in
         Ownership.add_frame page frame;
-        emit page page.pe_frame_attached frame
+        emit page page.pe_frame_attached frame;
+        emit page page.context.ce_frame_attached frame
     | Frame_detached { frame } ->
         let frame = Types.frame frame in
         Ownership.remove_frame page frame;
-        emit page page.pe_frame_detached frame
+        emit page page.pe_frame_detached frame;
+        emit page page.context.ce_frame_detached frame
     | Locator_handler_triggered { uid } -> handle "locator handler" (fun () -> on_locator_handler_triggered page uid)
     | Route { route } -> handle "route" (fun () -> on_route page (Types.route route))
     | Web_socket_route { web_socket_route } ->
@@ -192,7 +200,7 @@ let create (channel : Protocol.Page.t) : t =
           p_routes = []; p_ws_routes = []; p_bindings = Hashtbl.create 4; p_timeouts = Timeouts.create ~parent:context.c_timeouts ();
           opener = Option.map Types.page init.opener; owned_context = None; video_artifact = init.video; locator_handlers = Hashtbl.create 1;
           p_gone; p_gone_resolver; pe_close = Emitter.create (); pe_console = Emitter.create (); pe_crash = Emitter.create ();
-          pe_dialog = Emitter.create (); pe_dom_content_loaded = Emitter.create (); pe_download = Emitter.create ();
+          pe_dialog = Emitter.create (); pe_dialog_closed = Emitter.create (); pe_dom_content_loaded = Emitter.create (); pe_download = Emitter.create ();
           pe_file_chooser = Emitter.create (); pe_frame_attached = Emitter.create (); pe_frame_detached = Emitter.create ();
           pe_frame_navigated = Emitter.create (); pe_load = Emitter.create (); pe_page_error = Emitter.create (); pe_popup = Emitter.create ();
           pe_request = Emitter.create (); pe_request_failed = Emitter.create (); pe_request_finished = Emitter.create ();
@@ -204,6 +212,7 @@ let create (channel : Protocol.Page.t) : t =
     in
     subscribe page.pe_console `Console;
     subscribe page.pe_dialog `Dialog;
+    subscribe page.pe_dialog_closed `Dialog_closed;
     subscribe page.pe_request `Request;
     subscribe page.pe_response `Response;
     subscribe page.pe_request_finished `Request_finished;

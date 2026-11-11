@@ -201,10 +201,29 @@ end
 
 (** A user name and a password for HTTP authentication. *)
 module Http_credentials : sig
-    type t = { username : string; password : string; origin : string option }
+    type t = { username : string; password : string; origin : string option; send : [ `Always | `Unauthorized ] option }
 
-    val make : ?origin:string -> username:string -> password:string -> unit -> t
-    (** [origin] restricts the credentials to one origin, e.g. ["https://example.com:8443"]. *)
+    val make : ?origin:string -> ?send:[ `Always | `Unauthorized ] -> username:string -> password:string -> unit -> t
+    (** [origin] restricts the credentials to one origin, e.g. ["https://example.com:8443"]; contexts take a list of
+        credentials, for one origin each or for all of them. [send] matters to {!APIRequestContext} only, whose
+        requests carry the credentials from the start with [`Always], and by default, [`Unauthorized], only once a
+        server has answered 401. *)
+end
+
+(** A TLS client certificate, for a context or a request context to present to the servers of one origin. *)
+module Client_certificate : sig
+    type source = [ `Content of string | `Path of string ]
+    (** A certificate or a key, given as its bytes or as the file to read them from. Files are read when the
+        certificate is put to use, that is when a context is created with it. *)
+
+    type t
+
+    val pem : ?passphrase:string -> origin:string -> cert:source -> key:source -> unit -> t
+    (** A certificate and its private key in PEM format, for the servers of [origin], which has to match exactly,
+        e.g. ["https://example.com:8443"]. [passphrase] is what the key is encrypted with. *)
+
+    val pfx : ?passphrase:string -> origin:string -> source -> t
+    (** A private key with its certificate chain in PFX, also known as PKCS #12, format. *)
 end
 
 (** A proxy server for a browser, a context or a request context to go through. *)
@@ -258,7 +277,8 @@ type 'a with_context_options =
     ?permissions:string list ->
     ?extra_http_headers:(string * string) list ->
     ?offline:bool ->
-    ?http_credentials:Http_credentials.t ->
+    ?http_credentials:Http_credentials.t list ->
+    ?client_certificates:Client_certificate.t list ->
     ?device_scale_factor:float ->
     ?is_mobile:bool ->
     ?has_touch:bool ->
@@ -288,7 +308,9 @@ type 'a with_context_options =
     - [record_video_dir] turns video recording on, see {!Video}; [record_har_path] records network activity into a
       HAR file, which is written when the context is closed.
     - [storage_state] restores cookies and local storage saved with {!BrowserContext.storage_state};
-      [storage_state_path] reads it from a file. *)
+      [storage_state_path] reads it from a file.
+    - [client_certificates] are what the context has to show to the servers of their origins that ask for a
+      certificate. *)
 
 type 'a with_launch_options =
     ?channel:string ->
@@ -305,6 +327,7 @@ type 'a with_launch_options =
     ?proxy:Proxy.t ->
     ?downloads_path:string ->
     ?traces_dir:string ->
+    ?artifacts_dir:string ->
     ?chromium_sandbox:bool ->
     ?firefox_user_prefs:(string * Yojson.Safe.t) list ->
     ?slow_mo:float ->
@@ -316,6 +339,8 @@ type 'a with_launch_options =
     - [executable_path] runs a browser that Playwright did not install; [channel] selects a branded one such as
       ["chrome"] or ["msedge"].
     - [timeout] is the time the browser has to start, 180 seconds by default.
+    - [artifacts_dir] is where traces, videos, downloads and HAR files are kept while the browser runs. Unlike the
+      temporary directory that is used by default, it is not removed when the browser is closed.
     - [slow_mo] delays every operation by that many milliseconds. *)
 
 (** {1 Playwright}
@@ -489,8 +514,9 @@ module type Frame_operations = sig
     val set_content : ?timeout:float -> ?wait_until:lifecycle_event -> string -> t -> unit
     (** Replaces the document with the given HTML. *)
 
-    val content : t -> string
-    (** The HTML of the document, including the doctype. *)
+    val content : ?include_shadow:bool -> t -> string
+    (** The HTML of the document, including the doctype. [include_shadow] adds the contents of open shadow roots, as
+        [<template shadowrootmode="open">] elements within their hosts. *)
 
     val title : t -> string
     val wait_for_load_state : ?timeout:float -> ?state:lifecycle_event -> t -> unit
@@ -549,23 +575,23 @@ module type Frame_operations = sig
     val dispatch_event : ?timeout:float -> ?strict:bool -> ?event_init:js_value -> string -> type_:string -> t -> unit
 
     val click :
-        ?timeout:float -> ?strict:bool -> ?force:bool -> ?no_wait_after:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float ->
+        ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?no_wait_after:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float ->
         ?delay:float -> ?button:mouse_button -> ?click_count:int -> ?trial:bool -> ?steps:int -> string -> t -> unit
 
     val dblclick :
-        ?timeout:float -> ?strict:bool -> ?force:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?delay:float ->
+        ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?delay:float ->
         ?button:mouse_button -> ?trial:bool -> ?steps:int -> string -> t -> unit
 
     val tap :
-        ?timeout:float -> ?strict:bool -> ?force:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> string ->
+        ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> string ->
         t -> unit
 
     val hover :
-        ?timeout:float -> ?strict:bool -> ?force:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> string ->
+        ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> string ->
         t -> unit
 
     val drag_and_drop :
-        ?timeout:float -> ?strict:bool -> ?force:bool -> ?trial:bool -> ?source_position:float * float -> ?target_position:float * float ->
+        ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?trial:bool -> ?source_position:float * float -> ?target_position:float * float ->
         ?steps:int -> source:string -> target:string -> t -> unit
 
     val fill : ?timeout:float -> ?strict:bool -> ?force:bool -> string -> value:string -> t -> unit
@@ -580,9 +606,9 @@ module type Frame_operations = sig
     val type_ : ?timeout:float -> ?strict:bool -> ?delay:float -> string -> text:string -> t -> unit
     (** [type_ selector text]. *)
 
-    val check : ?timeout:float -> ?strict:bool -> ?force:bool -> ?position:float * float -> ?trial:bool -> string -> t -> unit
-    val uncheck : ?timeout:float -> ?strict:bool -> ?force:bool -> ?position:float * float -> ?trial:bool -> string -> t -> unit
-    val set_checked : ?timeout:float -> ?strict:bool -> ?force:bool -> ?position:float * float -> ?trial:bool -> string -> bool -> t -> unit
+    val check : ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> string -> t -> unit
+    val uncheck : ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> string -> t -> unit
+    val set_checked : ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> string -> bool -> t -> unit
     val select_option : ?timeout:float -> ?strict:bool -> ?force:bool -> string -> select_option list -> t -> string list
     val set_input_files : ?timeout:float -> ?strict:bool -> string -> string list -> t -> unit
     val set_input_payloads : ?timeout:float -> ?strict:bool -> string -> file_payload list -> t -> unit
@@ -717,10 +743,18 @@ and BrowserType : sig
         [ocaml-playwright run-server] or [browserType.launchServer]. The server must run the same version of
         Playwright. Closing the browser, or stopping this driver, disconnects from it. *)
 
-    val connect_over_cdp : ?timeout:float -> ?headers:(string * string) list -> ?slow_mo:float -> string -> t -> Browser.t
+    val connect_over_cdp :
+        ?timeout:float -> ?headers:(string * string) list -> ?slow_mo:float -> ?is_local:bool -> ?no_defaults:bool -> ?artifacts_dir:string -> string ->
+        t -> Browser.t
     (** [connect_over_cdp endpoint] attaches to a running Chromium-based browser through the Chrome DevTools Protocol,
         given an HTTP endpoint such as ["http://localhost:9222"] or a WebSocket URL. The contexts and pages that are
-        open already are available from {!Browser.contexts}. *)
+        open already are available from {!Browser.contexts}.
+
+        - [is_local] tells that the browser runs on the machine of the driver, and so shares its file system, which
+          makes some operations cheaper.
+        - [no_defaults] leaves the default context of the browser as it is: downloads, fonts, focus and media
+          emulation keep the settings of the browser. This suits a browser that a person is using.
+        - [artifacts_dir] is where traces and downloads are kept. *)
 
     include Identity with type t := t
 end
@@ -746,6 +780,10 @@ and Browser : sig
 
     val on_disconnected : (t -> unit) -> t -> Disposable.t
     (** Registers a function to call when the browser has been closed, has crashed or the connection to it was lost. *)
+
+    val on_context : (BrowserContext.t -> unit) -> t -> Disposable.t
+    (** Registers a function to call with each context that is created in the browser from now on, including the
+        one that {!new_page} creates. It may be called before the function that created the context has returned. *)
 
     val new_browser_cdp_session : t -> CDPSession.t
     (** A Chrome DevTools Protocol session with the browser itself. Chromium only. *)
@@ -798,14 +836,23 @@ and BrowserContext : sig
     type _ event =
         | Close : t event
         | Console : ConsoleMessage.t event
-        | Dialog : Dialog.t event
+        | Dialog : Dialog.t event  (** See {!Page.Dialog}. *)
+        | Dialog_closed : Dialog.t event
+        | Download : Download.t event
+        | Frame_attached : Frame.t event
+        | Frame_detached : Frame.t event
+        | Frame_navigated : Frame.t event
         | Page : Page.t event  (** A page was created in the context, by {!new_page} or as a popup. *)
-        | Web_error : WebError.t event  (** An exception was not handled in one of the pages. *)
+        | Page_close : Page.t event
+        | Page_load : Page.t event  (** The [load] event of a page: see {!Page.Load}. *)
         | Request : Request.t event
         | Request_failed : Request.t event
         | Request_finished : Request.t event
         | Response : Response.t event
         | Service_worker : Worker.t event
+        | Web_error : WebError.t event  (** An exception was not handled in one of the pages. *)
+    (** What happens in a page of the context is reported both to the listeners of the page and to those of the
+        context. *)
 
     val on : 'a event -> ('a -> unit) -> t -> Disposable.t
     (** Registers a listener, which {!Disposable.dispose} removes again. Each call of a listener runs in a fiber of
@@ -898,8 +945,11 @@ and BrowserContext : sig
     val add_cookies : Cookie.init list -> t -> unit
     val clear_cookies : ?name:string -> ?domain:string -> ?path:string -> t -> unit
 
-    val storage_state : ?path:string -> ?indexed_db:bool -> t -> Yojson.Safe.t
-    (** The cookies and the local storage of the context, for the [storage_state] option of a later context. *)
+    val storage_state : ?path:string -> ?indexed_db:bool -> ?opfs:bool -> ?credentials:bool -> t -> Yojson.Safe.t
+    (** The cookies and the local storage of the context, for the [storage_state] option of a later context, which
+        is also written to [path] if that is given. [indexed_db] and [opfs] add the IndexedDB databases and the
+        origin private file systems of the pages, and [credentials] the passkeys of the context's virtual WebAuthn
+        authenticator, private keys included. *)
 
     val set_storage_state : Yojson.Safe.t -> t -> unit
     (** Replaces the cookies and the local storage of the context by those of a state that {!storage_state}
@@ -1034,6 +1084,7 @@ and Page : sig
         | Dialog : Dialog.t event
               (** A JavaScript dialog opened. It must be accepted or dismissed, or the page stays blocked; dialogs
                   are dismissed automatically while there is no listener for this event. *)
+        | Dialog_closed : Dialog.t event  (** A dialog was accepted or dismissed, by a listener or by the user. *)
         | Dom_content_loaded : t event
         | Download : Download.t event
         | File_chooser : FileChooser.t event
@@ -1305,23 +1356,25 @@ and Locator : sig
     (** {1 Actions} *)
 
     val click :
-        ?timeout:float -> ?force:bool -> ?no_wait_after:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?delay:float ->
+        ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?no_wait_after:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?delay:float ->
         ?button:mouse_button -> ?click_count:int -> ?trial:bool -> ?steps:int -> t -> unit
     (** Scrolls the element into view if needed, waits for it to be visible, stable, enabled and not covered, and
         clicks its centre or [position] relative to its top left corner. [force] skips the waiting; [trial] does
-        the waiting but not the click. *)
+        the waiting but not the click. With [~scroll:`None] nothing is scrolled, and the click fails when the
+        element is not within the viewport already, which shows whether a user could reach it as the page is.
+        The other actions that take these arguments use them alike. *)
 
     val dblclick :
-        ?timeout:float -> ?force:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?delay:float -> ?button:mouse_button ->
+        ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?delay:float -> ?button:mouse_button ->
         ?trial:bool -> ?steps:int -> t -> unit
 
-    val tap : ?timeout:float -> ?force:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> t -> unit
+    val tap : ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> t -> unit
     (** Requires a context with [has_touch]. *)
 
-    val hover : ?timeout:float -> ?force:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> t -> unit
+    val hover : ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> t -> unit
 
     val drag_to :
-        ?timeout:float -> ?force:bool -> ?trial:bool -> ?source_position:float * float -> ?target_position:float * float -> ?steps:int ->
+        ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?trial:bool -> ?source_position:float * float -> ?target_position:float * float -> ?steps:int ->
         target:t -> t -> unit
     (** [drag_to ~target source] drags the element of [source] onto that of [target]. *)
 
@@ -1338,9 +1391,9 @@ and Locator : sig
     val press_sequentially : ?timeout:float -> ?delay:float -> string -> t -> unit
     (** Types the text key by key. Use {!fill} unless the page needs to see the individual key events. *)
 
-    val check : ?timeout:float -> ?force:bool -> ?position:float * float -> ?trial:bool -> t -> unit
-    val uncheck : ?timeout:float -> ?force:bool -> ?position:float * float -> ?trial:bool -> t -> unit
-    val set_checked : ?timeout:float -> ?force:bool -> ?position:float * float -> ?trial:bool -> bool -> t -> unit
+    val check : ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> t -> unit
+    val uncheck : ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> t -> unit
+    val set_checked : ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> bool -> t -> unit
 
     val select_option : ?timeout:float -> ?force:bool -> select_option list -> t -> string list
     (** Selects options of a [<select>] and returns the values of the selected options. *)
@@ -1533,23 +1586,23 @@ and ElementHandle : sig
     val dispatch_event : ?event_init:Js.t -> string -> t -> unit
 
     val click :
-        ?timeout:float -> ?force:bool -> ?no_wait_after:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?delay:float ->
+        ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?no_wait_after:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?delay:float ->
         ?button:mouse_button -> ?click_count:int -> ?trial:bool -> ?steps:int -> t -> unit
 
     val dblclick :
-        ?timeout:float -> ?force:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?delay:float -> ?button:mouse_button ->
+        ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?delay:float -> ?button:mouse_button ->
         ?trial:bool -> ?steps:int -> t -> unit
 
-    val tap : ?timeout:float -> ?force:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> t -> unit
-    val hover : ?timeout:float -> ?force:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> t -> unit
+    val tap : ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> t -> unit
+    val hover : ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> t -> unit
     val fill : ?timeout:float -> ?force:bool -> string -> t -> unit
     val select_text : ?timeout:float -> ?force:bool -> t -> unit
     val focus : t -> unit
     val press : ?timeout:float -> ?delay:float -> ?no_wait_after:bool -> string -> t -> unit
     val type_ : ?timeout:float -> ?delay:float -> string -> t -> unit
-    val check : ?timeout:float -> ?force:bool -> ?position:float * float -> ?trial:bool -> t -> unit
-    val uncheck : ?timeout:float -> ?force:bool -> ?position:float * float -> ?trial:bool -> t -> unit
-    val set_checked : ?timeout:float -> ?force:bool -> ?position:float * float -> ?trial:bool -> bool -> t -> unit
+    val check : ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> t -> unit
+    val uncheck : ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> t -> unit
+    val set_checked : ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> bool -> t -> unit
     val select_option : ?timeout:float -> ?force:bool -> select_option list -> t -> string list
     val set_input_files : ?timeout:float -> string list -> t -> unit
     val set_input_payloads : ?timeout:float -> file_payload list -> t -> unit
@@ -1951,13 +2004,23 @@ and Tracing : sig
 
     val stop_chunk : ?path:string -> t -> unit
 
-    val group : string -> t -> unit
-    (** Groups the following operations under a name in the trace viewer, until {!group_end}. *)
+    val group : ?location:string * int * int * int -> string -> t -> unit
+    (** Groups the following operations under a name in the trace viewer, until {!group_end}. [location] is the
+        place in the source code to show for the group: a file, a line and a column in the form that [__POS__]
+        has, so that [~location:__POS__] stands for the place of the call itself. *)
 
     val group_end : t -> unit
 
-    val start_har : ?content:[ `Attach | `Embed | `Omit ] -> ?mode:[ `Full | `Minimal ] -> ?url_glob:string -> string -> t -> unit
-    (** [start_har path] starts recording network activity into a HAR file, which {!stop_har} writes. *)
+    val start_har :
+        ?content:[ `Attach | `Embed | `Omit ] -> ?mode:[ `Full | `Minimal ] -> ?url_glob:string -> ?resources_dir:string -> string -> t -> unit
+    (** [start_har path] starts recording network activity into a HAR file, which {!stop_har} writes.
+
+        - [content] tells where the bodies of the responses go: into the file itself with [`Embed], into files of
+          their own with [`Attach], nowhere with [`Omit]. The default is [`Attach] for a [path] ending in [.zip],
+          which then is an archive of the HAR file and those files, and [`Embed] otherwise.
+        - [resources_dir] is the directory for the files of [`Attach], by default the one of the HAR file.
+        - [mode] [`Minimal] records only what replaying needs, see {!BrowserContext.route_from_har}.
+        - [url_glob] restricts the recording to the requests whose URL matches. *)
 
     val stop_har : t -> unit
 
@@ -2028,7 +2091,7 @@ and APIRequestContext : sig
     val fetch : ?method_:string -> (string -> t -> APIResponse.t) with_request_options
     (** A request with any method, [GET] by default. *)
 
-    val storage_state : ?path:string -> ?indexed_db:bool -> t -> Yojson.Safe.t
+    val storage_state : ?path:string -> ?indexed_db:bool -> ?opfs:bool -> t -> Yojson.Safe.t
 
     val cookies : ?urls:string list -> t -> Cookie.t list
     (** The cookies that the context holds and sends, which for {!BrowserContext.request} and {!Page.request} are
@@ -2221,7 +2284,8 @@ val webkit : t -> BrowserType.t
 module APIRequest : sig
     val new_context :
         ?base_url:string -> ?user_agent:string -> ?ignore_https_errors:bool -> ?extra_http_headers:(string * string) list ->
-        ?fail_on_status_code:bool -> ?max_redirects:int -> ?http_credentials:Http_credentials.t -> ?proxy:Proxy.t ->
+        ?fail_on_status_code:bool -> ?max_redirects:int -> ?http_credentials:Http_credentials.t list ->
+        ?client_certificates:Client_certificate.t list -> ?proxy:Proxy.t ->
         ?storage_state:Yojson.Safe.t -> ?timeout:float -> t -> APIRequestContext.t
     (** Creates a request context that is independent of any browser. [timeout] is the default timeout of its
         requests. *)

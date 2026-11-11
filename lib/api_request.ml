@@ -73,11 +73,11 @@ module Context = struct
     let delete = with_method "DELETE"
     let head = with_method "HEAD"
 
-    let storage_state_json ?indexed_db (t : t) : Yojson.Safe.t =
-        Protocol.Api_request_context.storage_state ?indexed_db t.a_channel |> Protocol.Api_request_context.Storage_state_result.to_json
+    let storage_state_json ?indexed_db ?opfs (t : t) : Yojson.Safe.t =
+        Protocol.Api_request_context.storage_state ?indexed_db ?opfs t.a_channel |> Protocol.Api_request_context.Storage_state_result.to_json
 
-    let storage_state ?path ?indexed_db t =
-        let state = storage_state_json ?indexed_db t in
+    let storage_state ?path ?indexed_db ?opfs t =
+        let state = storage_state_json ?indexed_db ?opfs t in
         Option.iter (fun path -> Files.write path (Yojson.Safe.pretty_to_string state)) path;
         state
 
@@ -151,17 +151,18 @@ end
 
 (* A request context that is independent of any browser. *)
 let new_context ?base_url ?user_agent ?ignore_https_errors ?extra_http_headers ?fail_on_status_code ?max_redirects
-    ?(http_credentials : Context_options.Http_credentials.t option) ?(proxy : Context_options.Proxy.t option) ?(storage_state : Yojson.Safe.t option)
+    ?(http_credentials : Context_options.Http_credentials.t list option) ?(client_certificates : Context_options.Client_certificate.t list option) ?(proxy : Context_options.Proxy.t option) ?(storage_state : Yojson.Safe.t option)
     ?timeout (t : playwright) =
     let conn = t.session.conn in
     let context =
         Protocol.Playwright.new_request ?base_url ?user_agent ?ignore_https_errors ?extra_http_headers:(Option.map Network.name_values extra_http_headers)
             ?fail_on_status_code ?max_redirects
-            ?http_credentials:
-                (Option.map
-                     (fun (c : Context_options.Http_credentials.t) : Protocol.Http_credentials.t list ->
-                         [ { username = c.username; password = c.password; origin = c.origin; send = None } ])
-                     http_credentials)
+            ?http_credentials:(Context_options.Http_credentials.list http_credentials)
+            ?client_certificates:
+                (Context_options.Client_certificate.list client_certificates
+                |> Option.map
+                       (List.map (fun (c : Protocol.Context_options_client_certificates.t) : Protocol.Playwright.New_request_client_certificates.t ->
+                            { origin = c.origin; cert = c.cert; key = c.key; passphrase = c.passphrase; pfx = c.pfx })))
             ?proxy:
                 (Option.map
                      (fun (p : Context_options.Proxy.t) : Protocol.Playwright.New_request_proxy.t ->

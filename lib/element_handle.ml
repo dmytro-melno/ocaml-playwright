@@ -38,20 +38,20 @@ let dispatch_event ?(event_init = Js.Undefined) type_ (handle : t) =
 let scroll_into_view_if_needed ?timeout (handle : t) =
     Protocol.Element_handle.scroll_into_view_if_needed ~timeout:(action_timeout ?timeout handle) (element_channel handle)
 
-let click ?timeout ?force ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?trial ?steps (handle : t) =
-    Protocol.Element_handle.click ~timeout:(action_timeout ?timeout handle) ?force ?no_wait_after ?modifiers
+let click ?timeout ?force ?scroll ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?trial ?steps (handle : t) =
+    Protocol.Element_handle.click ~timeout:(action_timeout ?timeout handle) ?force ?scroll ?no_wait_after ?modifiers
         ?position:(Option.map Frame.point position) ?delay ?button ?click_count ?trial ?steps (element_channel handle)
 
-let dblclick ?timeout ?force ?modifiers ?position ?delay ?button ?trial ?steps (handle : t) =
-    Protocol.Element_handle.dblclick ~timeout:(action_timeout ?timeout handle) ?force ?modifiers ?position:(Option.map Frame.point position)
+let dblclick ?timeout ?force ?scroll ?modifiers ?position ?delay ?button ?trial ?steps (handle : t) =
+    Protocol.Element_handle.dblclick ~timeout:(action_timeout ?timeout handle) ?force ?scroll ?modifiers ?position:(Option.map Frame.point position)
         ?delay ?button ?trial ?steps (element_channel handle)
 
-let tap ?timeout ?force ?modifiers ?position ?trial (handle : t) =
-    Protocol.Element_handle.tap ~timeout:(action_timeout ?timeout handle) ?force ?modifiers ?position:(Option.map Frame.point position) ?trial
+let tap ?timeout ?force ?scroll ?modifiers ?position ?trial (handle : t) =
+    Protocol.Element_handle.tap ~timeout:(action_timeout ?timeout handle) ?force ?scroll ?modifiers ?position:(Option.map Frame.point position) ?trial
         (element_channel handle)
 
-let hover ?timeout ?force ?modifiers ?position ?trial (handle : t) =
-    Protocol.Element_handle.hover ~timeout:(action_timeout ?timeout handle) ?force ?modifiers ?position:(Option.map Frame.point position)
+let hover ?timeout ?force ?scroll ?modifiers ?position ?trial (handle : t) =
+    Protocol.Element_handle.hover ~timeout:(action_timeout ?timeout handle) ?force ?scroll ?modifiers ?position:(Option.map Frame.point position)
         ?trial (element_channel handle)
 
 let fill ?timeout ?force value (handle : t) =
@@ -68,16 +68,16 @@ let press ?timeout ?delay ?no_wait_after key (handle : t) =
 let type_ ?timeout ?delay text (handle : t) =
     Protocol.Element_handle.type_ ~timeout:(action_timeout ?timeout handle) ~text ?delay (element_channel handle)
 
-let check ?timeout ?force ?position ?trial (handle : t) =
-    Protocol.Element_handle.check ~timeout:(action_timeout ?timeout handle) ?force ?position:(Option.map Frame.point position) ?trial
+let check ?timeout ?force ?scroll ?position ?trial (handle : t) =
+    Protocol.Element_handle.check ~timeout:(action_timeout ?timeout handle) ?force ?scroll ?position:(Option.map Frame.point position) ?trial
         (element_channel handle)
 
-let uncheck ?timeout ?force ?position ?trial (handle : t) =
-    Protocol.Element_handle.uncheck ~timeout:(action_timeout ?timeout handle) ?force ?position:(Option.map Frame.point position) ?trial
+let uncheck ?timeout ?force ?scroll ?position ?trial (handle : t) =
+    Protocol.Element_handle.uncheck ~timeout:(action_timeout ?timeout handle) ?force ?scroll ?position:(Option.map Frame.point position) ?trial
         (element_channel handle)
 
-let set_checked ?timeout ?force ?position ?trial checked handle =
-    if checked then check ?timeout ?force ?position ?trial handle else uncheck ?timeout ?force ?position ?trial handle
+let set_checked ?timeout ?force ?scroll ?position ?trial checked handle =
+    if checked then check ?timeout ?force ?scroll ?position ?trial handle else uncheck ?timeout ?force ?scroll ?position ?trial handle
 
 let select_option ?timeout ?force options (handle : t) =
     let options : Protocol.Element_handle.Select_option_options.t list =

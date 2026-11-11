@@ -199,7 +199,9 @@ let test_context_network_settings t () =
         | _ -> Server.respond ~status:401 ~headers:[ "www-authenticate", {|Basic realm="test"|} ] "who are you?");
     let context =
         Browser.new_context ~extra_http_headers:[ "x-context", "c" ] ~user_agent:"TestAgent/1.0"
-            ~http_credentials:(Http_credentials.make ~username:"ada" ~password:"lovelace" ())
+            ~http_credentials:
+              [ Http_credentials.make ~origin:"https://elsewhere.test" ~username:"eve" ~password:"guess" ();
+                Http_credentials.make ~origin:(Server.origin t.server) ~username:"ada" ~password:"lovelace" () ]
             t.browser
     in
     let page = BrowserContext.new_page context in
@@ -305,7 +307,49 @@ let test_standalone_api_requests t () =
     BrowserContext.close context;
     APIRequestContext.dispose request;
     check_failure "disposed" ~kind:Target_closed (fun () -> APIRequestContext.get "/echo" request);
-    APIRequestContext.dispose request
+    APIRequestContext.dispose request;
+    (* Credentials wait for a server to ask for them, unless they are to be sent at once. *)
+    let authorization send =
+        let request = APIRequest.new_context ~http_credentials:[ Http_credentials.make ?send ~username:"ada" ~password:"lovelace" () ] t.pw in
+        let seen = APIRequestContext.get (Server.url t.server "/echo") request |> APIResponse.json |> Yojson.Safe.Util.member "headers" in
+        APIRequestContext.dispose request;
+        Yojson.Safe.Util.member "authorization" seen
+    in
+    Alcotest.check json "credentials nobody asked for" `Null (authorization None);
+    Alcotest.check json "sent regardless" (`String "Basic YWRhOmxvdmVsYWNl") (authorization (Some `Always))
+
+(* A server that asks for a certificate is shown the one for its origin. *)
+let test_client_certificates t () =
+    let cert = scratch_file t "cert.pem" and key = scratch_file t "key.pem" in
+    write_file cert Tls_server.certificate;
+    write_file key Tls_server.private_key;
+    Tls_server.run t.env ~cert ~key @@ fun origin ->
+    let shown certificates =
+        let context = Browser.new_context ~ignore_https_errors:true ~client_certificates:certificates t.browser in
+        Fun.protect
+            ~finally:(fun () -> BrowserContext.close context)
+            (fun () ->
+                let page = BrowserContext.new_page context in
+                ignore (Page.goto origin page);
+                Page.inner_text "body" page)
+    in
+    let known = "client: " ^ Tls_server.common_name in
+    let from_files = Client_certificate.pem ~origin ~cert:(`Path cert) ~key:(`Path key) () in
+    Alcotest.(check string) "without a certificate" "client: nobody" (shown []);
+    Alcotest.(check string) "from files" known (shown [ from_files ]);
+    Alcotest.(check string) "from memory" known
+        (shown [ Client_certificate.pem ~origin ~cert:(`Content Tls_server.certificate) ~key:(`Content Tls_server.private_key) () ]);
+    Alcotest.(check string) "an archive" known
+        (shown [ Client_certificate.pfx ~passphrase:Tls_server.archive_passphrase ~origin (`Content Tls_server.archive) ]);
+    Alcotest.(check string) "of another origin" "client: nobody"
+        (shown [ Client_certificate.pem ~origin:"https://elsewhere.test" ~cert:(`Path cert) ~key:(`Path key) () ]);
+    let request = APIRequest.new_context ~ignore_https_errors:true ~client_certificates:[ from_files ] t.pw in
+    Alcotest.(check string) "a request context" known (APIRequestContext.get origin request |> APIResponse.text);
+    APIRequestContext.dispose request;
+    check_failure "what is no key" ~message:"Failed to load client certificate" (fun () ->
+        shown [ Client_certificate.pem ~origin ~cert:(`Path cert) ~key:(`Content "nonsense") () ]);
+    check_failure "a file that is not there" ~message:"Cannot read file" (fun () ->
+        shown [ Client_certificate.pem ~origin ~cert:(`Path cert) ~key:(`Path (scratch_file t "missing.pem")) () ])
 
 let test_web_socket_routes t page =
     start t page;
@@ -369,4 +413,5 @@ let tests t =
       "network",
       [ case t "context settings" (test_context_network_settings t);
         page_case t "API requests" (test_api_requests t);
-        case t "standalone API requests" (test_standalone_api_requests t) ] ]
+        case t "standalone API requests" (test_standalone_api_requests t);
+        case t "client certificates" (test_client_certificates t) ] ]

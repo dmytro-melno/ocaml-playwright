@@ -149,7 +149,16 @@ let test_mouse_actions _ page =
     Locator.drag_to ~target:(Page.locator "#b" page) (Page.locator "#a" page);
     Alcotest.(check string) "drag and drop" "dropped a" (Page.locator "#b" page |> Locator.inner_text);
     Locator.click ~trial:true c;
-    Alcotest.(check int) "a trial run does not click" 3 (eval_int "window.log.filter(entry => entry.startsWith('click')).length" page)
+    Alcotest.(check int) "a trial run does not click" 3 (eval_int "window.log.filter(entry => entry.startsWith('click')).length" page);
+    (* What is out of sight is scrolled to, unless that is declined. *)
+    Page.set_content {|<div style="height: 3000px"></div><button onclick="window.pressed = (window.pressed || 0) + 1">Far down</button>|} page;
+    let button = Page.get_by_role `Button page in
+    let error = failure "not scrolling" (fun () -> Locator.click ~scroll:`None ~timeout:300. button) in
+    Alcotest.check error_kind "is to wait for somebody else to" Error.Timeout error.kind;
+    check_contains "and says so" ~sub:"element is outside of the viewport" error.message;
+    Locator.click button;
+    Locator.click ~scroll:`None button;
+    Alcotest.(check int) "within the viewport there is nothing to scroll" 2 (eval_int "window.pressed" page)
 
 let test_waiting_and_strictness _ page =
     Page.set_content {|<button>One</button><button>Two</button><div id="late" style="display: none">Late</div>|} page;

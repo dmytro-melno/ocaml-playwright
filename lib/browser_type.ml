@@ -28,13 +28,14 @@ type launch_options = {
     proxy : Protocol.Launch_options_proxy.t option;
     downloads_path : string option;
     traces_dir : string option;
+    artifacts_dir : string option;
     chromium_sandbox : bool option;
     firefox_user_prefs : Json.t option;
     slow_mo : float option;
 }
 
 let collect_launch_options k ?channel ?executable_path ?args ?ignore_all_default_args ?ignore_default_args ?handle_sigint ?handle_sigterm
-    ?handle_sighup ?timeout ?env ?headless ?(proxy : Context_options.Proxy.t option) ?downloads_path ?traces_dir ?chromium_sandbox
+    ?handle_sighup ?timeout ?env ?headless ?(proxy : Context_options.Proxy.t option) ?downloads_path ?traces_dir ?artifacts_dir ?chromium_sandbox
     ?(firefox_user_prefs : (string * Yojson.Safe.t) list option) ?slow_mo target =
     let options =
         { channel; executable_path; args; ignore_all_default_args; ignore_default_args; handle_sigint; handle_sigterm; handle_sighup;
@@ -46,7 +47,7 @@ let collect_launch_options k ?channel ?executable_path ?args ?ignore_all_default
                   (fun (p : Context_options.Proxy.t) : Protocol.Launch_options_proxy.t ->
                       { server = p.server; bypass = p.bypass; username = p.username; password = p.password })
                   proxy;
-          downloads_path; traces_dir; chromium_sandbox;
+          downloads_path; traces_dir; artifacts_dir; chromium_sandbox;
           firefox_user_prefs = Option.map (fun prefs -> `Assoc prefs) firefox_user_prefs;
           slow_mo }
     in
@@ -84,7 +85,7 @@ let launch =
                 Protocol.Browser_type.launch ~timeout:o.timeout ?channel:o.channel ?executable_path:o.executable_path ?args:o.args
                     ?ignore_all_default_args:o.ignore_all_default_args ?ignore_default_args:o.ignore_default_args ?handle_sigint:o.handle_sigint
                     ?handle_sigterm:o.handle_sigterm ?handle_sighup:o.handle_sighup ?env:o.env ?headless:o.headless ?proxy:o.proxy
-                    ?downloads_path:o.downloads_path ?traces_dir:o.traces_dir ?chromium_sandbox:o.chromium_sandbox
+                    ?downloads_path:o.downloads_path ?traces_dir:o.traces_dir ?artifacts_dir:o.artifacts_dir ?chromium_sandbox:o.chromium_sandbox
                     ?firefox_user_prefs:o.firefox_user_prefs ?slow_mo:o.slow_mo t.bt_channel)
             |> Types.browser
         in
@@ -104,9 +105,9 @@ let launch_persistent_context =
                         ?args:o.args ?ignore_all_default_args:o.ignore_all_default_args ?ignore_default_args:o.ignore_default_args
                         ?handle_sigint:o.handle_sigint ?handle_sigterm:o.handle_sigterm ?handle_sighup:o.handle_sighup ?env:o.env
                         ?headless:o.headless ?proxy:o.proxy ?downloads_path:o.downloads_path ?traces_dir:o.traces_dir
-                        ?chromium_sandbox:o.chromium_sandbox ?firefox_user_prefs:o.firefox_user_prefs
+                        ?artifacts_dir:o.artifacts_dir ?chromium_sandbox:o.chromium_sandbox ?firefox_user_prefs:o.firefox_user_prefs
                         ?no_default_viewport:c.no_default_viewport ?viewport:c.viewport ?screen:c.screen
-                        ?ignore_https_errors:c.ignore_https_errors ?java_script_enabled:c.java_script_enabled ?bypass_csp:c.bypass_csp
+                        ?ignore_https_errors:c.ignore_https_errors ?client_certificates:c.client_certificates ?java_script_enabled:c.java_script_enabled ?bypass_csp:c.bypass_csp
                         ?user_agent:c.user_agent ?locale:c.locale ?timezone_id:c.timezone_id ?geolocation:c.geolocation
                         ?permissions:c.permissions ?extra_http_headers:c.extra_http_headers ?offline:c.offline
                         ?http_credentials:c.http_credentials ?device_scale_factor:c.device_scale_factor ?is_mobile:c.is_mobile
@@ -124,11 +125,11 @@ let launch_persistent_context =
             context))
 
 (* Attaches to a running browser through the Chrome DevTools Protocol. *)
-let connect_over_cdp ?timeout ?headers ?slow_mo endpoint_url (t : t) =
+let connect_over_cdp ?timeout ?headers ?slow_mo ?is_local ?no_defaults ?artifacts_dir endpoint_url (t : t) =
     if t.bt_name <> "chromium" && t.bt_name <> "webkit" then Error.raise_ "Connecting over CDP is only supported in Chromium and WebKit.";
     let result =
         Protocol.Browser_type.connect_over_cdp ~timeout:(Timeouts.action ?timeout (Timeouts.create ())) ~endpoint_url
-            ?headers:(Option.map Network.name_values headers) ?slow_mo t.bt_channel
+            ?headers:(Option.map Network.name_values headers) ?slow_mo ?is_local ?no_defaults ?artifacts_dir t.bt_channel
     in
     let browser = Types.browser result.browser in
     adopt t browser;

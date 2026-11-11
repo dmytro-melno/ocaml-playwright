@@ -271,12 +271,24 @@ let test_persistent_context t () =
     Alcotest.(check string) "first visit" "null" (visit ());
     Alcotest.(check string) "the profile is kept" "yes" (visit ())
 
+let test_artifacts_dir t () =
+    Server.route t.server "/artifact" (fun _ -> Server.respond ~headers:[ "content-disposition", "attachment; filename=artifact.txt" ] "kept");
+    let dir = scratch_file t "artifacts" in
+    let browser = BrowserType.launch ?executable_path:t.executable_path ~artifacts_dir:dir (chromium t.pw) in
+    let page = Browser.new_page browser in
+    Page.set_content (Printf.sprintf {|<a href="%s">download</a>|} (Server.url t.server "/artifact")) page;
+    let download = Page.expect_download (fun () -> Page.click "a" page) page in
+    let path = Download.path download in
+    Alcotest.(check bool) "downloads go there" true (String.starts_with ~prefix:dir path);
+    Browser.close browser;
+    Alcotest.(check string) "and are still there when the browser is closed" "kept" (read_file path)
+
 let test_connect_over_cdp t () =
     let port = closed_port t in
     let browser = BrowserType.launch ?executable_path:t.executable_path ~args:[ Printf.sprintf "--remote-debugging-port=%d" port ] (chromium t.pw) in
     let original = Browser.new_page browser in
     Page.set_content "<title>Original</title>" original;
-    let attached = BrowserType.connect_over_cdp (Printf.sprintf "http://127.0.0.1:%d" port) (chromium t.pw) in
+    let attached = BrowserType.connect_over_cdp ~is_local:true ~no_defaults:true (Printf.sprintf "http://127.0.0.1:%d" port) (chromium t.pw) in
     let pages = List.concat_map BrowserContext.pages (Browser.contexts attached) in
     Alcotest.(check (list string)) "sees the pages that are open" [ "Original" ] (List.map Page.title pages);
     Alcotest.check js "and can drive them" (Js.Number 2.) (Page.evaluate "1 + 1" (List.hd pages));
@@ -585,6 +597,7 @@ let tests t =
       [ case t "launch failures" (test_launch_failures t);
         case t "closing and crashing browsers" (test_browser_closing t);
         case t "persistent context" (test_persistent_context t);
+        case t "a directory for artifacts" (test_artifacts_dir t);
         case t "connect over CDP" (test_connect_over_cdp t);
         case t "connect to a server" (test_connect t);
         case t "several drivers" (test_second_driver t);

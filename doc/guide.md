@@ -771,7 +771,7 @@ Browser.new_context ~viewport:(1920, 1080) ~locale:"fr-FR" ~timezone_id:"Europe/
     ~geolocation:(Geolocation.make ~latitude:48.8584 ~longitude:2.2945 ())
     ~permissions:[ "geolocation" ] ~user_agent:"MyCrawler/1.0"
     ~extra_http_headers:[ "x-requested-by", "tests" ]
-    ~http_credentials:(Http_credentials.make ~username:"ada" ~password:"secret" ())
+    ~http_credentials:[ Http_credentials.make ~username:"ada" ~password:"secret" () ]
     ~ignore_https_errors:true browser
 ```
 

@@ -44,11 +44,11 @@ let test_storage_state t page =
     let file = scratch_file t "state.json" in
     let state = BrowserContext.storage_state ~path:file context in
     Alcotest.check json "also written to the file" state (Yojson.Safe.from_string (read_file file));
-    let restored_from make =
+    let restored_from ?(expression = "localStorage.getItem('theme') + '/' + document.cookie") make =
         let context = make t.browser in
         let page = BrowserContext.new_page context in
         visit t page;
-        let result = eval_string "localStorage.getItem('theme') + '/' + document.cookie" page in
+        let result = eval_string expression page in
         BrowserContext.close context;
         result
     in
@@ -59,7 +59,26 @@ let test_storage_state t page =
         (restored_from (fun browser ->
              let context = Browser.new_context browser in
              BrowserContext.set_storage_state state context;
-             context))
+             context));
+    (* The files that an origin keeps are part of the state on request. *)
+    ignore
+        (Page.evaluate
+           {|async () => {
+               const directory = await navigator.storage.getDirectory();
+               const writable = await (await directory.getFileHandle('note.txt', { create: true })).createWritable();
+               await writable.write('remember');
+               await writable.close();
+           }|}
+           page);
+    let note =
+        {|async () => {
+            const directory = await navigator.storage.getDirectory();
+            try { return await (await (await directory.getFileHandle('note.txt')).getFile()).text(); } catch (error) { return error.name; }
+        }|}
+    in
+    Alcotest.(check string) "files are left out" "NotFoundError" (restored_from ~expression:note (Browser.new_context ~storage_state:(BrowserContext.storage_state context)));
+    Alcotest.(check string) "unless asked for" "remember"
+        (restored_from ~expression:note (Browser.new_context ~storage_state:(BrowserContext.storage_state ~indexed_db:true ~opfs:true ~credentials:true context)))
 
 let test_web_storage t page =
     visit t page;
@@ -174,12 +193,57 @@ let test_context_scripting t () =
     Alcotest.(check bool) "its browser" true (Option.equal Browser.equal (BrowserContext.browser context) (Some t.browser));
     BrowserContext.close context
 
+(* What the pages of a context do is also told to the listeners of the context. *)
+let test_page_events_of_context t () =
+    Server.route t.server "/attachment" (fun _ -> Server.respond ~headers:[ "content-disposition", "attachment; filename=a.txt" ] "attached");
+    let context = Browser.new_context t.browser in
+    let log = ref [] in
+    let on event describe = BrowserContext.on event (fun subject -> log := describe subject :: !log) context |> ignore in
+    let of_frame what frame = Printf.sprintf "%s %s" what (if Option.is_none (Frame.parent_frame frame) then "the main frame" else "a child frame") in
+    let of_page what page = Printf.sprintf "%s %s" what (Filename.basename (Page.url page)) in
+    on BrowserContext.Frame_attached (of_frame "attached");
+    on BrowserContext.Frame_detached (of_frame "detached");
+    on BrowserContext.Frame_navigated (of_frame "navigated");
+    on BrowserContext.Page_load (of_page "loaded");
+    on BrowserContext.Page_close (of_page "closed");
+    on BrowserContext.Dialog_closed (fun dialog -> "answered " ^ Dialog.message dialog);
+    on BrowserContext.Download (fun download -> "downloaded " ^ Download.suggested_filename download);
+    let page = BrowserContext.new_page context in
+    visit t page;
+    let seen () = List.sort compare !log in
+    let expect what events =
+        eventually t what (fun () -> List.length !log >= List.length events);
+        Alcotest.(check (list string)) what (List.sort compare events) (seen ());
+        log := []
+    in
+    expect "a navigation" [ "navigated the main frame"; "loaded blank" ];
+    ignore (Page.evaluate "() => { const frame = document.createElement('iframe'); frame.srcdoc = 'inner'; document.body.append(frame); }" page);
+    Expect.to_have_text "inner" (Page.frame_locator "iframe" page |> FrameLocator.locator "body");
+    expect "a frame of its own" [ "attached a child frame"; "navigated a child frame" ];
+    ignore (Page.evaluate "document.querySelector('iframe').remove()" page);
+    expect "which goes away" [ "detached a child frame" ];
+    Page.on Page.Dialog Dialog.accept page |> ignore;
+    ignore (Page.evaluate "alert('Read me')" page);
+    expect "a dialog" [ "answered Read me" ];
+    Page.set_content {|<a href="/attachment">download</a>|} page;
+    expect "new content" [ "loaded blank" ];
+    let download = Page.expect_download (fun () -> Page.click "a" page) page in
+    Download.delete download;
+    expect "a download" [ "downloaded a.txt" ];
+    Page.close page;
+    expect "the end of the page" [ "closed blank" ];
+    BrowserContext.close context
+
 let test_browser t () =
     Alcotest.(check string) "name" "chromium" (Browser.name t.browser);
     Alcotest.(check bool) "version" true (String.length (Browser.version t.browser) > 3 && Browser.is_connected t.browser);
     Alcotest.(check bool) "type" true (BrowserType.equal (Browser.browser_type t.browser) (chromium t.pw) && BrowserType.name (chromium t.pw) = "chromium");
     let before = List.length (Browser.contexts t.browser) in
+    let created = ref [] in
+    let listening = Browser.on_context (fun context -> created := context :: !created) t.browser in
     let page = Browser.new_page ~viewport:(300, 200) t.browser in
+    eventually t "the context is announced" (fun () -> List.equal BrowserContext.equal !created [ Page.context page ]);
+    Disposable.dispose listening;
     Alcotest.(check int) "a page with a context of its own" (before + 1) (List.length (Browser.contexts t.browser));
     Alcotest.(check (option (pair int int))) "takes context options" (Some (300, 200)) (Page.viewport_size page);
     Page.close page;
@@ -190,7 +254,7 @@ let test_tracing t page =
     let tracing = BrowserContext.tracing (Page.context page) in
     Tracing.start ~screenshots:true ~snapshots:true ~title:"A trace" tracing;
     visit t page;
-    Tracing.group "interaction" tracing;
+    Tracing.group ~location:__POS__ "interaction" tracing;
     Page.set_content "<button>Press</button>" page;
     Page.get_by_role `Button page |> Locator.click;
     Tracing.group_end tracing;
@@ -214,7 +278,22 @@ let test_har_recording t () =
     BrowserContext.close context;
     let entries = Yojson.Safe.from_string (read_file har) |> Yojson.Safe.Util.member "log" |> Yojson.Safe.Util.member "entries" |> Yojson.Safe.Util.to_list in
     Alcotest.(check (list string)) "recorded requests" [ Server.url t.server "/blank" ]
-        (List.map (fun entry -> Yojson.Safe.Util.(member "request" entry |> member "url" |> to_string)) entries)
+        (List.map (fun entry -> Yojson.Safe.Util.(member "request" entry |> member "url" |> to_string)) entries);
+    (* Recording that is started later, with the bodies of the responses in files of their own. *)
+    let har = scratch_file t "later.har" and bodies = scratch_file t "bodies" in
+    let context = Browser.new_context t.browser in
+    let tracing = BrowserContext.tracing context in
+    Tracing.start_har ~content:`Attach ~resources_dir:bodies har tracing;
+    check_failure "one recording at a time" ~message:"already been started" (fun () -> Tracing.start_har har tracing);
+    ignore (Page.goto (Server.url t.server "/blank") (BrowserContext.new_page context));
+    Tracing.stop_har tracing;
+    let content = Yojson.Safe.from_string (read_file har) |> Yojson.Safe.Util.(fun log -> member "log" log |> member "entries" |> index 0 |> member "response" |> member "content") in
+    let file = Yojson.Safe.Util.(member "_file" content |> to_string) in
+    Alcotest.(check string) "the body is in the directory for it" "<title>Blank</title>" (read_file (Filename.concat (Filename.dirname har) file));
+    Alcotest.(check bool) "which is that directory" true (Sys.file_exists (Filename.concat bodies (Filename.basename file)));
+    Alcotest.check_raises "an archive holds its resources itself" (Invalid_argument "Playwright: ~resources_dir does not go with a HAR file that is a .zip archive")
+        (fun () -> Tracing.start_har ~resources_dir:bodies (scratch_file t "network.zip") tracing);
+    BrowserContext.close context
 
 (* A page is recorded into a HAR file, and then served from that file alone. *)
 let test_har_replay t () =
@@ -289,6 +368,7 @@ let tests t =
         case t "geolocation and permissions" (test_geolocation_and_permissions t);
         page_case t "clock" (test_clock t);
         case t "functions, events and timeouts" (test_context_scripting t);
+        case t "events of its pages" (test_page_events_of_context t);
         case t "browser" (test_browser t) ];
       "recording", [ page_case t "tracing" (test_tracing t); case t "HAR" (test_har_recording t); case t "HAR replay" (test_har_replay t);
         case t "video" (test_video t) ] ]
