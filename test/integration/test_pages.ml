@@ -130,6 +130,8 @@ let test_handles _ page =
              ~arg:(Js.obj [ "item", Js.Handle (ElementHandle.as_js_handle (ElementHandle.query_selector "li" element |> Option.get)); "n", Js.Handle n ])
              page);
     Alcotest.check js "evaluate on a handle" (Js.Number 3.) (JSHandle.evaluate "(o, extra) => o.n + extra" ~arg:(Js.int 1) handle);
+    (* A handle stands for an object in the page; as data it is nothing. *)
+    check_failure "no JSON for a handle" ~message:"no JSON representation" (fun () -> Js.to_json (Js.obj [ "list", Js.Handle list ]));
     JSHandle.dispose handle;
     check_failure "disposed handle" (fun () -> JSHandle.json_value handle)
 

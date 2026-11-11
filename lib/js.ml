@@ -101,7 +101,14 @@ let of_wire (json : Json.t) : t =
 let undefined = Undefined
 let null = Null
 let bool b = Bool b
-let int i = Number (float_of_int i)
+(* The integers that a JavaScript number holds exactly, and that no other integer is rounded to. *)
+let max_safe_integer = 9007199254740991.
+let is_safe_integer i = Float.abs (float_of_int i) <= max_safe_integer
+
+let int i =
+    if is_safe_integer i then Number (float_of_int i)
+    else invalid_arg (Printf.sprintf "Playwright: Js.int: no JavaScript number is exactly %d; use Js.Bigint, or Js.float to round" i)
+
 let float f = Number f
 let string s = String s
 let list f items = Array (List.map f items)
@@ -111,7 +118,8 @@ let option f = function Some value -> f value | None -> Null
 let rec of_json : Yojson.Safe.t -> t = function
     | `Null -> Null
     | `Bool b -> Bool b
-    | `Int i -> Number (float_of_int i)
+    | `Int i when is_safe_integer i -> Number (float_of_int i)
+    | `Int i -> Bigint (string_of_int i)
     | `Intlit s -> Bigint s
     | `Float f -> Number f
     | `String s -> String s
@@ -120,11 +128,11 @@ let rec of_json : Yojson.Safe.t -> t = function
 
 (* {1 Reading values} *)
 
-let max_safe_integer = 9007199254740991.
-
-(* The JSON that [JSON.stringify] would produce, with integral numbers as [`Int]. *)
+(* What [JSON.stringify] produces, with integral numbers as [`Int], for the values that JSON
+   has a notion of; the others are rendered in a way of our own rather than lost. *)
 let rec to_json : t -> Yojson.Safe.t = function
-    | Undefined | Null | Handle _ -> `Null
+    | Handle _ -> Error.raise_ "A handle to a JavaScript object has no JSON representation"
+    | Undefined | Null -> `Null
     | Bool b -> `Bool b
     | Number f when not (Float.is_finite f) -> `Null
     | Number f when Float.is_integer f && Float.abs f <= max_safe_integer -> `Int (int_of_float f)
@@ -134,7 +142,7 @@ let rec to_json : t -> Yojson.Safe.t = function
     | Regexp { source; flags } -> `String (Printf.sprintf "/%s/%s" source flags)
     | Error { name; message; stack } -> `Assoc [ "name", `String name; "message", `String message; "stack", `String stack ]
     | Array items -> `List (List.map to_json items)
-    | Object fields -> `Assoc (List.map (fun (key, value) -> key, to_json value) fields)
+    | Object fields -> `Assoc (List.filter_map (fun (key, value) -> match value with Undefined -> None | value -> Some (key, to_json value)) fields)
     | Typed_array { bytes; _ } -> `String (Base64.encode_string bytes)
 
 let rec show : t -> string = function

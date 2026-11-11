@@ -599,6 +599,9 @@ module rec Js : sig
     val null : t
     val bool : bool -> t
     val int : int -> t
+    (** A [Number]. Raises [Invalid_argument] for an integer beyond ±(2{^53} - 1), which a JavaScript number would
+        round: such a one is either a [Bigint] or, knowingly, a {!float}. *)
+
     val float : float -> t
     val string : string -> t
     val list : ('a -> t) -> 'a list -> t
@@ -608,6 +611,7 @@ module rec Js : sig
     (** [None] becomes [Null]. *)
 
     val of_json : Yojson.Safe.t -> t
+    (** Integers become [Number]s, and [Bigint]s when they are beyond ±(2{^53} - 1). *)
 
     (** {2 Inspecting}
 
@@ -632,8 +636,11 @@ module rec Js : sig
     (** The property of an [Object]; [Undefined] when it has no such property. *)
 
     val to_json : t -> Yojson.Safe.t
-    (** Converts the way [JSON.stringify] does where it can: [Undefined] and non-finite numbers become [`Null],
-        dates and URLs become strings. Integral numbers become [`Int]. Fails for handles. *)
+    (** The value as JSON. For what JSON has a notion of, this is what [JSON.stringify] gives: [Undefined] becomes
+        [`Null] in an array and is left out of an object, numbers that are not finite become [`Null], dates and
+        URLs become strings; integral numbers become [`Int]. The rest is rendered rather than lost: a bigint becomes
+        an [`Intlit], a regular expression the string ["/source/flags"], an error an object of its [name], [message]
+        and [stack], and a typed array its bytes in Base64. Fails for a value with a [Handle] in it. *)
 
     val show : t -> string
     (** A JavaScript-like rendering, for messages and debugging. *)
