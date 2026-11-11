@@ -74,6 +74,9 @@ let test_base_url t () =
     ignore (Page.goto "index" page);
     Alcotest.(check string) "relative to the base URL" (Server.url t.server "/app/index") (Page.url page);
     Expect.to_have_url "/app/index" page;
+    Expect.to_have_url "index" page;
+    Expect.to_have_url (Server.url t.server "/app/index") page;
+    Expect.Not.to_have_url ~timeout:100. "/index" page;
     BrowserContext.close context
 
 let test_evaluate _ page =

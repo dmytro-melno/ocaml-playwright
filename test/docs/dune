@@ -1,0 +1,32 @@
+; Checks that the OCaml code in the documentation still compiles: every ```ocaml block of
+; README.md and doc/*.md, and every example in the comments of lib/playwright.mli, goes into
+; one source file, which is built but never run.
+
+(executable
+ (name extract)
+ (modules extract))
+
+(rule
+ (targets snippets.ml)
+ (deps
+  (:docs
+   %{project_root}/README.md
+   (glob_files %{project_root}/doc/*.md)
+   %{project_root}/lib/playwright.mli))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run ./extract.exe %{docs}))))
+
+(executable
+ (name snippets)
+ (modules snippets)
+ (libraries playwright eio eio_main yojson unix)
+ (flags
+  (:standard -w -a)))
+
+(rule
+ (alias runtest)
+ (deps snippets.exe)
+ (action
+  (progn)))

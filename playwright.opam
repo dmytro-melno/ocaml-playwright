@@ -14,7 +14,8 @@ depends: [
   "dune" {>= "3.10"}
   "ocaml" {>= "5.2.0"}
   "eio" {>= "1.0"}
-  "yojson" {>= "2.0.0"}
+  "cstruct" {>= "6.0.0"}
+  "yojson" {>= "3.0.0"}
   "base64" {>= "3.0.0"}
   "eio_main" {with-test & >= "1.0"}
   "alcotest" {with-test & >= "1.7.0"}

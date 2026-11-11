@@ -27,7 +27,7 @@
       {{:https://github.com/ocaml-multicore/eio} Eio} fibers to work with several pages concurrently. Cancelling a
       fiber cancels the call it is blocked in.
     - Timeouts and other durations are in milliseconds, as in Playwright. A timeout of [0.] disables the timeout.
-    - Failures are reported with the exception {!Error}; [Invalid_argument] is reserved for misuse of the API
+    - Failures are reported with the exception {!exception-Error}; [Invalid_argument] is reserved for misuse of the API
       that no browser needs to be asked about.
     - JavaScript regular expressions are given as literals in a string, such as ["/sign (in|up)/i"], to the
       functions and arguments named [..._regex].
@@ -192,7 +192,7 @@ module Js : sig
 
     (** {2 Inspecting}
 
-        The [to_...] functions raise {!Playwright.Error} when the value is of another kind. *)
+        The [to_...] functions raise {!exception-Playwright.Error} when the value is of another kind. *)
 
     val to_string : t -> string
     val to_bool : t -> bool
@@ -511,8 +511,9 @@ module type Frame_operations = sig
         awaited first. If the expression evaluates to a function, that function is called with [arg].
 
         {[
-          Page.evaluate "document.title" page |> Js.to_string;
-          Page.evaluate "([a, b]) => a + b" ~arg:(Js.list Js.int [ 1; 2 ]) page |> Js.to_int
+          let title = Page.evaluate "document.title" page |> Js.to_string in
+          let sum = Page.evaluate "([a, b]) => a + b" ~arg:(Js.list Js.int [ 1; 2 ]) page |> Js.to_int in
+          Printf.printf "%s: %d\n" title sum
         ]} *)
 
     val evaluate_handle : ?arg:Js.t -> string -> t -> js_handle
@@ -609,7 +610,7 @@ module BrowserType : sig
     (** Starts a browser.
 
         {[
-          let browser = BrowserType.launch ~headless:false ~args:[ "--start-maximized" ] (Playwright.chromium pw)
+          BrowserType.launch ~headless:false ~args:[ "--start-maximized" ] (Playwright.chromium pw)
         ]} *)
 
     val launch_persistent_context : (string -> (t -> browser_context) with_context_options) with_launch_options
@@ -895,7 +896,8 @@ module Page : sig
     (** See {!BrowserContext.expect_event}.
 
         {[
-          let download = Page.expect_event Page.Download (fun () -> Locator.click link) page
+          let download = Page.expect_event Page.Download (fun () -> Locator.click locator) page in
+          Download.save_as "report.pdf" download
         ]} *)
 
     val wait_for_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> t -> 'a
@@ -1237,7 +1239,7 @@ end
 
 (** {1 Assertions} *)
 
-(** Assertions that wait: each of them checks its condition repeatedly until it holds, and fails with an {!Error} of
+(** Assertions that wait: each of them checks its condition repeatedly until it holds, and fails with an {!exception-Error} of
     kind [Assertion_failed] when it does not come to hold within the timeout, 5 seconds by default. The error
     message says what was expected, what was found instead, and includes the call log.
 
@@ -1245,7 +1247,7 @@ end
       Expect.to_be_visible (Page.get_by_role `Heading ~name:"Welcome" page);
       Expect.to_have_text "3 items" (Page.get_by_test_id "cart-count" page);
       Expect.Not.to_be_checked (Page.get_by_label "Subscribe" page);
-      Expect.to_have_url "**/checkout" page
+      Expect.to_have_url_regex "/\\/checkout$/" page
     ]} *)
 module Expect : sig
     module type Assertions = sig
@@ -1329,8 +1331,8 @@ module Expect : sig
         val to_have_title_regex : ?timeout:float -> string -> page -> unit
 
         val to_have_url : ?timeout:float -> ?ignore_case:bool -> string -> page -> unit
-        (** The URL of the page matches the glob pattern; a pattern starting with [/] is relative to the [base_url] of
-            the context. *)
+        (** The URL of the page is the given one. A relative URL is resolved against the [base_url] of the context.
+            This is a comparison of strings, not of patterns; for those there is {!to_have_url_regex}. *)
 
         val to_have_url_regex : ?timeout:float -> string -> page -> unit
 

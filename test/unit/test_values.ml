@@ -160,6 +160,26 @@ let test_unindent () =
         (Expect.unindent "\n        - list:\n          - listitem: one\n\n          - listitem: two\n    ");
     Alcotest.(check string) "nothing to remove" "- heading" (Expect.unindent "- heading")
 
+(* {1 URLs in assertions} *)
+
+let test_resolve_url () =
+    let check what expected ?base url = Alcotest.(check string) what expected (Expect.resolve_url ?base url) in
+    check "an absolute URL is kept" "https://example.com/a?b#c" ~base:"http://other.test/" "https://example.com/a?b#c";
+    check "a bare origin gets its path" "https://example.com/" "https://example.com";
+    check "also before a query" "https://example.com/?q=1" "https://example.com?q=1";
+    check "other schemes are kept" "about:blank" ~base:"http://localhost:8080" "about:blank";
+    check "a data URL is kept" "data:text/html,<p>a/b</p>" "data:text/html,<p>a/b</p>";
+    check "an absolute path replaces the path" "http://localhost:8080/checkout" ~base:"http://localhost:8080/app/index.html" "/checkout";
+    check "the base may be a bare origin" "http://localhost:8080/checkout" ~base:"http://localhost:8080" "/checkout";
+    check "a relative path replaces the last segment" "http://localhost:8080/app/cart" ~base:"http://localhost:8080/app/index.html?x=1" "cart";
+    check "relative to a directory" "http://localhost:8080/app/cart" ~base:"http://localhost:8080/app/" "./cart";
+    check "relative to a bare origin" "http://localhost:8080/cart" ~base:"http://localhost:8080" "cart";
+    check "a query replaces the query" "http://localhost:8080/app?page=2" ~base:"http://localhost:8080/app?page=1#top" "?page=2";
+    check "a fragment replaces the fragment" "http://localhost:8080/app?page=1#end" ~base:"http://localhost:8080/app?page=1#top" "#end";
+    check "the scheme is inherited" "http://cdn.test/x.js" ~base:"http://localhost:8080/app" "//cdn.test/x.js";
+    check "nothing gives the base" "http://localhost:8080/app?page=1" ~base:"http://localhost:8080/app?page=1#top" "";
+    check "without a base, a relative URL is kept" "/checkout" "/checkout"
+
 let tests =
     [ "js",
       [ Alcotest.test_case "wire format" `Quick test_js_wire_format;
@@ -172,4 +192,4 @@ let tests =
         Alcotest.test_case "by role" `Quick test_selectors_by_role;
         Alcotest.test_case "combinators" `Quick test_selector_combinators ];
       "url", [ Alcotest.test_case "regular expressions from globs" `Quick test_url_regex ];
-      "expect", [ Alcotest.test_case "unindent" `Quick test_unindent ] ]
+      "expect", [ Alcotest.test_case "unindent" `Quick test_unindent; Alcotest.test_case "URLs" `Quick test_resolve_url ] ]

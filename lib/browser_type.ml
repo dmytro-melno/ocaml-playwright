@@ -63,7 +63,13 @@ let explain_missing_browser f =
             go 0;
             Buffer.contents buffer
         in
-        raise (Error.E { error with message = replace_all ~sub:" playwright install" ~by:" ocaml-playwright install" error.message })
+        (* The first replacement keeps the frame around the hint straight. *)
+        let message =
+            error.message
+            |> replace_all ~sub:" playwright install      " ~by:" ocaml-playwright install"
+            |> replace_all ~sub:" playwright install" ~by:" ocaml-playwright install"
+        in
+        raise (Error.E { error with message })
 
 let adopt (t : t) ?traces_dir (browser : browser) =
     browser.browser_type <- Some t;
