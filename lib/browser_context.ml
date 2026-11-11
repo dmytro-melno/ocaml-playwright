@@ -91,6 +91,15 @@ let add_route ?times matcher handler (context : t) =
 let route ?times glob handler context = add_route ?times (Glob glob) handler context
 let route_matching ?times predicate handler context = add_route ?times (Predicate predicate) handler context
 
+(* Answers requests from the HAR file [har], or with [update] records one there instead. *)
+let route_from_har ?url ?not_found ?(update = false) ?update_content ?update_mode har (context : t) =
+    if update then ignore (Tracing.record_into_har ?url_glob:url ?content:update_content ?mode:update_mode context.tracing har : string)
+    else begin
+        let handler, close = Route.Har.open_ context.c_session ?not_found har in
+        Emitter.once context.ce_close (fun _ -> close ());
+        add_route (Glob (Option.value url ~default:"**/*")) handler context
+    end
+
 let unroute glob (context : t) =
     context.c_routes <- List.filter (fun (handler : route_handler) -> not (Route.Handler.matcher_equal handler.rh_matcher (Glob glob))) context.c_routes;
     update_interception context
@@ -261,35 +270,7 @@ let new_page (context : t) =
     if context.owner_page <> None then Error.raise_ "Please use Browser.new_context";
     Protocol.Browser_context.new_page context.c_channel |> Types.page
 
-module Cookie = struct
-    type same_site = [ `Strict | `Lax | `None ]
-
-    type t = {
-        name : string;
-        value : string;
-        domain : string;
-        path : string;
-        expires : float;
-        http_only : bool;
-        secure : bool;
-        same_site : same_site;
-        partition_key : string option;
-    }
-
-    type init = Protocol.Set_network_cookie.t
-
-    let make ?url ?domain ?path ?expires ?http_only ?secure ?(same_site : same_site option) ?partition_key name value : init =
-        { name; value; url; domain; path; expires; http_only; secure; same_site; partition_key; cr_has_cross_site_ancestor = None }
-
-    let to_init (c : t) : init =
-        { name = c.name; value = c.value; url = None; domain = Some c.domain; path = Some c.path; expires = Some c.expires;
-          http_only = Some c.http_only; secure = Some c.secure; same_site = Some c.same_site; partition_key = c.partition_key;
-          cr_has_cross_site_ancestor = None }
-
-    let of_protocol (c : Protocol.Network_cookie.t) : t =
-        { name = c.name; value = c.value; domain = c.domain; path = c.path; expires = c.expires; http_only = c.http_only; secure = c.secure;
-          same_site = c.same_site; partition_key = c.partition_key }
-end
+module Cookie = Cookie
 
 let cookies ?(urls = []) (context : t) = Protocol.Browser_context.cookies ~urls context.c_channel |> List.map Cookie.of_protocol
 let add_cookies cookies (context : t) = Protocol.Browser_context.add_cookies ~cookies context.c_channel
@@ -325,6 +306,11 @@ let expose_binding name (binding : binding) (context : t) =
     Hashtbl.replace context.c_bindings name binding
 
 let expose_function name f context = expose_binding name (fun _ args -> f args) context
+
+let set_storage_state (state : Yojson.Safe.t) (context : t) =
+    Protocol.Browser_context.set_storage_state
+        ~storage_state:(Protocol.Browser_context.Set_storage_state_storage_state.of_json context.c_session.conn state)
+        context.c_channel
 
 let storage_state ?path ?indexed_db (context : t) : Yojson.Safe.t =
     let state =

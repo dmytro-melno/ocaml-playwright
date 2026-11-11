@@ -219,10 +219,31 @@ let test_workers t page =
     let closed = Worker.expect_event Worker.Close (fun () -> ignore (Page.evaluate "window.worker.terminate()" page)) worker in
     Alcotest.(check bool) "closed" true (closed == worker && Page.workers page = [])
 
+(* Messages and errors from before anyone listened. *)
+let test_history t page =
+    Server.page t.server "/noisy" "<script>console.log('loaded')</script>";
+    ignore (Page.goto (Server.url t.server "/noisy") page);
+    ignore (Page.evaluate "console.warn('careful', 1)" page);
+    ignore (Page.expect_event Page.Page_error (fun () -> ignore (Page.evaluate "setTimeout(() => { throw new RangeError('too late') }, 0)" page)) page);
+    let texts filter = Page.console_messages ?filter page |> List.map (fun m -> ConsoleMessage.type_ m ^ ": " ^ ConsoleMessage.text m) in
+    Alcotest.(check (list string)) "console messages" [ "log: loaded"; "warning: careful 1" ] (texts None);
+    Alcotest.(check bool) "they belong to the page" true
+        (List.for_all (fun m -> same_option (ConsoleMessage.page m) (Some page)) (Page.console_messages page));
+    Alcotest.(check (list (pair string string))) "page errors" [ "RangeError", "too late" ]
+        (Page.page_errors page |> List.map (fun (error : Playwright.Error.t) -> error.name, error.message));
+    ignore (Page.goto (Server.url t.server "/noisy") page);
+    Alcotest.(check (list string)) "since the navigation" [ "log: loaded" ] (texts (Some `Since_navigation));
+    Alcotest.(check int) "everything" 3 (List.length (texts (Some `All)));
+    Alcotest.(check int) "no errors since the navigation" 0 (List.length (Page.page_errors ~filter:`Since_navigation page));
+    Page.clear_console_messages page;
+    Page.clear_page_errors page;
+    Alcotest.(check int) "cleared" 0 (List.length (texts None) + List.length (Page.page_errors page))
+
 let tests t =
     [ "events",
       [ page_case t "console" (test_console t);
         page_case t "page errors" (test_page_errors t);
+        page_case t "history" (test_history t);
         page_case t "dialogs" (test_dialogs t);
         page_case t "popups" (test_popups t);
         page_case t "downloads" (test_downloads t);

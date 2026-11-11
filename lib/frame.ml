@@ -400,6 +400,27 @@ struct
             ?local_directory:converted.local_directory ?directory_stream:converted.directory_stream ?local_paths:converted.local_paths
             ?streams:converted.streams frame.f_channel
 
+    (* Drops files, data or both onto the element, as a drag from outside the page would. *)
+    let drop ?timeout ?strict ?position ?files ?(data = []) selector t =
+        let frame = T.frame t in
+        let converted = Option.map (convert_input_files (Some frame)) files in
+        (match converted with
+        | Some { local_directory = Some _; _ } | Some { directory_stream = Some _; _ } ->
+            Error.raise_ "Dropping a directory is not supported, pass individual files."
+        | _ -> ());
+        let payloads =
+            Option.bind converted (fun converted -> converted.payloads)
+            |> Option.map
+                   (List.map (fun (payload : Protocol.Frame.Set_input_files_payloads.t) : Protocol.Frame.Drop_payloads.t ->
+                        { name = payload.name; mime_type = payload.mime_type; buffer = payload.buffer }))
+        in
+        let data = List.map (fun (mime_type, value) : Protocol.Frame.Drop_data.t -> { mime_type; value }) data in
+        Protocol.Frame.drop ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?position:(Option.map point position) ?payloads
+            ?local_paths:(Option.bind converted (fun converted -> converted.local_paths))
+            ?streams:(Option.bind converted (fun converted -> converted.streams))
+            ?data:(if data = [] then None else Some data)
+            frame.f_channel
+
     let set_input_files ?timeout ?strict selector paths t = set_input ?timeout ?strict selector (Paths paths) t
     let set_input_payloads ?timeout ?strict selector payloads t = set_input ?timeout ?strict selector (Payloads payloads) t
 

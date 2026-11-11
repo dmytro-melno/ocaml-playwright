@@ -161,6 +161,16 @@ let set_input ?timeout files (l : t) = Frame.set_input ~strict:true ?timeout l.s
 let set_input_files ?timeout paths (l : t) = set_input ?timeout (Frame.Paths paths) l
 let set_input_payloads ?timeout payloads (l : t) = set_input ?timeout (Frame.Payloads payloads) l
 
+let drop ?timeout ?position ?files ?payloads ?data (l : t) =
+    let files =
+        match files, payloads with
+        | Some _, Some _ -> invalid_arg "Playwright: pass either ~files or ~payloads, not both"
+        | Some paths, None -> Some (Frame.Paths paths)
+        | None, Some payloads -> Some (Frame.Payloads payloads)
+        | None, None -> None
+    in
+    Frame.drop ~strict:true ?timeout ?position ?files ?data l.selector l.l_frame
+
 let dispatch_event ?timeout ?event_init type_ (l : t) = Frame.dispatch_event ~strict:true ?timeout ?event_init l.selector type_ l.l_frame
 
 let highlight ?style (l : t) = Protocol.Frame.highlight ~selector:l.selector ?style l.l_frame.f_channel

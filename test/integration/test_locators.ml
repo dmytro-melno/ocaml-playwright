@@ -196,6 +196,38 @@ let test_selector_operations _ page =
     Alcotest.(check bool) "waiting for hidden yields nothing" true (Option.is_none (Page.wait_for_selector ~state:`Hidden "#hidden" page));
     check_failure "strict selector" ~message:"strict mode violation" (fun () -> Page.click ~strict:true "li" page)
 
+let test_drop t page =
+    Page.set_content
+        {|<div id="zone" style="width: 200px; height: 100px; background: silver">Drop here</div>
+          <script>
+            const zone = document.querySelector('#zone');
+            zone.addEventListener('dragover', event => event.preventDefault());
+            zone.addEventListener('drop', async event => {
+              event.preventDefault();
+              const text = event.dataTransfer.getData('text/plain');
+              const files = await Promise.all([...event.dataTransfer.files].map(async file => file.name + '=' + await file.text()));
+              window.dropped = { text, files };
+            });
+          </script>|}
+        page;
+    let zone = Page.locator "#zone" page in
+    let dropped () =
+        ignore (Page.wait_for_function "window.dropped" page);
+        let value = Page.evaluate "(() => { const d = window.dropped; window.dropped = undefined; return d })()" page in
+        Js.to_string (Js.member "text" value), Js.to_list Js.to_string (Js.member "files" value)
+    in
+    Locator.drop ~data:[ "text/plain", "hello" ] zone;
+    Alcotest.(check (pair string (list string))) "data" ("hello", []) (dropped ());
+    let file = scratch_file t "dropped.txt" in
+    write_file file "from disk";
+    Locator.drop ~files:[ file ] zone;
+    Alcotest.(check (pair string (list string))) "a file" ("", [ Filename.basename file ^ "=from disk" ]) (dropped ());
+    Locator.drop ~payloads:[ { name = "memo.txt"; mime_type = Some "text/plain"; buffer = "from memory" } ] ~data:[ "text/plain", "both" ] zone;
+    Alcotest.(check (pair string (list string))) "an in-memory file with data" ("both", [ "memo.txt=from memory" ]) (dropped ());
+    match Locator.drop ~files:[ file ] ~payloads:[] zone with
+    | () -> Alcotest.fail "files and payloads together"
+    | exception Invalid_argument _ -> ()
+
 let test_uploads t page =
     Page.set_content {|<input type="file" id="one"><input type="file" id="many" multiple>|} page;
     let describe id =
@@ -308,5 +340,6 @@ let tests t =
         page_case t "mouse actions" (test_mouse_actions t);
         page_case t "waiting and strictness" (test_waiting_and_strictness t);
         page_case t "selector operations and element handles" (test_selector_operations t);
-        page_case t "uploads" (test_uploads t) ];
+        page_case t "uploads" (test_uploads t);
+        page_case t "drop" (test_drop t) ];
       "expect", [ page_case t "assertions" (test_expect t); page_case t "waiting and failing" (test_expect_waits_and_fails t) ] ]

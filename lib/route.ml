@@ -140,6 +140,51 @@ module Handler = struct
     let globs matchers = Url_match.interception_patterns matchers
 end
 
+(* {1 Replaying a HAR file} *)
+
+module Har = struct
+    (* Opens the archive [file] and returns the handler that answers requests from it, together
+       with the function that closes the archive again. *)
+    let open_ session ?(not_found = `Abort) file =
+        let utils = Url_match.local_utils session in
+        let har_id =
+            match Protocol.Local_utils.har_open ~file:(Files.absolute file) utils with
+            | { error = Some message; _ } -> Error.raise_ "%s" message
+            | { har_id = Some har_id; _ } -> har_id
+            | { har_id = None; error = None } -> Error.raise_ "Could not open %s" file
+        in
+        let handler (route : route) =
+            let request = route.rt_request in
+            let found =
+                Protocol.Local_utils.har_lookup ~har_id ~url:(Request.url request) ~method_:(Request.method_ request)
+                    ~headers:(name_values (Request.headers_array request)) ?post_data:(Request.post_data request)
+                    ~is_navigation_request:(Request.is_navigation_request request) utils
+            in
+            match found with
+            | { action = `Redirect; redirect_url = Some url; _ } ->
+                handle route (fun () -> unless_target_gone route (fun () -> Protocol.Route.redirect_navigation_request ~url route.rt_channel))
+            (* A request that was cancelled or never finished when the archive was recorded stays
+               pending now. *)
+            | { action = `Fulfill; status = Some -1; _ } -> ()
+            | { action = `Fulfill; status; headers; body; _ } ->
+                (* Several Set-Cookie headers travel as one, separated by line breaks. *)
+                let headers =
+                    List.fold_left
+                        (fun headers (header : Protocol.Name_value.t) ->
+                            let name = String.lowercase_ascii header.name in
+                            match List.assoc_opt name headers with
+                            | Some earlier when name = "set-cookie" -> (name, earlier ^ "\n" ^ header.value) :: List.remove_assoc name headers
+                            | _ -> (name, header.value) :: List.remove_assoc name headers)
+                        [] (Option.value headers ~default:[])
+                    |> List.rev
+                in
+                fulfill ?status ~headers ?body route
+            | _ -> ( match not_found with `Abort -> abort route | `Fallback -> fallback route)
+        in
+        let close () = try Protocol.Local_utils.har_close ~har_id utils with Error.E _ -> () in
+        handler, close
+end
+
 (* {1 WebSocket routes} *)
 
 module Web_socket = struct

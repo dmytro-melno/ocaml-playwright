@@ -54,7 +54,29 @@ let test_storage_state t page =
     in
     Alcotest.(check string) "restored from the value" "dark/session=abc" (restored_from (Browser.new_context ~storage_state:state));
     Alcotest.(check string) "restored from the file" "dark/session=abc" (restored_from (Browser.new_context ~storage_state_path:file));
-    Alcotest.(check string) "a fresh context has neither" "null/" (restored_from Browser.new_context)
+    Alcotest.(check string) "a fresh context has neither" "null/" (restored_from Browser.new_context);
+    Alcotest.(check string) "set in a context that exists already" "dark/session=abc"
+        (restored_from (fun browser ->
+             let context = Browser.new_context browser in
+             BrowserContext.set_storage_state state context;
+             context))
+
+let test_web_storage t page =
+    visit t page;
+    let local = Page.local_storage page and session = Page.session_storage page in
+    WebStorage.set_item "a" "1" local;
+    WebStorage.set_item "b" "2" local;
+    WebStorage.set_item "s" "x" session;
+    Alcotest.(check (list (pair string string))) "items" [ "a", "1"; "b", "2" ] (List.sort compare (WebStorage.items local));
+    Alcotest.(check (option string)) "an item" (Some "1") (WebStorage.get_item "a" local);
+    Alcotest.(check (option string)) "no such item" None (WebStorage.get_item "s" local);
+    Alcotest.(check string) "the page sees them" "1/x" (eval_string "localStorage.getItem('a') + '/' + sessionStorage.getItem('s')" page);
+    ignore (Page.evaluate "localStorage.setItem('c', '3')" page);
+    WebStorage.remove_item "a" local;
+    Alcotest.(check (list (pair string string))) "after a removal and a change by the page" [ "b", "2"; "c", "3" ] (List.sort compare (WebStorage.items local));
+    WebStorage.clear local;
+    Alcotest.(check int) "cleared" 0 (List.length (WebStorage.items local));
+    Alcotest.(check (list (pair string string))) "the session storage is separate" [ "s", "x" ] (WebStorage.items session)
 
 let test_emulation t () =
     let context =
@@ -194,6 +216,51 @@ let test_har_recording t () =
     Alcotest.(check (list string)) "recorded requests" [ Server.url t.server "/blank" ]
         (List.map (fun entry -> Yojson.Safe.Util.(member "request" entry |> member "url" |> to_string)) entries)
 
+(* A page is recorded into a HAR file, and then served from that file alone. *)
+let test_har_replay t () =
+    let visits = ref 0 in
+    Server.route t.server "/recorded" (fun _ ->
+        incr visits;
+        Server.html ~headers:[ "set-cookie", "a=1"; "set-cookie", "b=2" ] (Printf.sprintf "<title>Visit %d</title><script src='/recorded.js'></script>" !visits));
+    Server.route t.server "/recorded.js" (fun _ -> Server.respond ~content_type:"text/javascript" "window.fromScript = 'original'");
+    Server.page t.server "/live" "<title>Live</title>";
+    let har = scratch_file t "replay.har" in
+    let recording = Browser.new_context t.browser in
+    BrowserContext.route_from_har ~update:true ~url:"**/recorded*" har recording;
+    let page = BrowserContext.new_page recording in
+    ignore (Page.goto (Server.url t.server "/recorded") page);
+    ignore (Page.goto (Server.url t.server "/live") page);
+    BrowserContext.close recording;
+    Alcotest.(check bool) "written when the context closes" true (Sys.file_exists har);
+    let visits_recorded = !visits in
+    (* For the whole context: what is not in the file is aborted. *)
+    let context = Browser.new_context t.browser in
+    BrowserContext.route_from_har har context;
+    let page = BrowserContext.new_page context in
+    ignore (Page.goto (Server.url t.server "/recorded") page);
+    Alcotest.(check string) "the page comes from the file" "Visit 1" (Page.title page);
+    Alcotest.(check string) "and so do its resources" "original" (eval_string "window.fromScript" page);
+    Alcotest.(check int) "the server was not asked" visits_recorded !visits;
+    Alcotest.(check (list string)) "every Set-Cookie header was replayed" [ "a"; "b" ]
+        (BrowserContext.cookies context |> List.map (fun (c : Cookie.t) -> c.name) |> List.sort compare);
+    check_failure "anything else is aborted" (fun () -> Page.goto (Server.url t.server "/live") page);
+    BrowserContext.close context;
+    (* For one page, with the network as the fallback. *)
+    let context = Browser.new_context t.browser in
+    let page = BrowserContext.new_page context in
+    Page.route_from_har ~not_found:`Fallback har page;
+    ignore (Page.goto (Server.url t.server "/recorded") page);
+    Alcotest.(check string) "from the file" "Visit 1" (Page.title page);
+    ignore (Page.goto (Server.url t.server "/live") page);
+    Alcotest.(check string) "from the network" "Live" (Page.title page);
+    let other = BrowserContext.new_page context in
+    ignore (Page.goto (Server.url t.server "/recorded") other);
+    Alcotest.(check string) "other pages are not affected" (Printf.sprintf "Visit %d" (visits_recorded + 1)) (Page.title other);
+    BrowserContext.close context;
+    let context = Browser.new_context t.browser in
+    check_failure "a file that does not exist" (fun () -> BrowserContext.route_from_har (scratch_file t "missing.har") context);
+    BrowserContext.close context
+
 let test_video t () =
     let dir = scratch_file t "videos" in
     let context = Browser.new_context ~record_video_dir:dir ~record_video_size:(320, 240) t.browser in
@@ -217,9 +284,11 @@ let tests t =
     [ "context",
       [ page_case t "cookies" (test_cookies t);
         page_case t "storage state" (test_storage_state t);
+        page_case t "web storage" (test_web_storage t);
         case t "emulation and devices" (test_emulation t);
         case t "geolocation and permissions" (test_geolocation_and_permissions t);
         page_case t "clock" (test_clock t);
         case t "functions, events and timeouts" (test_context_scripting t);
         case t "browser" (test_browser t) ];
-      "recording", [ page_case t "tracing" (test_tracing t); case t "HAR" (test_har_recording t); case t "video" (test_video t) ] ]
+      "recording", [ page_case t "tracing" (test_tracing t); case t "HAR" (test_har_recording t); case t "HAR replay" (test_har_replay t);
+        case t "video" (test_video t) ] ]

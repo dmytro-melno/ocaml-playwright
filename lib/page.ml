@@ -309,6 +309,33 @@ let bring_to_front (page : t) = Protocol.Page.bring_to_front page.p_channel
 let request_gc (page : t) = Protocol.Page.request_gc page.p_channel
 let requests (page : t) = Protocol.Page.requests page.p_channel |> List.map Types.request
 
+(* What the page has logged so far, for callers that were not listening when it happened. *)
+let console_messages ?filter (page : t) : console_message list =
+    Protocol.Page.console_messages ?filter page.p_channel
+    |> List.map (fun (message : Protocol.Page.Console_messages_result_messages.t) ->
+           { cm_type = message.type_; cm_text = message.text; cm_args = List.map Types.js_handle message.args; cm_location = message.location;
+             cm_timestamp = message.timestamp; cm_page = Some page; cm_worker = None })
+
+let clear_console_messages (page : t) = Protocol.Page.clear_console_messages page.p_channel
+let page_errors ?filter (page : t) = Protocol.Page.page_errors ?filter page.p_channel |> List.map Browser_context.js_error
+let clear_page_errors (page : t) = Protocol.Page.clear_page_errors page.p_channel
+
+(* The page's local or session storage for its current origin. *)
+module Web_storage = struct
+    type t = page * [ `Local | `Session ]
+
+    let items ((page, kind) : t) =
+        Protocol.Page.web_storage_items ~kind page.p_channel |> List.map (fun (item : Protocol.Name_value.t) -> item.name, item.value)
+
+    let get_item name ((page, kind) : t) = Protocol.Page.web_storage_get_item ~kind ~name page.p_channel
+    let set_item name value ((page, kind) : t) = Protocol.Page.web_storage_set_item ~kind ~name ~value page.p_channel
+    let remove_item name ((page, kind) : t) = Protocol.Page.web_storage_remove_item ~kind ~name page.p_channel
+    let clear ((page, kind) : t) = Protocol.Page.web_storage_clear ~kind page.p_channel
+end
+
+let local_storage (page : t) : Web_storage.t = page, `Local
+let session_storage (page : t) : Web_storage.t = page, `Session
+
 let set_viewport_size (width, height) (page : t) =
     page.viewport_size <- Some { width; height };
     Protocol.Page.set_viewport_size ~viewport_size:{ width; height } page.p_channel
@@ -339,6 +366,14 @@ let add_route ?times matcher handler (page : t) =
 
 let route ?times glob handler page = add_route ?times (Glob glob) handler page
 let route_matching ?times predicate handler page = add_route ?times (Predicate predicate) handler page
+
+let route_from_har ?url ?not_found ?(update = false) ?update_content ?update_mode har (page : t) =
+    if update then ignore (Tracing.record_into_har ~page ?url_glob:url ?content:update_content ?mode:update_mode page.context.tracing har : string)
+    else begin
+        let handler, close = Route.Har.open_ (session page) ?not_found har in
+        Emitter.once page.pe_close (fun _ -> close ());
+        add_route (Glob (Option.value url ~default:"**/*")) handler page
+    end
 
 let unroute glob (page : t) =
     page.p_routes <- List.filter (fun (handler : route_handler) -> not (Route.Handler.matcher_equal handler.rh_matcher (Glob glob))) page.p_routes;

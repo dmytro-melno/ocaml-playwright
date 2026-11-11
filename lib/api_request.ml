@@ -79,6 +79,10 @@ module Context = struct
         Option.iter (fun path -> Files.write path (Yojson.Safe.pretty_to_string state)) path;
         state
 
+    let cookies ?(urls = []) (t : t) = Protocol.Api_request_context.cookies ~urls t.a_channel |> List.map Cookie.of_protocol
+    let add_cookies cookies (t : t) = Protocol.Api_request_context.add_cookies ~cookies t.a_channel
+    let clear_cookies ?name ?domain ?path (t : t) = Protocol.Api_request_context.clear_cookies ?name ?domain ?path t.a_channel
+
     let dispose ?reason (t : t) =
         if not t.a_closed then begin
             t.a_closed <- true;

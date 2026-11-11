@@ -95,6 +95,7 @@ type download
 type file_chooser
 type web_error
 type video
+type web_storage
 type tracing
 type api_request_context
 type api_response
@@ -726,6 +727,24 @@ module BrowserContext : sig
 
     val unroute_all : t -> unit
 
+    val route_from_har :
+        ?url:string ->
+        ?not_found:[ `Abort | `Fallback ] ->
+        ?update:bool ->
+        ?update_content:[ `Attach | `Embed | `Omit ] ->
+        ?update_mode:[ `Full | `Minimal ] ->
+        string ->
+        t ->
+        unit
+    (** [route_from_har file] answers the requests of the context from the HAR file, which is one recorded with the
+        [record_har_path] option of a context or with [~update:true]; see
+        {{:https://playwright.dev/docs/mock#mocking-with-har-files} Mocking with HAR files}. [url] restricts this to
+        the requests matching a glob pattern. A request that the file has no answer for is aborted, or with
+        [~not_found:`Fallback] goes to the other handlers and to the network.
+
+        With [~update:true] nothing is intercepted: instead the traffic is recorded, and written to the file when
+        the context is closed. *)
+
     val route_web_socket : string -> (web_socket_route -> unit) -> t -> unit
     (** Intercepts the WebSocket connections that pages open to matching URLs, see {!WebSocketRoute}. *)
 
@@ -744,6 +763,10 @@ module BrowserContext : sig
 
     val storage_state : ?path:string -> ?indexed_db:bool -> t -> Yojson.Safe.t
     (** The cookies and the local storage of the context, for the [storage_state] option of a later context. *)
+
+    val set_storage_state : Yojson.Safe.t -> t -> unit
+    (** Replaces the cookies and the local storage of the context by those of a state that {!storage_state}
+        returned. *)
 
     val grant_permissions : ?origin:string -> string list -> t -> unit
     val clear_permissions : t -> unit
@@ -905,12 +928,47 @@ module Page : sig
     val route_matching : ?times:int -> (string -> bool) -> (route -> unit) -> t -> unit
     val unroute : string -> t -> unit
     val unroute_all : t -> unit
+
+    val route_from_har :
+        ?url:string ->
+        ?not_found:[ `Abort | `Fallback ] ->
+        ?update:bool ->
+        ?update_content:[ `Attach | `Embed | `Omit ] ->
+        ?update_mode:[ `Full | `Minimal ] ->
+        string ->
+        t ->
+        unit
+    (** Answers the requests of this page from a HAR file, see {!BrowserContext.route_from_har}. *)
+
     val route_web_socket : string -> (web_socket_route -> unit) -> t -> unit
     val route_web_socket_matching : (string -> bool) -> (web_socket_route -> unit) -> t -> unit
     val set_extra_http_headers : (string * string) list -> t -> unit
 
     val requests : t -> request list
     (** The most recent requests of the page, up to a limit set by the browser. *)
+
+    (** {1 History}
+
+        What happened in the page before anyone listened: the browser keeps the most recent console messages and
+        uncaught errors of every page. *)
+
+    val console_messages : ?filter:[ `All | `Since_navigation ] -> t -> console_message list
+    (** The console messages of the page so far, the oldest first; with [`Since_navigation] only those of the
+        document that it shows now. *)
+
+    val clear_console_messages : t -> unit
+
+    val page_errors : ?filter:[ `All | `Since_navigation ] -> t -> Error.t list
+    (** The exceptions that scripts of the page did not catch, as the [Page_error] event reports them. *)
+
+    val clear_page_errors : t -> unit
+
+    (** {1 Storage} *)
+
+    val local_storage : t -> web_storage
+    (** The [localStorage] of the page for the origin that it shows, see {!WebStorage}. *)
+
+    val session_storage : t -> web_storage
 
     (** {1 Scripting} *)
 
@@ -1086,6 +1144,19 @@ module Locator : sig
         directory can be given for an input with the [webkitdirectory] attribute. *)
 
     val set_input_payloads : ?timeout:float -> file_payload list -> t -> unit
+
+    val drop :
+        ?timeout:float ->
+        ?position:float * float ->
+        ?files:string list ->
+        ?payloads:file_payload list ->
+        ?data:(string * string) list ->
+        t ->
+        unit
+    (** Drops something onto the element the way a drag from outside the browser does: the files at the paths
+        [files] or the in-memory files [payloads], and [data] as pairs of a MIME type and a value, e.g.
+        [("text/plain", "hello")]. The page receives [dragenter], [dragover] and [drop] events. *)
+
     val select_text : ?timeout:float -> ?force:bool -> t -> unit
     val scroll_into_view_if_needed : ?timeout:float -> t -> unit
     val dispatch_event : ?timeout:float -> ?event_init:Js.t -> string -> t -> unit
@@ -1673,6 +1744,18 @@ module Worker : sig
     val wait_for_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> t -> 'a
 end
 
+(** The [localStorage] or [sessionStorage] of a page, see {!Page.local_storage}. It always is the storage of the
+    origin that the page shows at the time of the call. *)
+module WebStorage : sig
+    type t = web_storage
+
+    val items : t -> (string * string) list
+    val get_item : string -> t -> string option
+    val set_item : string -> string -> t -> unit
+    val remove_item : string -> t -> unit
+    val clear : t -> unit
+end
+
 (** The video recording of a page. The file is complete once the page has been closed. *)
 module Video : sig
     type t = video
@@ -1797,6 +1880,13 @@ module APIRequestContext : sig
     (** A request with any method, [GET] by default. *)
 
     val storage_state : ?path:string -> ?indexed_db:bool -> t -> Yojson.Safe.t
+
+    val cookies : ?urls:string list -> t -> Cookie.t list
+    (** The cookies that the context holds and sends, which for {!BrowserContext.request} and {!Page.request} are
+        those of the browser context. *)
+
+    val add_cookies : Cookie.init list -> t -> unit
+    val clear_cookies : ?name:string -> ?domain:string -> ?path:string -> t -> unit
 
     val dispose : ?reason:string -> t -> unit
     (** Frees the context and all responses that it holds. Only for contexts made with {!APIRequest.new_context}. *)
