@@ -189,18 +189,29 @@ let test_error_replies () =
     let thrown = call_failing (`Assoc [ "value", `Assoc [ "n", `Int 42 ] ]) [] in
     Alcotest.(check string) "thrown value is rendered" {|{"n":42}|} thrown.message
 
+(* Stands for a client object: what the factory made of an initializer. *)
+type Connection.impl += Test_object of string
+
 let test_object_tree () =
     with_peer @@ fun peer ->
     let created = ref [] in
-    peer.conn.factory <- (fun channel -> created := channel.guid :: !created);
+    peer.conn.factory <-
+        (fun channel ->
+            created := channel.guid :: !created;
+            if channel.type_ = "Page" then channel.impl <- Test_object (Yojson.Safe.to_string channel.initializer_));
     create peer ~type_:"Browser" ~guid:"browser@1" (`Assoc [ "name", `String "chromium" ]);
     create peer ~parent:"browser@1" ~type_:"BrowserContext" ~guid:"context@1" (`Assoc []);
-    create peer ~parent:"context@1" ~type_:"Page" ~guid:"page@1" (`Assoc []);
+    create peer ~parent:"context@1" ~type_:"Page" ~guid:"page@1" (`Assoc [ "title", `String "t" ]);
     create peer ~parent:"page@1" ~type_:"Frame" ~guid:"frame@1" (`Assoc []);
     Alcotest.(check (list string)) "factory sees every object, in order" [ "browser@1"; "context@1"; "page@1"; "frame@1" ] (List.rev !created);
     let browser = channel peer "browser@1" in
     Alcotest.(check string) "type" "Browser" browser.type_;
     Alcotest.check json "initializer" (`Assoc [ "name", `String "chromium" ]) browser.initializer_;
+    let page = channel peer "page@1" in
+    (match page.impl with
+    | Test_object seen -> Alcotest.(check string) "the factory sees the initializer" {|{"title":"t"}|} seen
+    | _ -> Alcotest.fail "the client object is kept with its channel");
+    Alcotest.check json "which is not kept once a client object has been built from it" `Null page.initializer_;
     let frame = channel peer "frame@1" in
     Alcotest.(check (option string)) "ancestor by type" (Some "context@1")
         (Option.map (fun (c : Connection.channel) -> c.guid) (Connection.parent_of_type frame "BrowserContext"));

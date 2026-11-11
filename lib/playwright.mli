@@ -154,7 +154,10 @@ type aria_role =
 (** JavaScript values, as they are passed to and returned from code evaluated in a page.
 
     Unlike JSON this covers everything that Playwright can transfer: [undefined], [NaN] and the infinities, dates,
-    big integers, regular expressions, errors, typed arrays and, in arguments, handles to objects living in the page. *)
+    big integers, regular expressions, errors, typed arrays and, in arguments, handles to objects living in the page.
+
+    A value is a tree. An object that occurs at several places of a result is repeated at each of them, and a
+    structure that contains itself is cut off with [Undefined] at the place where it comes round. *)
 module Js : sig
     type typed_array_kind = [ `I8 | `Ui8 | `Ui8c | `I16 | `Ui16 | `I32 | `Ui32 | `F32 | `F64 | `Bi64 | `Bui64 ]
 

@@ -34,7 +34,7 @@ and channel = {
     conn : t;
     guid : string;
     type_ : string;
-    initializer_ : Json.t;
+    mutable initializer_ : Json.t;  (* [`Null] once a client object has been built from it *)
     mutable parent : channel option;
     children : (string, channel) Hashtbl.t;
     mutable impl : impl;
@@ -183,7 +183,10 @@ let dispatch conn (message : Json.t) =
                     make_channel conn ~parent:(Some channel) ~guid:(D.req "guid" D.string params)
                         ~type_:(D.req "type" D.string params) ~initializer_
                 in
-                conn.factory child
+                conn.factory child;
+                (* The client object holds the decoded initializer.  Keeping the JSON as well would
+                   double what every request and response costs for as long as the driver keeps it. *)
+                (match child.impl with No_impl -> () | _ -> child.initializer_ <- `Null)
             | "__adopt__" ->
                 let child_guid = D.req "guid" D.string params in
                 (match find conn child_guid with
