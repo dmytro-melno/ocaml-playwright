@@ -1,0 +1,342 @@
+(* Rendering, raw input, tools, and the life cycle of browsers and drivers. *)
+
+open Eio.Std
+open Playwright
+open Harness
+
+let launch t = BrowserType.launch ?executable_path:t.executable_path (chromium t.pw)
+
+(* {1 Rendering} *)
+
+let png_size image =
+    if String.length image < 24 || String.sub image 1 3 <> "PNG" then Alcotest.fail "not a PNG image";
+    Int32.to_int (String.get_int32_be image 16), Int32.to_int (String.get_int32_be image 20)
+
+let test_screenshots t () =
+    let context = Browser.new_context ~viewport:(500, 400) t.browser in
+    let page = BrowserContext.new_page context in
+    Page.set_content {|<body style="margin: 0"><div id="box" style="width: 120px; height: 80px; background: teal"></div><div style="height: 2000px"></div></body>|} page;
+    Alcotest.(check (pair int int)) "viewport" (500, 400) (png_size (Page.screenshot page));
+    Alcotest.(check (pair int int)) "full page" (500, 2080) (png_size (Page.screenshot ~full_page:true page));
+    Alcotest.(check (pair int int)) "clip" (50, 60) (png_size (Page.screenshot ~clip:{ x = 10.; y = 10.; width = 50.; height = 60. } page));
+    Alcotest.(check (pair int int)) "element" (120, 80) (png_size (Page.locator "#box" page |> Locator.screenshot));
+    Alcotest.(check (pair int int)) "element handle" (120, 80) (png_size (Page.query_selector "#box" page |> Option.get |> ElementHandle.screenshot));
+    let jpeg = Page.screenshot ~type_:`Jpeg ~quality:50 page in
+    Alcotest.(check string) "jpeg" "\xFF\xD8\xFF" (String.sub jpeg 0 3);
+    let file = scratch_file t "shots/page.jpg" in
+    let saved = Page.screenshot ~path:file ~mask:[ Page.locator "#box" page ] page in
+    Alcotest.(check bool) "saved to a file, type from the extension" true (read_file file = saved && String.sub saved 0 3 = "\xFF\xD8\xFF");
+    check_failure "quality is not for PNG" ~message:"quality" (fun () -> Page.screenshot ~quality:50 page);
+    BrowserContext.close context
+
+let test_pdf_and_aria t page =
+    Page.set_content {|<title>Doc</title><h1>Report</h1><ul><li>One</li><li><a href="/two">Two</a></li></ul><button disabled>Print</button>|} page;
+    let file = scratch_file t "report.pdf" in
+    let pdf = Page.pdf ~path:file ~format:"A5" ~landscape:true ~margin_top:"1cm" page in
+    Alcotest.(check bool) "pdf" true (String.sub pdf 0 5 = "%PDF-" && read_file file = pdf);
+    let snapshot = Page.aria_snapshot page in
+    List.iter
+        (fun line -> check_contains "page snapshot" ~sub:line snapshot)
+        [ {|- heading "Report" [level=1]|}; "- listitem: One"; {|- link "Two"|}; {|- button "Print" [disabled]|} ];
+    Alcotest.(check string) "element snapshot" {|- link "Two":
+  - /url: /two|} (Page.get_by_role `Link page |> Locator.aria_snapshot)
+
+(* {1 Raw input} *)
+
+let test_keyboard_and_mouse _ page =
+    Page.set_content
+        {|<body style="margin: 0; height: 3000px">
+            <input id="field" style="position: absolute; left: 20px; top: 20px; width: 200px; height: 30px">
+            <div id="pad" style="position: absolute; left: 20px; top: 100px; width: 200px; height: 100px; background: silver"></div>
+            <script>
+              window.log = [];
+              const pad = document.querySelector('#pad');
+              for (const type of ['mousedown', 'mousemove', 'mouseup', 'click', 'dblclick'])
+                pad.addEventListener(type, e => window.log.push(`${type} ${e.clientX},${e.clientY} ${e.button}`));
+            </script>
+          </body>|}
+        page;
+    let keyboard = Page.keyboard page and mouse = Page.mouse page in
+    Mouse.click 30. 30. mouse;
+    Alcotest.(check string) "a click focuses" "field" (eval_string "document.activeElement.id" page);
+    Keyboard.type_ "hello" keyboard;
+    Keyboard.down "Shift" keyboard;
+    Keyboard.press "KeyW" keyboard;
+    Keyboard.up "Shift" keyboard;
+    Keyboard.insert_text "\xC3\xB6rld" keyboard;
+    Alcotest.(check string) "typed" "helloW\xC3\xB6rld" (Page.input_value "#field" page);
+    Keyboard.press "ControlOrMeta+A" keyboard;
+    Keyboard.press "Backspace" keyboard;
+    Alcotest.(check string) "select all and delete" "" (Page.input_value "#field" page);
+    Mouse.move 50. 120. mouse;
+    Mouse.down mouse;
+    Mouse.move ~steps:2 70. 140. mouse;
+    Mouse.up mouse;
+    Mouse.click ~button:`Middle 100. 150. mouse;
+    Mouse.dblclick 30. 110. mouse;
+    Alcotest.(check (list string)) "mouse events"
+        [ "mousemove 50,120 0"; "mousedown 50,120 0"; "mousemove 60,130 0"; "mousemove 70,140 0"; "mouseup 70,140 0"; "click 70,140 0";
+          "mousemove 100,150 0"; "mousedown 100,150 1"; "mouseup 100,150 1"; "mousemove 30,110 0"; "mousedown 30,110 0"; "mouseup 30,110 0";
+          "click 30,110 0"; "mousedown 30,110 0"; "mouseup 30,110 0"; "click 30,110 0"; "dblclick 30,110 0" ]
+        (Page.evaluate "window.log" page |> Js.to_list Js.to_string);
+    Mouse.wheel 0. 500. mouse;
+    ignore (Page.wait_for_function "window.scrollY === 500" page)
+
+let test_touch t () =
+    let context = Browser.new_context ~has_touch:true t.browser in
+    let page = BrowserContext.new_page context in
+    Page.set_content {|<button style="width: 100px; height: 100px" ontouchstart="this.textContent = 'touched'">Tap</button>|} page;
+    Touchscreen.tap 50. 50. (Page.touchscreen page);
+    Expect.to_have_text "touched" (Page.locator "button" page);
+    Page.set_content {|<button ontouchstart="this.textContent = 'tapped'">Tap</button>|} page;
+    Page.locator "button" page |> Locator.tap;
+    Expect.to_have_text "tapped" (Page.locator "button" page);
+    BrowserContext.close context
+
+(* {1 Tools} *)
+
+let test_cdp _ page =
+    let session = BrowserContext.new_cdp_session page (Page.context page) in
+    let result = CDPSession.send "Runtime.evaluate" ~params:(`Assoc [ "expression", `String "6 * 7" ]) session in
+    Alcotest.check json "result" (`Int 42) Yojson.Safe.Util.(member "result" result |> member "value");
+    let events = ref [] in
+    let listener name params = events := (name, Yojson.Safe.Util.(member "type" params |> to_string_option)) :: !events in
+    CDPSession.on_event listener session;
+    ignore (CDPSession.send "Runtime.enable" session);
+    ignore (Page.expect_console_message (fun () -> ignore (Page.evaluate "console.warn('via CDP')" page)) page);
+    ignore (CDPSession.send "Runtime.evaluate" ~params:(`Assoc [ "expression", `String "1" ]) session);
+    Alcotest.(check bool) "events" true (List.mem ("Runtime.consoleAPICalled", Some "warning") !events);
+    CDPSession.off_event listener session;
+    let seen = List.length !events in
+    ignore (Page.expect_console_message (fun () -> ignore (Page.evaluate "console.warn('again')" page)) page);
+    ignore (CDPSession.send "Runtime.evaluate" ~params:(`Assoc [ "expression", `String "1" ]) session);
+    Alcotest.(check int) "no events after off" seen (List.length !events);
+    check_failure "unknown method" ~message:"wasn't found" (fun () -> CDPSession.send "No.suchMethod" session);
+    CDPSession.detach session;
+    check_failure "detached" (fun () -> CDPSession.send "Runtime.evaluate" ~params:(`Assoc [ "expression", `String "1" ]) session)
+
+let test_selectors t () =
+    let engine =
+        {|({
+            query(root, selector) { return root.querySelector(selector.toUpperCase()); },
+            queryAll(root, selector) { return [...root.querySelectorAll(selector.toUpperCase())]; },
+          })|}
+    in
+    let existing = Browser.new_context t.browser in
+    let before = BrowserContext.new_page existing in
+    Selectors.register "shout" ~script:engine t.pw;
+    Selectors.set_test_id_attribute "data-qa" t.pw;
+    Fun.protect
+        ~finally:(fun () -> Selectors.set_test_id_attribute "data-testid" t.pw)
+        (fun () ->
+            let content = {|<ul><li data-qa="first">One</li><li data-testid="second">Two</li></ul>|} in
+            let check page =
+                Page.set_content content page;
+                Alcotest.(check int) "custom engine" 2 (Page.locator "shout=li" page |> Locator.count);
+                Alcotest.(check string) "test id attribute" "One" (Page.get_by_test_id "first" page |> Locator.inner_text);
+                Alcotest.(check int) "the default attribute is no longer used" 0 (Page.get_by_test_id "second" page |> Locator.count)
+            in
+            check before;
+            let context = Browser.new_context t.browser in
+            check (BrowserContext.new_page context);
+            BrowserContext.close context;
+            check_failure "registered twice" ~message:"already registered" (fun () -> Selectors.register "shout" ~script:engine t.pw));
+    BrowserContext.close existing
+
+(* {1 Fibers} *)
+
+let test_concurrency t () =
+    Server.route t.server "/number" (fun request ->
+        sleep t 0.05;
+        Server.html (Printf.sprintf "<title>%s</title>" request.query));
+    let context = Browser.new_context t.browser in
+    let results =
+        Fiber.List.map
+            (fun n ->
+                let page = BrowserContext.new_page context in
+                ignore (Page.goto (Server.url t.server (Printf.sprintf "/number?%d" n)) page);
+                let title = Page.title page in
+                let sum = Page.evaluate "([a, b]) => new Promise(resolve => setTimeout(() => resolve(a + b), 20))" ~arg:(Js.list Js.int [ n; n ]) page |> Js.to_int in
+                Page.close page;
+                title, sum)
+            (List.init 12 Fun.id)
+    in
+    Alcotest.(check (list (pair string int))) "every fiber got its own answers" (List.init 12 (fun n -> string_of_int n, 2 * n)) results;
+    BrowserContext.close context
+
+let test_cancellation t page =
+    Page.set_content "<p>here</p>" page;
+    let started = Unix.gettimeofday () in
+    Fiber.first (fun () -> ignore (Page.wait_for_selector "#never" page)) (fun () -> sleep t 0.1);
+    Alcotest.(check bool) "returns when the other fiber is done" true (Unix.gettimeofday () -. started < 2.);
+    (match Eio.Time.with_timeout (Eio.Stdenv.clock t.env) 0.1 (fun () -> Ok (Locator.click (Page.locator "#never" page))) with
+    | Error `Timeout -> ()
+    | Ok () -> Alcotest.fail "the click cannot have happened");
+    (* The page is none the worse for it. *)
+    Alcotest.(check string) "still usable" "here" (Page.inner_text "p" page);
+    ignore (Page.evaluate "new Promise(resolve => setTimeout(resolve, 50))" page)
+
+(* {1 Browsers and drivers} *)
+
+let test_launch_failures t () =
+    let error = failure "no such executable" (fun () -> BrowserType.launch ~executable_path:"/no/such/browser" (chromium t.pw)) in
+    check_contains "names the path" ~sub:"/no/such/browser" error.message;
+    if not (Sys.file_exists (BrowserType.executable_path (firefox t.pw))) then
+        check_failure "a browser that is not installed" ~message:"ocaml-playwright install" (fun () -> BrowserType.launch (firefox t.pw));
+    check_failure "an executable that is no browser" (fun () -> BrowserType.launch ~timeout:5000. ~executable_path:"/bin/false" (chromium t.pw))
+
+let test_browser_closing t () =
+    let browser = launch t in
+    let disconnected = ref 0 in
+    let listener _ = incr disconnected in
+    Browser.on_disconnected listener browser;
+    let page = Browser.new_page browser in
+    let pending = Fiber.fork_promise ~sw:t.sw (fun () -> Page.wait_for_selector "#never" page) in
+    Fiber.yield ();
+    Browser.close ~reason:"the test is over" browser;
+    (match Promise.await pending with
+    | Error (Playwright.Error error) ->
+        Alcotest.check error_kind "interrupted" Error.Target_closed error.kind;
+        check_contains "reason" ~sub:"the test is over" error.message
+    | Error ex -> raise ex
+    | Ok _ -> Alcotest.fail "the wait should have failed");
+    Alcotest.(check bool) "disconnected" true ((not (Browser.is_connected browser)) && !disconnected = 1);
+    Alcotest.(check bool) "everything in it is closed" true (Page.is_closed page && Browser.contexts browser = []);
+    check_failure "use after close" ~kind:Target_closed (fun () -> Browser.new_context browser);
+    Browser.close browser;
+    Alcotest.(check int) "closing twice does nothing" 1 !disconnected;
+    (* A browser that dies on its own is noticed as well. *)
+    let browser = launch t in
+    let gone, announce = Promise.create () in
+    Browser.on_disconnected (fun _ -> Promise.resolve announce ()) browser;
+    let page = Browser.new_page browser in
+    let session = Browser.new_browser_cdp_session browser in
+    (try ignore (CDPSession.send "Browser.crash" session) with Playwright.Error _ -> ());
+    Promise.await gone;
+    Alcotest.(check bool) "crashed" true (not (Browser.is_connected browser));
+    check_failure "its pages are gone" ~kind:Target_closed (fun () -> Page.title page)
+
+let test_persistent_context t () =
+    Server.page t.server "/blank" "<title>Blank</title>";
+    let profile = scratch_file t "profile" in
+    let visit () =
+        let context = BrowserType.launch_persistent_context ?executable_path:t.executable_path profile ~viewport:(320, 240) (chromium t.pw) in
+        let page = match BrowserContext.pages context with page :: _ -> page | [] -> BrowserContext.new_page context in
+        ignore (Page.goto (Server.url t.server "/blank") page);
+        let before = eval_string "String(localStorage.getItem('visits'))" page in
+        ignore (Page.evaluate "localStorage.setItem('visits', 'yes')" page);
+        Alcotest.(check (option (pair int int))) "context options" (Some (320, 240)) (Page.viewport_size page);
+        BrowserContext.close context;
+        before
+    in
+    Alcotest.(check string) "first visit" "null" (visit ());
+    Alcotest.(check string) "the profile is kept" "yes" (visit ())
+
+let test_connect_over_cdp t () =
+    let port = closed_port t in
+    let browser = BrowserType.launch ?executable_path:t.executable_path ~args:[ Printf.sprintf "--remote-debugging-port=%d" port ] (chromium t.pw) in
+    let original = Browser.new_page browser in
+    Page.set_content "<title>Original</title>" original;
+    let attached = BrowserType.connect_over_cdp (Printf.sprintf "http://127.0.0.1:%d" port) (chromium t.pw) in
+    let pages = List.concat_map BrowserContext.pages (Browser.contexts attached) in
+    Alcotest.(check (list string)) "sees the pages that are open" [ "Original" ] (List.map Page.title pages);
+    Alcotest.check js "and can drive them" (Js.Number 2.) (Page.evaluate "1 + 1" (List.hd pages));
+    Browser.close attached;
+    Alcotest.(check string) "detaching leaves the browser running" "Original" (Page.title original);
+    Browser.close browser
+
+(* Runs a Playwright server for one browser and passes its endpoint to [f]. *)
+let with_server t f =
+    let driver = Playwright__Driver.locate ~install_if_missing:false () in
+    let config = scratch_file t "server.json" in
+    write_file config
+        (Yojson.Safe.to_string (`Assoc (("headless", `Bool true) :: (match t.executable_path with Some path -> [ "executablePath", `String path ] | None -> []))));
+    let read, write = Unix.pipe ~cloexec:true () in
+    let pid =
+        Unix.create_process driver.node [| driver.node; driver.cli; "launch-server"; "--browser"; "chromium"; "--config"; config |] Unix.stdin write Unix.stderr
+    in
+    Unix.close write;
+    let output = Unix.in_channel_of_descr read in
+    Fun.protect
+        ~finally:(fun () ->
+            (try Unix.kill pid Sys.sigterm with Unix.Unix_error _ -> ());
+            ignore (Eio_unix.run_in_systhread (fun () -> Unix.waitpid [] pid));
+            close_in_noerr output)
+        (fun () -> f (String.trim (Eio_unix.run_in_systhread (fun () -> input_line output))))
+
+let test_connect t () =
+    with_server t @@ fun endpoint ->
+    Alcotest.(check string) "endpoint" "ws://" (String.sub endpoint 0 5);
+    Server.page t.server "/remote" {|<title>Remote</title><input type="file"><a download="hello.txt" href="data:text/plain,hello">download</a>|};
+    let browser = BrowserType.connect endpoint (chromium t.pw) in
+    Alcotest.(check bool) "connected" true (Browser.is_connected browser && Browser.browser_type browser == chromium t.pw);
+    let context = Browser.new_context browser in
+    let page = BrowserContext.new_page context in
+    ignore (Page.goto (Server.url t.server "/remote") page);
+    Alcotest.(check string) "drives the remote browser" "Remote" (Page.title page);
+    Expect.to_have_title "Remote" page;
+    Page.route "**/mocked" (Route.fulfill ~body:"mocked remotely") page;
+    Alcotest.(check string) "routes work through the server" "mocked remotely" (eval_string "fetch('/mocked').then(r => r.text())" page);
+    (* Files cross the connection as streams, in both directions. *)
+    let upload = scratch_file t "upload.txt" in
+    write_file upload (String.make 100_000 'u');
+    Page.locator "input" page |> Locator.set_input_files [ upload ];
+    Alcotest.(check int) "upload" 100_000 (eval_int "document.querySelector('input').files[0].size" page);
+    let download = Page.expect_download (fun () -> Page.click "a" page) page in
+    let saved = scratch_file t "hello.txt" in
+    Download.save_as saved download;
+    Alcotest.(check string) "download" "hello" (read_file saved);
+    check_failure "remote files have no local path" ~message:"save_as" (fun () -> Download.path download);
+    let trace = scratch_file t "remote-trace.zip" in
+    Tracing.start (BrowserContext.tracing context);
+    Page.set_content "<p>traced</p>" page;
+    Tracing.stop ~path:trace (BrowserContext.tracing context);
+    Alcotest.(check string) "trace" "PK" (String.sub (read_file trace) 0 2);
+    let disconnected = ref false in
+    Browser.on_disconnected (fun _ -> disconnected := true) browser;
+    Browser.close browser;
+    Alcotest.(check bool) "disconnected" true (!disconnected && (not (Browser.is_connected browser)) && Page.is_closed page);
+    check_failure "use after disconnecting" ~kind:Target_closed (fun () -> Page.title page);
+    (* The server going away is noticed. *)
+    let browser = BrowserType.connect endpoint (chromium t.pw) in
+    let page = Browser.new_page browser in
+    let gone, announce = Promise.create () in
+    Browser.on_disconnected (fun _ -> Promise.resolve announce ()) browser;
+    ignore (Fiber.fork_promise ~sw:t.sw (fun () -> ignore (Page.evaluate "new Promise(() => {})" page)));
+    Fiber.yield ();
+    (try Browser.close ~reason:"closing the remote browser" browser with Playwright.Error _ -> ());
+    Promise.await gone;
+    check_failure "wrong endpoint" (fun () -> BrowserType.connect ~timeout:3000. (Printf.sprintf "ws://127.0.0.1:%d/nothing" (closed_port t)) (chromium t.pw))
+
+let test_second_driver t () =
+    Server.page t.server "/blank" "<title>Blank</title>";
+    let title =
+        Playwright.run ~env:t.env (fun pw ->
+            let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
+            let page = Browser.new_page browser in
+            ignore (Page.goto (Server.url t.server "/blank") page);
+            (* Left open on purpose: stopping the driver closes it. *)
+            Page.title page)
+    in
+    Alcotest.(check string) "an independent driver" "Blank" title;
+    let pw = Playwright.create ~sw:t.sw ~env:t.env () in
+    let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
+    let page = Browser.new_page browser in
+    Playwright.close pw;
+    check_failure "everything fails once the driver is stopped" ~kind:Target_closed (fun () -> Page.title page);
+    check_failure "also launching" ~kind:Target_closed (fun () -> BrowserType.launch (chromium pw));
+    Playwright.close pw;
+    Alcotest.(check bool) "the first driver is unaffected" true (Browser.is_connected t.browser)
+
+let tests t =
+    [ "rendering", [ case t "screenshots" (test_screenshots t); page_case t "PDF and ARIA snapshots" (test_pdf_and_aria t) ];
+      "input", [ page_case t "keyboard and mouse" (test_keyboard_and_mouse t); case t "touch" (test_touch t) ];
+      "tools", [ page_case t "CDP sessions" (test_cdp t); case t "selector engines and test ids" (test_selectors t) ];
+      "fibers", [ case t "concurrent pages" (test_concurrency t); page_case t "cancellation" (test_cancellation t) ];
+      "lifecycle",
+      [ case t "launch failures" (test_launch_failures t);
+        case t "closing and crashing browsers" (test_browser_closing t);
+        case t "persistent context" (test_persistent_context t);
+        case t "connect over CDP" (test_connect_over_cdp t);
+        case t "connect to a server" (test_connect t);
+        case t "several drivers" (test_second_driver t) ] ]
