@@ -1,0 +1,6 @@
+; Tests of the internals that need neither a driver nor a browser.  They reach into the library
+; through the names that dune gives to its modules (Playwright__Connection and so on).
+
+(test
+ (name main)
+ (libraries playwright alcotest eio eio_main yojson unix))
