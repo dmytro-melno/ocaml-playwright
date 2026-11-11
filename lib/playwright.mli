@@ -131,12 +131,14 @@ module Device : sig
     (** The browser that the device normally runs. *)
 end
 
+(** A position on Earth for a context to report, see {!BrowserContext.set_geolocation}. *)
 module Geolocation : sig
     type t = { latitude : float; longitude : float; accuracy : float option }
 
     val make : ?accuracy:float -> latitude:float -> longitude:float -> unit -> t
 end
 
+(** A user name and a password for HTTP authentication. *)
 module Http_credentials : sig
     type t = { username : string; password : string; origin : string option }
 
@@ -144,6 +146,7 @@ module Http_credentials : sig
     (** [origin] restricts the credentials to one origin, e.g. ["https://example.com:8443"]. *)
 end
 
+(** A proxy server for a browser, a context or a request context to go through. *)
 module Proxy : sig
     type t = { server : string; bypass : string option; username : string option; password : string option }
 
@@ -152,6 +155,7 @@ module Proxy : sig
         a comma-separated list of domains to reach directly. *)
 end
 
+(** Cookies, as a context holds them and as they are given to it. *)
 module Cookie : sig
     type same_site = [ `Strict | `Lax | `None ]
 
@@ -295,7 +299,7 @@ val create :
 
     Setting the environment variable [DEBUG=pw:channel] logs the protocol messages to standard error.
 
-    @raise Invalid_argument if [handler_concurrency] is less than 1 or [handler_backlog] is negative. *)
+    Raises [Invalid_argument] if [handler_concurrency] is less than 1 or [handler_backlog] is negative. *)
 
 val close : t -> unit
 (** Closes all browsers and stops the driver. Calls that are still running fail with a [Target_closed] error. Does
@@ -574,7 +578,7 @@ module rec Js : sig
 
     (** {2 Inspecting}
 
-        The [to_...] functions raise {!exception-Playwright.Error} when the value is of another kind. *)
+        The [to_...] functions raise {!exception-Error} when the value is of another kind. *)
 
     val to_string : t -> string
     val to_bool : t -> bool
@@ -1416,6 +1420,7 @@ and Mouse : sig
     include Identity with type t := t
 end
 
+(** The touchscreen of a page, see {!Page.touchscreen}. It takes a context that was created with [has_touch]. *)
 and Touchscreen : sig
     type t
 
@@ -1584,13 +1589,13 @@ end
 
 (** An intercepted WebSocket connection, see {!Page.route_web_socket}.
 
-    The value given to the handler is the connection to the page. Unless {!connect_to_server} is called, the page is
+    The value given to the handler is the connection to the page. Unless {!WebSocketRoute.connect_to_server} is called, the page is
     not connected to any server, and the handler plays the server: it receives what the page sends with
-    {!on_message} and talks to the page with {!send}.
+    {!WebSocketRoute.on_message} and talks to the page with {!WebSocketRoute.send}.
 
     [connect_to_server] opens the connection to the actual server and returns the server's side of it. Messages are
-    then forwarded in both directions, except that a side with an {!on_message} handler has its messages given to
-    that handler instead, which may pass them on with {!send} to the other side. *)
+    then forwarded in both directions, except that a side with an [on_message] handler has its messages given to
+    that handler instead, which may pass them on with [send] to the other side. *)
 and WebSocketRoute : sig
     type t
 
@@ -1631,6 +1636,7 @@ and Dialog : sig
     include Identity with type t := t
 end
 
+(** Something that a page or a worker wrote to the console, see {!Page.Console}. *)
 and ConsoleMessage : sig
     type t
 
@@ -1652,7 +1658,7 @@ and ConsoleMessage : sig
 end
 
 (** A file that a page downloads. Downloads are stored in a temporary directory and deleted when the context is
-    closed; use {!save_as} to keep one. *)
+    closed; use {!Download.save_as} to keep one. *)
 and Download : sig
     type t
 
