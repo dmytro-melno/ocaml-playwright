@@ -4,7 +4,8 @@ This guide walks through the library by topic. It assumes no knowledge of Playwr
 does not try to replace Playwright's own documentation: where a subject deserves more depth,
 it links to the matching page of [playwright.dev](https://playwright.dev/docs/intro), whose
 explanations apply here as well. The complete list of functions is the documented interface,
-[`lib/playwright.mli`](../lib/playwright.mli).
+[`lib/playwright.mli`](../lib/playwright.mli), and [parity.md](parity.md) says where the
+library differs from Playwright and what it leaves out.
 
 The code fragments use these names: `pw` for the Playwright instance, `browser`, `context`,
 `page`, `frame` and `locator` for objects of the corresponding kinds, and `env` for the Eio
@@ -100,15 +101,25 @@ rules of translation:
   are written as JavaScript literals in a string and go to the functions and arguments named
   `..._regex`: `Page.get_by_text_regex "/^total: \\d+$/i" page`.
 - **URL patterns** are [glob patterns](https://playwright.dev/docs/network#glob-url-patterns)
-  such as `"**/api/*"`. Where Playwright also accepts a regular expression or a predicate,
-  there is a second function named `..._matching` which takes an OCaml predicate:
+  such as `"**/api/*"`: `*` stands for any characters except `/`, `**` for any characters,
+  `{a,b}` for either of two, and a backslash makes the next character literal. A pattern has to
+  match the whole URL. Where Playwright also accepts a regular expression or a predicate, there
+  is a second function named `..._matching` which takes an OCaml predicate:
   `Page.wait_for_url_matching (String.ends_with ~suffix:"/done") page`.
 - **JavaScript values** are of type `Js.t`, see [JavaScript](#javascript). Where plain JSON
   is all that can occur, as in the body of a response, it is `Yojson.Safe.t`.
 - **Events** are constructors of a GADT that determines the type of what the event carries:
   `Page.on Page.Console (fun message -> ...) page`. See [Events](#events).
-- **Objects have identity.** For one page in the browser there is one OCaml value, however it
-  was obtained. Compare such values with `==`, never with `=`.
+- **Registrations return a `Disposable.t`.** Whatever is set up for later, be it an event
+  listener, a route, an init script or an exposed function, returns a value that takes it back:
+  `Disposable.dispose`. Most registrations last as long as their page, and the value is
+  ignored: `Page.on Page.Console print page |> ignore`.
+- **Objects have identity.** A page, a frame, a request is the same thing however it was
+  obtained, and every such module has `equal`, `compare` and `hash` to say so. See
+  [Identity](#identity).
+- **Misuse raises `Invalid_argument`.** Options that exclude each other, a malformed glob
+  pattern, a number out of range: what is wrong with a call whatever the browser does is
+  reported this way, and at once.
 
 ## Browsers, contexts and pages
 
@@ -162,6 +173,40 @@ ignore browser
 ```
 
 A program may use several drivers at the same time; they are independent of each other.
+
+Closing is thorough, and safe to do from anywhere:
+
+- The `close` functions do nothing for what is closed already, so there is no harm in closing
+  a page in a `~finally` that the code before it may have closed as well.
+- They finish their work even when the fiber that calls them is cancelled, which is exactly
+  when a `~finally` or a `Switch.on_release` tends to run. The same holds for
+  `JSHandle.dispose`, `APIRequestContext.dispose`, `CDPSession.detach` and
+  `Disposable.dispose`.
+- When several fibers close the same browser or context, all of them return once it is
+  closed.
+- When the driver is closed, or dies, every call that is under way fails with a
+  `Target_closed` error, every object is closed (`Page.is_closed` is true, the listeners for
+  `Page.Close` and the functions given to `Browser.on_disconnected` are called), and the
+  listeners and handlers that are still running are cancelled.
+
+### Identity
+
+There is one page, however a program got hold of it: the page that `BrowserContext.pages`
+lists is the one that `BrowserContext.new_page` returned. Each module of such objects has
+`equal`, `compare` and `hash`, which also make it fit for the functors of the standard
+library:
+
+```ocaml
+let module Pages = Set.Make (Page) in
+let seen = ref Pages.empty in
+BrowserContext.on BrowserContext.Page (fun page -> seen := Pages.add page !seen) context |> ignore;
+let page = BrowserContext.new_page context in
+assert (Page.equal page (List.hd (BrowserContext.pages context)));
+assert (Frame.equal (Page.main_frame page) (List.hd (Page.frames page)))
+```
+
+Do not use the polymorphic `=`, `compare` or `Hashtbl.hash` on these values. They would
+look into the internals of the library, and may raise or never return.
 
 ## Navigation
 
@@ -402,6 +447,12 @@ Values cross the boundary as `Js.t`, a variant that covers what JSON cannot expr
 latter raise `Playwright.Error` if the value is of another kind. For results that are plain
 JSON, `Js.to_json` converts to `Yojson.Safe.t` in one go.
 
+Two things to keep in mind. A JavaScript number is a float, so `Js.int` refuses, with
+`Invalid_argument`, an integer beyond ±(2⁵³ − 1) that a float would round: pass it as
+`Js.Bigint` or, knowingly, as `Js.float`. And a value is a tree: an object that occurs twice
+in a result is copied twice, and a structure that contains itself is cut off with
+`Js.Undefined` where it comes round.
+
 The same function exists for locators, where the function receives the element, and for
 frames, workers and handles:
 
@@ -448,25 +499,59 @@ with `once` for the next occurrence only:
 Page.on Page.Console (fun message -> Printf.printf "console.%s: %s\n" (ConsoleMessage.type_ message) (ConsoleMessage.text message)) page |> ignore;
 Page.on Page.Page_error (fun (error : Error.t) -> prerr_endline ("uncaught: " ^ error.message)) page |> ignore;
 Page.on Page.Request_failed (fun request -> prerr_endline ("failed: " ^ Request.url request)) page |> ignore;
-Page.once Page.Close (fun _ -> print_endline "the page was closed") page
+Page.once Page.Close (fun _ -> print_endline "the page was closed") page |> ignore
 ```
 
 The event determines the type of the listener's argument: `Page.Console` carries a console
 message, `Page.Request_failed` a request. The events of a context cover all of its pages.
 
-Listeners run in fibers of their own. They may take their time and may call any function of
-the library. An exception that escapes from a listener cannot be raised anywhere useful; it
-is given to the `~on_error` function of `Playwright.run` and `Playwright.create`, which by
-default prints it to standard error.
-
 `Page.on` returns a `Disposable.t`. Most listeners stay for as long as their page, and what
-they return is ignored. To remove one, keep it and dispose of it:
+they return is ignored. To remove one, keep it and dispose of it. A listener that has been
+removed is not called again, not even for events that had arrived already.
 
 ```ocaml
 let logging = Page.on Page.Request (fun request -> print_endline (Request.url request)) page in
 ignore (Page.goto "https://example.com" page);
 Disposable.dispose logging
 ```
+
+### How listeners run
+
+Every call of a listener runs in a fiber of its own. A listener may therefore take its time,
+and may call any function of the library, including those that wait for the browser. The
+calls start in the order of the events; a listener that blocks is overtaken by the calls for
+later events. The same goes for route handlers and exposed functions, which the rest of this
+section calls handlers too.
+
+An exception that escapes from a listener has no caller to go to. It is given to the
+`~on_error` function of `Playwright.run` and `Playwright.create`, which by default prints it
+to standard error, and the program goes on:
+
+```ocaml
+let on_error what exn = Printf.eprintf "playwright, %s: %s\n%s%!" what (Printexc.to_string exn) (Printexc.get_backtrace ()) in
+Playwright.run ~on_error ~env @@ fun pw -> ignore pw
+```
+
+The function is called while `exn` is being handled, so `Printexc.get_backtrace` shows where
+it came from. It should return quickly and should not raise.
+
+Handlers stop with their driver: those that are still running when the driver is closed are
+cancelled.
+
+Events arrive at the pace of the browser, not of the listeners. A page that logs ten thousand
+lines in a loop calls a console listener ten thousand times, and if the listener asks the
+browser about each message, all those calls are under way before the first answer can be
+read. Two limits keep this in bounds; both are arguments of `Playwright.run` and
+`Playwright.create`:
+
+| Argument | Default | Meaning |
+| --- | --- | --- |
+| `~handler_concurrency` | 1024 | How many calls of handlers may be in progress at a time. Further calls wait for their turn, in the order of their events. |
+| `~handler_backlog` | 65536 | How many calls may wait. Beyond that, handlers are evidently not keeping up or not returning, and the driver is closed with an error that says so, rather than using up the memory. |
+
+Nothing is dropped and nothing needs to be tuned for ordinary programs. One situation calls
+for a higher `~handler_concurrency`: when that many handlers are all waiting for something
+that only a handler further back in the queue can provide.
 
 ### Waiting for an event
 
@@ -489,7 +574,20 @@ Response.json response
 
 There are such functions for popups, downloads, file choosers, console messages, requests,
 responses, WebSockets and workers, and `expect_event` for any event. All take a `~timeout`
-and most a `~predicate` that selects among the events.
+and most a `~predicate` that selects among the events. `wait_for_event` is `expect_event`
+without an action, for events that the program does not cause itself.
+
+The rules are the same for all of them:
+
+- The time limit counts from before the action, and it is a limit on the *arrival* of the
+  event. An event that arrived in time is returned however long the action takes to return.
+- The action is not interrupted when the time is up; the `Timeout` error is raised when it
+  has returned. If the action itself fails, its exception is the one that is raised.
+- The predicate is called for each event as it arrives, while the action is still running,
+  so it sees the page in the state that the event left it in. It may call the library, to
+  read the body of a response for example. An exception that escapes from it is raised by
+  the `expect_...` function.
+- Closing the page ends the wait with a `Target_closed` error.
 
 ### Dialogs
 
@@ -503,6 +601,7 @@ Page.on Page.Dialog
         Printf.printf "%s: %s\n" (Dialog.type_ dialog) (Dialog.message dialog);
         Dialog.accept ~prompt_text:"yes" dialog)
     page
+|> ignore
 ```
 
 ### Downloads and uploads
@@ -540,6 +639,7 @@ Page.on Page.Response
         let request = Response.request response in
         Printf.printf "%s %s -> %d\n" (Request.method_ request) (Request.url request) (Response.status response))
     page
+|> ignore
 ```
 
 ### Intercepting
@@ -570,6 +670,7 @@ Page.route "**/api/items"
         let items = match APIResponse.json response with `List items -> items | _ -> [] in
         Route.fulfill ~response ~json:(`List (List.filteri (fun index _ -> index < 3) items)) route)
     page
+|> ignore
 ```
 
 A handler must settle its route in one of four ways: `Route.fulfill` answers the request,
@@ -592,8 +693,16 @@ Page.get_by_role `Button ~name:"Retry" page |> Locator.click;
 Disposable.dispose offline
 ```
 
+Removing a handler does not disturb the requests that it is working on at that moment; they
+finish as they would have. ``Page.unroute_all ~behavior:`Wait`` returns only when they have,
+and ``~behavior:`Ignore_errors`` lets them go on without their failures being reported, which
+suits the end of a test.
+
 Note that a pattern has to match the whole URL, query string included: `"**/api/items"` does
-not match `/api/items?page=2`, while `"**/api/items*"` and `"**/api/items?*"` do.
+not match `/api/items?page=2`, while `"**/api/items*"` and `"**/api/items?*"` do. A pattern
+that does not start with `*` is resolved against the `~base_url` of the context, so
+`"/api/items"` works there. A pattern whose braces are nested or not closed is rejected with
+`Invalid_argument` when the route is registered.
 
 ### Recording and replaying
 
@@ -625,7 +734,13 @@ Page.route_web_socket "wss://chat.example/socket"
             (function Text "ping" -> WebSocketRoute.send (Text "pong") socket | _ -> ())
             socket)
     page
+|> ignore
 ```
+
+With `WebSocketRoute.connect_to_server` the handler gets the server's side of the connection
+as well, and messages flow through in both directions except where an `on_message` handler
+takes them. An exception that escapes from one of these handlers goes to `~on_error`, and
+the connection stays as it is.
 
 ### Requests without a page
 
@@ -805,11 +920,14 @@ Things to know:
 
 - All use of one driver has to happen in one domain, the one that created it. Different
   drivers can live in different domains.
-- Listeners and route handlers run in their own fibers, concurrently with the rest of the
-  program.
+- Any number of fibers may use the same page, context or browser.
+- Listeners, route handlers and exposed functions run in their own fibers, concurrently with
+  the rest of the program; see [How listeners run](#how-listeners-run).
 - A driver does not keep its switch from finishing. Once the function given to
   `Eio.Switch.run` has returned and the fibers that the program itself forked are done, the
   driver is stopped and its browsers are closed.
+- Files are read and written in system threads, so a large upload, download or trace does
+  not hold up the other fibers.
 
 ## Errors, timeouts and cancellation
 
@@ -862,8 +980,8 @@ and have no timeout.
 ### Cancellation
 
 Calls can be cancelled like any other Eio operation: when the fiber is cancelled, the call
-ends and the driver is told to stop working on it. This gives a way to put a deadline on a
-whole sequence of operations:
+ends and the driver is told to give the operation up. This gives a way to put a deadline on
+a whole sequence of operations:
 
 ```ocaml
 match
@@ -878,6 +996,18 @@ with
 
 Note that Eio counts in seconds, while the `~timeout` arguments of this library are in
 milliseconds.
+
+Cancellation leaves nothing behind:
+
+- What a cancelled call was about to create, be it a page, a context or a browser, is closed
+  as soon as the browser has made it. A listener for `BrowserContext.Page` may thus see a
+  page that closes right away.
+- Closing and disposing are carried through even if the fiber that asked for it is
+  cancelled, see [Life cycle](#life-cycle); the fiber itself gets its `Cancelled` exception
+  without waiting for that.
+- Starting the driver can be cancelled as well, including the download of the driver on
+  first use, which lets a service give up on a network that does not answer:
+  `Eio.Time.with_timeout env#clock 60. (fun () -> Ok (Playwright.create ~sw ~env ()))`.
 
 ## Other ways to get a browser
 
