@@ -102,23 +102,50 @@ let fetch ?timeout ?url ?method_ ?headers ?post_data ?max_redirects ?max_retries
 
 module Handler = struct
     let make session ?base_url ?times matcher handler : route_handler =
-        { rh_matcher = matcher; rh_matches = Url_match.compile session ?base_url matcher; rh_handler = handler; rh_times = times; rh_handled = 0 }
+        { rh_matcher = matcher; rh_matches = Url_match.compile session ?base_url matcher; rh_handler = handler; rh_times = times; rh_handled = 0;
+          rh_running = 0; rh_idle = Eio.Condition.create (); rh_quiet = false }
 
     let will_expire (handler : route_handler) = match handler.rh_times with Some times -> handler.rh_handled + 1 >= times | None -> false
 
+    (* A handler that fails has not said what should become of the request, and letting through
+       what it may have been there to block is the wrong guess.  So the request fails, and the
+       exception is reported.  Two exceptions: a handler that was removed with [`Ignore_errors]
+       is not heard of again and its request goes on to the next handler, and nothing is
+       reported about a request whose page is gone. *)
+    let failed (handler : route_handler) (route : route) resolver ex backtrace =
+        let unsettled = route.handling <> None in
+        route.handling <- None;
+        let target_gone = match ex with Error.E { kind = Target_closed; _ } -> Request.is_target_gone route.rt_request | _ -> false in
+        if handler.rh_quiet then begin if unsettled then Promise.resolve resolver false end
+        else begin
+            if not target_gone then (Channel.conn route.rt_channel).report "route handler" ex backtrace;
+            if unsettled then begin
+                (try Protocol.Route.abort route.rt_channel with Error.E _ -> ());
+                Promise.resolve resolver true
+            end
+        end
+
     (* Runs one handler and waits for its verdict: [true] if it settled the route, [false] if it
-       fell back.  A handler that fails without settling the route lets the request through. *)
+       fell back. *)
     let run (handler : route_handler) (route : route) =
         handler.rh_handled <- handler.rh_handled + 1;
+        handler.rh_running <- handler.rh_running + 1;
         let verdict, resolver = Promise.create () in
         route.handling <- Some resolver;
-        (try handler.rh_handler route
-         with ex when route.handling <> None && not (Connection.is_cancellation ex) ->
-             let backtrace = Printexc.get_raw_backtrace () in
-             (Channel.conn route.rt_channel).report "route handler" ex backtrace;
-             route.handling <- None;
-             Promise.resolve resolver false);
-        Promise.await verdict
+        Fun.protect
+            ~finally:(fun () ->
+                handler.rh_running <- handler.rh_running - 1;
+                if handler.rh_running = 0 then Eio.Condition.broadcast handler.rh_idle)
+            (fun () ->
+                (try handler.rh_handler route with ex when not (Connection.is_cancellation ex) -> failed handler route resolver ex (Printexc.get_raw_backtrace ()));
+                Promise.await verdict)
+
+    (* What becomes of the calls of a handler that are under way when it is removed. *)
+    let stop (behavior : [ `Default | `Wait | `Ignore_errors ]) (handler : route_handler) =
+        match behavior with
+        | `Default -> ()
+        | `Ignore_errors -> handler.rh_quiet <- true
+        | `Wait -> while handler.rh_running > 0 do Eio.Condition.await_no_mutex handler.rh_idle done
 
     (* Offers the route to [handlers ()] in order.  Returns whether one of them settled it, or
        [stalled ()] says that nobody should. *)
@@ -273,9 +300,13 @@ module Web_socket = struct
         match List.find_opt (fun handler -> handler.wh_matches t.wr_state.wr_url) handlers with
         | None -> false
         | Some handler ->
-            handler.wh_handler t;
+            (match handler.wh_handler t with
             (* Without a server connection, make the socket look open to the page anyway. *)
-            if not t.wr_state.wr_connected then quietly (fun () -> Protocol.Web_socket_route.ensure_opened t.wr_channel);
+            | () -> if not t.wr_state.wr_connected then quietly (fun () -> Protocol.Web_socket_route.ensure_opened t.wr_channel)
+            (* Nobody is going to serve the socket: the page is told so, rather than left waiting. *)
+            | exception ex when not (Connection.is_cancellation ex) ->
+                (Channel.conn t.wr_channel).report "WebSocket route handler" ex (Printexc.get_raw_backtrace ());
+                quietly (fun () -> Protocol.Web_socket_route.close_page ~was_clean:false t.wr_channel));
             true
 end
 

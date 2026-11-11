@@ -285,9 +285,8 @@ module Web_socket = struct
         | Frame_received -> "framereceived"
         | Socket_error -> "socketerror"
 
-    let on event listener (socket : t) = ignore (Emitter.on (emitter socket event) listener : unit -> unit)
-    let once event listener (socket : t) = ignore (Emitter.once (emitter socket event) listener : unit -> unit)
-    let off event listener (socket : t) = Emitter.off (emitter socket event) listener
+    let on event listener (socket : t) = Disposable.make (Emitter.on (emitter socket event) listener)
+    let once event listener (socket : t) = Disposable.make (Emitter.once (emitter socket event) listener)
 
     let expect_event (type a) ?timeout ?predicate (event : a event) action (socket : t) : a =
         let timeouts = match socket.ws_page with Some page -> page.p_timeouts | None -> Timeouts.create () in

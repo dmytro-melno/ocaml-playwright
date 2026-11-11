@@ -101,12 +101,12 @@ let test_cdp _ page =
     Alcotest.check json "result" (`Int 42) Yojson.Safe.Util.(member "result" result |> member "value");
     let events = ref [] in
     let listener name params = events := (name, Yojson.Safe.Util.(member "type" params |> to_string_option)) :: !events in
-    CDPSession.on_event listener session;
+    let listening = CDPSession.on_event listener session in
     ignore (CDPSession.send "Runtime.enable" session);
     ignore (Page.expect_console_message (fun () -> ignore (Page.evaluate "console.warn('via CDP')" page)) page);
     ignore (CDPSession.send "Runtime.evaluate" ~params:(`Assoc [ "expression", `String "1" ]) session);
     Alcotest.(check bool) "events" true (List.mem ("Runtime.consoleAPICalled", Some "warning") !events);
-    CDPSession.off_event listener session;
+    Disposable.dispose listening;
     let seen = List.length !events in
     ignore (Page.expect_console_message (fun () -> ignore (Page.evaluate "console.warn('again')" page)) page);
     ignore (CDPSession.send "Runtime.evaluate" ~params:(`Assoc [ "expression", `String "1" ]) session);
@@ -189,7 +189,7 @@ let test_browser_closing t () =
     let browser = launch t in
     let disconnected = ref 0 in
     let listener _ = incr disconnected in
-    Browser.on_disconnected listener browser;
+    Browser.on_disconnected listener browser |> ignore;
     let page = Browser.new_page browser in
     let pending = Fiber.fork_promise ~sw:t.sw (fun () -> Page.wait_for_selector "#never" page) in
     Fiber.yield ();
@@ -208,7 +208,7 @@ let test_browser_closing t () =
     (* A browser that dies on its own is noticed as well. *)
     let browser = launch t in
     let gone, announce = Promise.create () in
-    Browser.on_disconnected (fun _ -> Promise.resolve announce ()) browser;
+    Browser.on_disconnected (fun _ -> Promise.resolve announce ()) browser |> ignore;
     let page = Browser.new_page browser in
     let session = Browser.new_browser_cdp_session browser in
     (try ignore (CDPSession.send "Browser.crash" session) with Playwright.Error _ -> ());
@@ -259,9 +259,9 @@ let check_instance_end t what ~create ~obtain end_ =
     ignore (Page.goto (Server.url t.server "/blank") page);
     let events = ref [] in
     let note event _ = events := event :: !events in
-    Page.on Page.Close (note "page") page;
-    BrowserContext.on BrowserContext.Close (note "context") context;
-    Browser.on_disconnected (note "browser") browser;
+    Page.on Page.Close (note "page") page |> ignore;
+    BrowserContext.on BrowserContext.Close (note "context") context |> ignore;
+    Browser.on_disconnected (note "browser") browser |> ignore;
     (* A handler that is at work. *)
     let handler = ref "idle" in
     let working, started = Promise.create () in
@@ -275,7 +275,8 @@ let check_instance_end t what ~create ~obtain end_ =
                     handler := "cancelled";
                     raise ex
             end)
-        page;
+        page
+    |> ignore;
     ignore (Page.evaluate "console.log('to the handler')" page);
     Promise.await working;
     (* Fibers that wait, in the ways there are to wait. *)
@@ -338,7 +339,7 @@ let test_connect t () =
     ignore (Page.goto (Server.url t.server "/remote") page);
     Alcotest.(check string) "drives the remote browser" "Remote" (Page.title page);
     Expect.to_have_title "Remote" page;
-    Page.route "**/mocked" (Route.fulfill ~body:"mocked remotely") page;
+    Page.route "**/mocked" (Route.fulfill ~body:"mocked remotely") page |> ignore;
     Alcotest.(check string) "routes work through the server" "mocked remotely" (eval_string "fetch('/mocked').then(r => r.text())" page);
     (* Files cross the connection as streams, in both directions. *)
     let upload = scratch_file t "upload.txt" in
@@ -356,7 +357,7 @@ let test_connect t () =
     Tracing.stop ~path:trace (BrowserContext.tracing context);
     Alcotest.(check string) "trace" "PK" (String.sub (read_file trace) 0 2);
     let disconnected = ref false in
-    Browser.on_disconnected (fun _ -> disconnected := true) browser;
+    Browser.on_disconnected (fun _ -> disconnected := true) browser |> ignore;
     Browser.close browser;
     Alcotest.(check bool) "disconnected" true (!disconnected && (not (Browser.is_connected browser)) && Page.is_closed page);
     check_failure "use after disconnecting" ~kind:Target_closed (fun () -> Page.title page);
@@ -364,7 +365,7 @@ let test_connect t () =
     let browser = BrowserType.connect endpoint (chromium t.pw) in
     let page = Browser.new_page browser in
     let gone, announce = Promise.create () in
-    Browser.on_disconnected (fun _ -> Promise.resolve announce ()) browser;
+    Browser.on_disconnected (fun _ -> Promise.resolve announce ()) browser |> ignore;
     ignore (Fiber.fork_promise ~sw:t.sw (fun () -> ignore (Page.evaluate "new Promise(() => {})" page)));
     Fiber.yield ();
     (try Browser.close ~reason:"closing the remote browser" browser with Playwright.Error _ -> ());
@@ -394,7 +395,7 @@ let test_instance_end t () =
     let launch pw = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
     check_instance_end t "closed" ~create ~obtain:launch (fun pw _ -> Playwright.close pw);
     check_instance_end t "closed by one of its handlers" ~create ~obtain:launch (fun pw page ->
-        Page.on Page.Request (fun _ -> Playwright.close pw) page;
+        Page.on Page.Request (fun _ -> Playwright.close pw) page |> ignore;
         try ignore (Page.evaluate "fetch('/blank').then(() => 1)" page) with Playwright.Error { kind = Target_closed; _ } -> ());
     if not Sys.win32 then begin
         let driver = ref 0 in
@@ -442,7 +443,7 @@ let test_error_hook t () =
                 let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
                 let page = Browser.new_page browser in
                 (* Not in tail position, or there would be no trace of this file. *)
-                Page.on Page.Console (fun _ -> ignore (failwith "the listener fails" : int)) page;
+                Page.on Page.Console (fun _ -> ignore (failwith "the listener fails" : int)) page |> ignore;
                 let output =
                     capturing_stderr t (fun () ->
                         ignore (Page.evaluate "console.log('one'); console.log('two')" page);

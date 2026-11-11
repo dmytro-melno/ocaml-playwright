@@ -6,7 +6,7 @@ open Harness
 
 let test_console _ page =
     let seen = ref [] in
-    Page.on Page.Console (fun message -> seen := ConsoleMessage.text message :: !seen) page;
+    Page.on Page.Console (fun message -> seen := ConsoleMessage.text message :: !seen) page |> ignore;
     let message = Page.expect_console_message (fun () -> ignore (Page.evaluate "console.log('hello', 42, { a: [1] })" page)) page in
     Alcotest.(check string) "type" "log" (ConsoleMessage.type_ message);
     Alcotest.(check string) "text" "hello 42 {a: Array(1)}" (ConsoleMessage.text message);
@@ -44,12 +44,12 @@ let test_dialogs _ page =
         seen := (Dialog.type_ dialog, Dialog.message dialog, Dialog.default_value dialog) :: !seen;
         if Dialog.type_ dialog = "prompt" then Dialog.accept ~prompt_text:"Ada" dialog else Dialog.dismiss dialog
     in
-    Page.on Page.Dialog handler page;
+    let listening = Page.on Page.Dialog handler page in
     Alcotest.check js "prompt accepted with text" (Js.String "Ada") (Page.evaluate "prompt('Name?', 'nobody')" page);
     Alcotest.check js "confirm dismissed" (Js.Bool false) (Page.evaluate "confirm('Sure?')" page);
     Alcotest.(check (list (triple string string string))) "what the dialogs said" [ "prompt", "Name?", "nobody"; "confirm", "Sure?", "" ] (List.rev !seen);
     (* Without a listener dialogs are dismissed, so that pages do not hang. *)
-    Page.off Page.Dialog handler page;
+    Disposable.dispose listening;
     Alcotest.check js "dismissed automatically" (Js.Null) (Page.evaluate "prompt('Anyone?')" page);
     Alcotest.(check int) "the removed listener was not called" 2 (List.length !seen);
     let dialog = Page.expect_event Page.Dialog (fun () -> ignore (Page.evaluate "setTimeout(() => alert('later'), 0)" page)) page in
@@ -67,7 +67,7 @@ let test_popups t page =
     Alcotest.(check bool) "opener" true (Option.equal Page.equal (Page.opener popup) (Some page));
     Alcotest.(check bool) "pages of the context" true (List.equal Page.equal (BrowserContext.pages context) [ page; popup ]);
     let closed = ref false in
-    Page.on Page.Close (fun _ -> closed := true) popup;
+    Page.on Page.Close (fun _ -> closed := true) popup |> ignore;
     Page.close popup;
     Alcotest.(check bool) "closed" true (!closed && Page.is_closed popup);
     Alcotest.(check bool) "removed from the context" true (List.equal Page.equal (BrowserContext.pages context) [ page ]);
@@ -96,10 +96,10 @@ let test_requests t page =
     Server.page t.server "/requests" {|<img src="/pixel.gif">|};
     let log = ref [] in
     let note kind request = log := (kind ^ " " ^ Filename.basename (Request.url request)) :: !log in
-    Page.on Page.Request (note "request") page;
-    Page.on Page.Response (fun response -> note (Printf.sprintf "response %d" (Response.status response)) (Response.request response)) page;
-    Page.on Page.Request_finished (note "finished") page;
-    Page.on Page.Request_failed (note "failed") page;
+    Page.on Page.Request (note "request") page |> ignore;
+    Page.on Page.Response (fun response -> note (Printf.sprintf "response %d" (Response.status response)) (Response.request response)) page |> ignore;
+    Page.on Page.Request_finished (note "finished") page |> ignore;
+    Page.on Page.Request_failed (note "failed") page |> ignore;
     ignore (Page.goto (Server.url t.server "/requests") page);
     let refused = Printf.sprintf "http://127.0.0.1:%d/refused" (closed_port t) in
     let failed = Page.expect_event Page.Request_failed (fun () -> ignore (Page.evaluate "url => fetch(url).catch(() => {})" ~arg:(Js.string refused) page)) page in
@@ -141,23 +141,29 @@ let test_listeners t page =
     let listener _ = incr count in
     let log text = ignore (Page.evaluate "text => console.log(text)" ~arg:(Js.string text) page) in
     let synchronized f = ignore (Page.expect_console_message f page) in
-    Page.once Page.Console listener page;
+    let once = Page.once Page.Console listener page in
     synchronized (fun () -> log "one");
     synchronized (fun () -> log "two");
     Alcotest.(check int) "once" 1 !count;
-    Page.on Page.Console listener page;
-    Page.on Page.Console listener page;
+    Disposable.dispose once;
+    let first = Page.on Page.Console listener page in
+    let second = Page.on Page.Console listener page in
     synchronized (fun () -> log "three");
     Alcotest.(check int) "registered twice, called twice" 3 !count;
-    Page.off Page.Console listener page;
+    Disposable.dispose first;
+    Disposable.dispose first;
     synchronized (fun () -> log "four");
-    Alcotest.(check int) "off removes one registration" 4 !count;
-    Page.off Page.Console listener page;
+    Alcotest.(check int) "disposing removes that registration, once" 4 !count;
+    Disposable.dispose second;
     synchronized (fun () -> log "five");
     Alcotest.(check int) "and then the other" 4 !count;
+    let unheard = Page.once Page.Console listener page in
+    Disposable.dispose unheard;
+    synchronized (fun () -> log "six");
+    Alcotest.(check int) "a listener for the next event, removed before it" 4 !count;
     (* Listeners may block and call back into the page. *)
     let titles = ref [] in
-    Page.on Page.Console (fun message -> titles := (ConsoleMessage.text message ^ "/" ^ Page.title page) :: !titles) page;
+    Page.on Page.Console (fun message -> titles := (ConsoleMessage.text message ^ "/" ^ Page.title page) :: !titles) page |> ignore;
     Page.set_content "<title>T</title>" page;
     synchronized (fun () -> log "six");
     sleep t 0.1;
@@ -167,7 +173,7 @@ let test_listeners t page =
     Alcotest.check error_kind "timeout" Error.Timeout error.kind;
     check_contains "names the event" ~sub:"popup" error.message;
     (* An exception escaping from a listener goes to the error hook of the driver. *)
-    Page.on Page.Console (fun _ -> failwith "listener failed") page;
+    Page.on Page.Console (fun _ -> failwith "listener failed") page |> ignore;
     synchronized (fun () -> log "seven");
     sleep t 0.05;
     match take_reports t with
@@ -241,7 +247,8 @@ let test_event_bursts t page =
             | _ -> ());
             decr in_progress;
             incr finished)
-        page;
+        page
+    |> ignore;
     ignore (Page.evaluate (Printf.sprintf "for (let i = 0; i < %d; i++) console.log(i)" count) page);
     eventually t "all the handlers have returned" (fun () -> !finished = count);
     Alcotest.(check int) "every event was handled" (count * (count - 1) / 2) !sum;
@@ -252,7 +259,7 @@ let test_handlers_falling_behind t () =
     let pw = Playwright.create ~sw:t.sw ~env:t.env ~handler_concurrency:2 ~handler_backlog:10 ~on_error:(fun what ex -> reported := (what, ex) :: !reported) () in
     let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
     let page = Browser.new_page browser in
-    Page.on Page.Console (fun _ -> Fiber.await_cancel ()) page;
+    Page.on Page.Console (fun _ -> Fiber.await_cancel ()) page |> ignore;
     ignore (Page.evaluate "for (let i = 0; i < 12; i++) console.log(i)" page);
     Alcotest.(check bool) "two calls in progress and ten waiting are within the limits" true (Browser.is_connected browser && !reported = []);
     check_failure "one more is not" ~kind:Target_closed ~message:"event handlers do not keep up: 2 calls are in progress and 10 more are waiting" (fun () ->
@@ -268,7 +275,7 @@ let test_closing t () =
     let context = Browser.new_context t.browser in
     let page = BrowserContext.new_page context in
     let context_closed = ref false in
-    BrowserContext.on BrowserContext.Close (fun _ -> context_closed := true) context;
+    BrowserContext.on BrowserContext.Close (fun _ -> context_closed := true) context |> ignore;
     (* An operation that is under way when the page closes fails with a telling error. *)
     let pending = Fiber.fork_promise ~sw:t.sw (fun () -> Page.wait_for_selector "#never" page) in
     Fiber.yield ();

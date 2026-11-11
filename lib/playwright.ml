@@ -37,6 +37,8 @@ type timing = Types.timing = {
 
 type aria_role = Locator.role
 
+module Disposable = Disposable
+
 module Device = struct
     type t = Types.device
 

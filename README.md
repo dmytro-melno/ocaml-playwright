@@ -94,8 +94,8 @@ Printf.printf "%d %d\n" width sum
 Requests can be observed, changed, answered or refused:
 
 ```ocaml
-Page.route "**/api/user" (Route.fulfill ~json:(`Assoc [ "name", `String "Ada" ])) page;
-Page.route "**/*.{png,jpg}" Route.abort page;
+Page.route "**/api/user" (Route.fulfill ~json:(`Assoc [ "name", `String "Ada" ])) page |> ignore;
+Page.route "**/*.{png,jpg}" Route.abort page |> ignore;
 Page.on Page.Response (fun response -> Printf.printf "%d %s\n" (Response.status response) (Response.url response)) page
 ```
 

@@ -26,7 +26,7 @@ let () =
     let browser = BrowserType.launch ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") (chromium pw) in
     let page = Browser.new_page browser in
     (* The application itself is served from here as well. *)
-    Page.route "https://tasks.test/" (Route.fulfill ~content_type:"text/html" ~body:app) page;
+    Page.route "https://tasks.test/" (Route.fulfill ~content_type:"text/html" ~body:app) page |> ignore;
     Page.route "https://tasks.test/api/tasks"
         (fun route ->
             let request = Route.request route in
@@ -35,7 +35,8 @@ let () =
                 let title = Request.post_data_json request |> Option.get |> Yojson.Safe.Util.member "title" in
                 Route.fulfill ~status:201 ~json:(`Assoc [ "id", `Int 3; "title", title ]) route
             | _ -> Route.fulfill ~json:(`List [ `Assoc [ "id", `Int 1; "title", `String "Water the plants" ] ]) route)
-        page;
+        page
+    |> ignore;
     ignore (Page.goto "https://tasks.test/" page);
     let tasks = Page.get_by_role `Listitem page in
     Expect.to_have_texts [ "Water the plants" ] tasks;

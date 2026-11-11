@@ -37,6 +37,9 @@
       [..._matching] take an OCaml predicate on the URL instead.
     - Events are values of a GADT, which gives every event its payload type:
       [Page.on Page.Console (fun message -> ...) page].
+    - What registers something for later — an event listener, a route, an init script, an exposed function —
+      returns a {!Disposable.t} to take it back with. [ignore] it when the registration is to last as long as its
+      page.
     - Pages, frames, requests and the other objects have identity. Each of their modules has [equal], [compare] and
       [hash], see {!Identity}, which also makes it an argument for [Set.Make], [Map.Make] and [Hashtbl.Make]. The
       polymorphic [=], [compare] and [Hashtbl.hash] must not be used on objects: they look into values that are
@@ -115,6 +118,26 @@ type aria_role =
     | `Radiogroup | `Region | `Row | `Rowgroup | `Rowheader | `Scrollbar | `Search | `Searchbox | `Separator | `Slider
     | `Spinbutton | `Status | `Strong | `Subscript | `Superscript | `Switch | `Tab | `Table | `Tablist | `Tabpanel | `Term
     | `Textbox | `Time | `Timer | `Toolbar | `Tooltip | `Tree | `Treegrid | `Treeitem ]
+
+(** What a registration returns: {!Page.on}, {!Page.route}, {!Page.add_init_script}, {!Page.expose_function} and
+    their like each give one of these, to take the registration back with.
+
+    {[
+      let listener = Page.on Page.Console (fun message -> print_endline (ConsoleMessage.text message)) page in
+      Page.evaluate "console.log('heard')" page |> ignore;
+      Disposable.dispose listener;
+      Page.evaluate "console.log('not heard')" page |> ignore
+    ]}
+
+    A registration that is to last as long as its page is never taken back: [ignore] what it returned. *)
+module Disposable : sig
+    type t
+
+    val dispose : t -> unit
+    (** Takes the registration back: the listener is not called again, the route no longer intercepts, the script
+        is not added to further documents, the function is no longer exposed. Does nothing the second time, and
+        nothing for what has gone away with its page or context. *)
+end
 
 (** {1 Options} *)
 
@@ -666,10 +689,8 @@ and Browser : sig
     val name : t -> string
     val is_connected : t -> bool
 
-    val on_disconnected : (t -> unit) -> t -> unit
+    val on_disconnected : (t -> unit) -> t -> Disposable.t
     (** Registers a function to call when the browser has been closed, has crashed or the connection to it was lost. *)
-
-    val off_disconnected : (t -> unit) -> t -> unit
 
     val new_browser_cdp_session : t -> CDPSession.t
     (** A Chrome DevTools Protocol session with the browser itself. Chromium only. *)
@@ -716,14 +737,13 @@ and BrowserContext : sig
         | Response : Response.t event
         | Service_worker : Worker.t event
 
-    val on : 'a event -> ('a -> unit) -> t -> unit
-    (** Registers a listener. Each call of a listener runs in a fiber of its own, so a listener may block and may
-        call back into Playwright; events are nevertheless delivered to it in order of arrival when it does not. *)
+    val on : 'a event -> ('a -> unit) -> t -> Disposable.t
+    (** Registers a listener, which {!Disposable.dispose} removes again. Each call of a listener runs in a fiber of
+        its own, so a listener may block and may call back into Playwright; events are nevertheless delivered to it
+        in order of arrival when it does not. *)
 
-    val once : 'a event -> ('a -> unit) -> t -> unit
-
-    val off : 'a event -> ('a -> unit) -> t -> unit
-    (** Removes a listener, which has to be physically the same function that was registered. *)
+    val once : 'a event -> ('a -> unit) -> t -> Disposable.t
+    (** Registers a listener for the next event only. *)
 
     val expect_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> (unit -> unit) -> t -> 'a
     (** [expect_event event action] starts listening, runs [action], and returns the first [event] satisfying
@@ -735,18 +755,26 @@ and BrowserContext : sig
 
     (** {1 Network} *)
 
-    val route : ?times:int -> string -> (Route.t -> unit) -> t -> unit
+    val route : ?times:int -> string -> (Route.t -> unit) -> t -> Disposable.t
     (** [route glob handler] intercepts the requests of all pages of the context whose URL matches the glob pattern.
         The handler has to {!Route.fulfill}, {!Route.continue}, {!Route.fallback} or {!Route.abort} each of them.
         Handlers registered later take precedence, and those of a page take precedence over those of its context.
-        With [times], the handler is used for that many requests only. *)
+        With [times], the handler is used for that many requests only.
 
-    val route_matching : ?times:int -> (string -> bool) -> (Route.t -> unit) -> t -> unit
+        A handler that raises before it has settled its route fails the request, as {!Route.abort} does, and the
+        exception is passed to the [on_error] of {!Playwright.create}. *)
+
+    val route_matching : ?times:int -> (string -> bool) -> (Route.t -> unit) -> t -> Disposable.t
 
     val unroute : string -> t -> unit
-    (** Removes the handlers that were registered for this glob pattern. *)
+    (** Removes the handlers that were registered for this glob pattern. {!Disposable.dispose} removes a single
+        handler, whatever it was registered for. *)
 
-    val unroute_all : t -> unit
+    val unroute_all : ?behavior:[ `Default | `Wait | `Ignore_errors ] -> t -> unit
+    (** Removes all handlers, those of {!route_from_har} included. [behavior] says what becomes of the handlers
+        that are at work at that moment: by default they finish like any other; with [`Wait] the function returns
+        once they have finished, so it must not be called from a route handler; and with [`Ignore_errors] what
+        they raise from now on is dropped, their requests going on to the network. *)
 
     val route_from_har :
         ?url:string ->
@@ -766,10 +794,10 @@ and BrowserContext : sig
         With [~update:true] nothing is intercepted: instead the traffic is recorded, and written to the file when
         the context is closed. *)
 
-    val route_web_socket : string -> (WebSocketRoute.t -> unit) -> t -> unit
+    val route_web_socket : string -> (WebSocketRoute.t -> unit) -> t -> Disposable.t
     (** Intercepts the WebSocket connections that pages open to matching URLs, see {!WebSocketRoute}. *)
 
-    val route_web_socket_matching : (string -> bool) -> (WebSocketRoute.t -> unit) -> t -> unit
+    val route_web_socket_matching : (string -> bool) -> (WebSocketRoute.t -> unit) -> t -> Disposable.t
     val set_extra_http_headers : (string * string) list -> t -> unit
     val set_offline : bool -> t -> unit
 
@@ -795,18 +823,18 @@ and BrowserContext : sig
 
     (** {1 Scripting} *)
 
-    val add_init_script : ?path:string -> ?script:string -> t -> unit
+    val add_init_script : ?path:string -> ?script:string -> t -> Disposable.t
     (** Evaluates a script, given as source text or as a file, in every page and frame of the context before any of
         the page's own scripts run. *)
 
-    val expose_function : string -> (Js.t list -> Js.t) -> t -> unit
+    val expose_function : string -> (Js.t list -> Js.t) -> t -> Disposable.t
     (** [expose_function name f] makes [f] available to all pages as [window.name]. Calling it in the page returns a
         promise of the result of [f]; if [f] raises, the promise is rejected. *)
 
     type binding_source = { context : t; page : Page.t; frame : Frame.t }
     (** Where a call of an exposed binding came from. *)
 
-    val expose_binding : string -> (binding_source -> Js.t list -> Js.t) -> t -> unit
+    val expose_binding : string -> (binding_source -> Js.t list -> Js.t) -> t -> Disposable.t
     (** Like {!expose_function}, for a function that also wants to know which page and frame called it. *)
 
     val service_workers : t -> Worker.t list
@@ -917,11 +945,10 @@ and Page : sig
         | Web_socket : WebSocket.t event
         | Worker : Worker.t event
 
-    val on : 'a event -> ('a -> unit) -> t -> unit
+    val on : 'a event -> ('a -> unit) -> t -> Disposable.t
     (** See {!BrowserContext.on}. *)
 
-    val once : 'a event -> ('a -> unit) -> t -> unit
-    val off : 'a event -> ('a -> unit) -> t -> unit
+    val once : 'a event -> ('a -> unit) -> t -> Disposable.t
 
     val expect_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> (unit -> unit) -> t -> 'a
     (** See {!BrowserContext.expect_event}.
@@ -950,17 +977,19 @@ and Page : sig
 
     (** {1 Network} *)
 
-    val route : ?times:int -> string -> (Route.t -> unit) -> t -> unit
+    val route : ?times:int -> string -> (Route.t -> unit) -> t -> Disposable.t
     (** Intercepts the requests of this page, see {!BrowserContext.route}.
 
         {[
-          Page.route "**/api/user" (Route.fulfill ~json:(`Assoc [ "name", `String "Ada" ])) page;
-          Page.route "**/*.{png,jpg}" Route.abort page
+          let user = Page.route "**/api/user" (Route.fulfill ~json:(`Assoc [ "name", `String "Ada" ])) page in
+          Page.route "**/*.{png,jpg}" Route.abort page |> ignore;
+          Page.reload page |> ignore;
+          Disposable.dispose user
         ]} *)
 
-    val route_matching : ?times:int -> (string -> bool) -> (Route.t -> unit) -> t -> unit
+    val route_matching : ?times:int -> (string -> bool) -> (Route.t -> unit) -> t -> Disposable.t
     val unroute : string -> t -> unit
-    val unroute_all : t -> unit
+    val unroute_all : ?behavior:[ `Default | `Wait | `Ignore_errors ] -> t -> unit
 
     val route_from_har :
         ?url:string ->
@@ -973,8 +1002,8 @@ and Page : sig
         unit
     (** Answers the requests of this page from a HAR file, see {!BrowserContext.route_from_har}. *)
 
-    val route_web_socket : string -> (WebSocketRoute.t -> unit) -> t -> unit
-    val route_web_socket_matching : (string -> bool) -> (WebSocketRoute.t -> unit) -> t -> unit
+    val route_web_socket : string -> (WebSocketRoute.t -> unit) -> t -> Disposable.t
+    val route_web_socket_matching : (string -> bool) -> (WebSocketRoute.t -> unit) -> t -> Disposable.t
     val set_extra_http_headers : (string * string) list -> t -> unit
 
     val requests : t -> Request.t list
@@ -1005,9 +1034,9 @@ and Page : sig
 
     (** {1 Scripting} *)
 
-    val add_init_script : ?path:string -> ?script:string -> t -> unit
-    val expose_function : string -> (Js.t list -> Js.t) -> t -> unit
-    val expose_binding : string -> (BrowserContext.binding_source -> Js.t list -> Js.t) -> t -> unit
+    val add_init_script : ?path:string -> ?script:string -> t -> Disposable.t
+    val expose_function : string -> (Js.t list -> Js.t) -> t -> Disposable.t
+    val expose_binding : string -> (BrowserContext.binding_source -> Js.t list -> Js.t) -> t -> Disposable.t
 
     val add_locator_handler : ?times:int -> ?no_wait_after:bool -> Locator.t -> (Locator.t -> unit) -> t -> unit
     (** [add_locator_handler locator handler] calls [handler] whenever an action is about to be performed while
@@ -1208,7 +1237,10 @@ and Locator : sig
     val scroll_into_view_if_needed : ?timeout:float -> t -> unit
     val dispatch_event : ?timeout:float -> ?event_init:Js.t -> string -> t -> unit
 
-    val highlight : ?style:string -> t -> unit
+    val highlight : ?style:string -> t -> Disposable.t
+    (** Marks the matching elements in the page, for the eyes of whoever is debugging, until the result is
+        disposed of or {!hide_highlight} is called. *)
+
     val hide_highlight : t -> unit
 
     (** {1 Reading} *)
@@ -1580,9 +1612,8 @@ and WebSocket : sig
         | Frame_received : web_socket_message event
         | Socket_error : string event
 
-    val on : 'a event -> ('a -> unit) -> t -> unit
-    val once : 'a event -> ('a -> unit) -> t -> unit
-    val off : 'a event -> ('a -> unit) -> t -> unit
+    val on : 'a event -> ('a -> unit) -> t -> Disposable.t
+    val once : 'a event -> ('a -> unit) -> t -> Disposable.t
     val expect_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> (unit -> unit) -> t -> 'a
     val wait_for_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> t -> 'a
 
@@ -1716,9 +1747,8 @@ and Worker : sig
 
     type _ event = Close : t event | Console : ConsoleMessage.t event
 
-    val on : 'a event -> ('a -> unit) -> t -> unit
-    val once : 'a event -> ('a -> unit) -> t -> unit
-    val off : 'a event -> ('a -> unit) -> t -> unit
+    val on : 'a event -> ('a -> unit) -> t -> Disposable.t
+    val once : 'a event -> ('a -> unit) -> t -> Disposable.t
     val expect_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> (unit -> unit) -> t -> 'a
     val wait_for_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> t -> 'a
 
@@ -1877,11 +1907,10 @@ and CDPSession : sig
     val send : ?params:Yojson.Safe.t -> string -> t -> Yojson.Safe.t
     (** [send method_] calls a method of the protocol and returns its result. *)
 
-    val on_event : (string -> Yojson.Safe.t -> unit) -> t -> unit
+    val on_event : (string -> Yojson.Safe.t -> unit) -> t -> Disposable.t
     (** Registers a listener for the events of the session; it is given the name and the parameters of each. *)
 
-    val off_event : (string -> Yojson.Safe.t -> unit) -> t -> unit
-    val on_close : (t -> unit) -> t -> unit
+    val on_close : (t -> unit) -> t -> Disposable.t
     val detach : t -> unit
 
     include Identity with type t := t

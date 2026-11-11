@@ -270,6 +270,9 @@ and route_handler = {
     rh_handler : route -> unit;
     rh_times : int option;
     mutable rh_handled : int;
+    mutable rh_running : int;  (* calls under way: [rh_handler] has not returned, or has not settled its route *)
+    rh_idle : Eio.Condition.t;  (* signalled when [rh_running] drops to zero *)
+    mutable rh_quiet : bool;  (* removed with [`Ignore_errors]: what the calls under way raise is dropped *)
 }
 
 and ws_route_handler = {
@@ -399,7 +402,6 @@ and cdp_session = {
     mutable cdp_detached : bool;
     cdpe_event : (string * Json.t) Emitter.t;
     cdpe_close : cdp_session Emitter.t;
-    mutable cdp_listeners : ((string -> Json.t -> unit) * (unit -> unit)) list;  (* public listeners and what removes them *)
 }
 
 type playwright = {

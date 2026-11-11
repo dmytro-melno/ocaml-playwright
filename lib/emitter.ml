@@ -69,13 +69,6 @@ let once t fn = register t ~once:true ~inline:false fn
 (* Adds an internal listener. *)
 let subscribe t fn = register t ~once:false ~inline:true fn
 
-(* Removes the most recently added public listener that is physically equal to [fn]. *)
-let off t fn =
-    let is_it l = l.fn == fn && l.listening && not l.inline in
-    match List.find_opt is_it t.recent with
-    | Some listener -> remove t listener
-    | None -> Option.iter (remove t) (List.find_opt is_it (List.rev t.listeners))
-
 (* Returns whether there was a listener to deliver the event to.  Listeners added during the
    emission are not called for it. *)
 let emit (conn : Connection.t) t value =

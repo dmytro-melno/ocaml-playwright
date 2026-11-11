@@ -431,7 +431,7 @@ answer
 page it returns a promise.
 
 ```ocaml
-Page.expose_function "sha256" (function [ Js.String text ] -> Js.string (Digest.to_hex (Digest.string text)) | _ -> Js.null) page;
+Page.expose_function "sha256" (function [ Js.String text ] -> Js.string (Digest.to_hex (Digest.string text)) | _ -> Js.null) page |> ignore;
 Page.evaluate "sha256('hello')" page |> Js.to_string
 ```
 
@@ -445,9 +445,9 @@ Pages, contexts, WebSockets and workers emit events. A listener is registered wi
 with `once` for the next occurrence only:
 
 ```ocaml
-Page.on Page.Console (fun message -> Printf.printf "console.%s: %s\n" (ConsoleMessage.type_ message) (ConsoleMessage.text message)) page;
-Page.on Page.Page_error (fun (error : Error.t) -> prerr_endline ("uncaught: " ^ error.message)) page;
-Page.on Page.Request_failed (fun request -> prerr_endline ("failed: " ^ Request.url request)) page;
+Page.on Page.Console (fun message -> Printf.printf "console.%s: %s\n" (ConsoleMessage.type_ message) (ConsoleMessage.text message)) page |> ignore;
+Page.on Page.Page_error (fun (error : Error.t) -> prerr_endline ("uncaught: " ^ error.message)) page |> ignore;
+Page.on Page.Request_failed (fun request -> prerr_endline ("failed: " ^ Request.url request)) page |> ignore;
 Page.once Page.Close (fun _ -> print_endline "the page was closed") page
 ```
 
@@ -459,14 +459,13 @@ the library. An exception that escapes from a listener cannot be raised anywhere
 is given to the `~on_error` function of `Playwright.run` and `Playwright.create`, which by
 default prints it to standard error.
 
-`off` removes a listener. It needs the very function that was registered, so bind the
-function to a name first:
+`Page.on` returns a `Disposable.t`. Most listeners stay for as long as their page, and what
+they return is ignored. To remove one, keep it and dispose of it:
 
 ```ocaml
-let log request = print_endline (Request.url request) in
-Page.on Page.Request log page;
+let logging = Page.on Page.Request (fun request -> print_endline (Request.url request)) page in
 ignore (Page.goto "https://example.com" page);
-Page.off Page.Request log page
+Disposable.dispose logging
 ```
 
 ### Waiting for an event
@@ -551,17 +550,18 @@ context.
 
 ```ocaml
 (* Answer without asking the server. *)
-Page.route "**/api/profile" (Route.fulfill ~json:(`Assoc [ "name", `String "Ada" ])) page;
+Page.route "**/api/profile" (Route.fulfill ~json:(`Assoc [ "name", `String "Ada" ])) page |> ignore;
 
 (* Refuse. *)
-Page.route "**/*.{png,jpg,jpeg,webp}" Route.abort page;
+Page.route "**/*.{png,jpg,jpeg,webp}" Route.abort page |> ignore;
 
 (* Let the request through, with a change. *)
 Page.route "**/api/**"
     (fun route ->
         let headers = ("x-test", "1") :: Request.headers (Route.request route) in
         Route.continue ~headers route)
-    page;
+    page
+|> ignore;
 
 (* Get the real response and change it on its way to the page. *)
 Page.route "**/api/items"
@@ -577,9 +577,20 @@ A handler must settle its route in one of four ways: `Route.fulfill` answers the
 it to the next handler that matches, which allows handlers to be layered. Handlers that were
 registered later come first, and those of a page come before those of its context.
 
-`~times:n` makes a handler apply to the first `n` requests only. `Page.unroute` and
-`Page.unroute_all` remove handlers. `Page.route_matching` takes a predicate on the URL instead
-of a pattern.
+A handler that raises before it has settled its route fails the request, as `Route.abort`
+does, and the exception is given to `~on_error`: what a handler was there to block does not
+slip through because the handler has a bug.
+
+`~times:n` makes a handler apply to the first `n` requests only. `Page.route_matching` takes
+a predicate on the URL instead of a pattern. `Page.route` returns a `Disposable.t`, and
+disposing of it removes that handler; `Page.unroute` removes the handlers of a pattern and
+`Page.unroute_all` removes them all:
+
+```ocaml
+let offline = Page.route "**/api/**" Route.abort page in
+Page.get_by_role `Button ~name:"Retry" page |> Locator.click;
+Disposable.dispose offline
+```
 
 Note that a pattern has to match the whole URL, query string included: `"**/api/items"` does
 not match `/api/items?page=2`, while `"**/api/items*"` and `"**/api/items?*"` do.
@@ -981,11 +992,13 @@ it leaves out:
   function of the host language.
 - The clock of a context is controlled through the `Clock` module, with the context as
   argument.
-- `route`, `add_init_script`, `expose_function` and `expose_binding` return `()`, not a
-  disposable object. Routes are removed with `unroute`.
+- Listeners are removed by disposing of what `on` and `once` returned; there is no `off`,
+  because it would have to recognise a function. `route_web_socket` returns a disposable
+  too, while `Tracing.start`, `Tracing.group` and the like return `()` and have their
+  counterparts `stop` and `group_end`.
 - If a route handler raises before it has settled its route, the exception goes to
-  `~on_error` and the request falls through to the next handler or to the network, so that
-  the page is not left hanging.
+  `~on_error` and the request fails. In Playwright for Node.js the exception is an
+  unhandled rejection and the request stays pending.
 - Assertions are plain functions that raise; there is no test runner, no fixtures, no soft
   assertions and no `expect.poll`.
 

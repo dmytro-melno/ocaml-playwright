@@ -1,5 +1,6 @@
 (* Request interception, HTTP requests without a page, and WebSocket routing. *)
 
+open Eio.Std
 open Playwright
 open Harness
 
@@ -28,18 +29,18 @@ let body value = field "body" value |> Js.to_string
 
 let test_fulfill t page =
     start t page;
-    Page.route "**/api/user" (Route.fulfill ~json:(`Assoc [ "name", `String "Ada" ])) page;
+    Page.route "**/api/user" (Route.fulfill ~json:(`Assoc [ "name", `String "Ada" ])) page |> ignore;
     let response = fetch "/api/user" page in
     Alcotest.(check string) "json body" {|{"name":"Ada"}|} (body response);
     Alcotest.(check string) "json content type" "application/json" (field "type" response |> Js.to_string);
     Alcotest.(check int) "default status" 200 (field "status" response |> Js.to_int);
-    Page.route "**/api/created" (Route.fulfill ~status:201 ~headers:[ "x-test", "yes" ] ~content_type:"text/plain" ~body:"created") page;
+    Page.route "**/api/created" (Route.fulfill ~status:201 ~headers:[ "x-test", "yes" ] ~content_type:"text/plain" ~body:"created") page |> ignore;
     let response = fetch "/api/created" page in
     Alcotest.(check (triple int string string)) "status, header and body" (201, "yes", "created")
         (field "status" response |> Js.to_int, field "test" response |> Js.to_string, body response);
     let file = scratch_file t "page.html" in
     write_file file "<title>From a file</title>";
-    Page.route "**/from-file" (Route.fulfill ~path:file) page;
+    Page.route "**/from-file" (Route.fulfill ~path:file) page |> ignore;
     ignore (Page.goto (Server.url t.server "/from-file") page);
     Alcotest.(check string) "a file as the response, with its type" "From a file" (Page.title page);
     Alcotest.(check int) "none of this reached the server" 0
@@ -47,18 +48,19 @@ let test_fulfill t page =
 
 let test_abort_and_continue t page =
     start t page;
-    Page.route "**/*.png" Route.abort page;
+    Page.route "**/*.png" Route.abort page |> ignore;
     Alcotest.check js "aborted" (Js.Bool true) (fetch "/logo.png" page |> field "failed");
     let failed = Page.expect_event Page.Request_failed (fun () -> ignore (fetch "/other.png" page)) page in
     Alcotest.(check (option string)) "failure text" (Some "net::ERR_FAILED") (Request.failure failed);
-    Page.route "**/denied" (Route.abort ~error_code:"accessdenied") page;
+    Page.route "**/denied" (Route.abort ~error_code:"accessdenied") page |> ignore;
     let failed = Page.expect_event Page.Request_failed (fun () -> ignore (fetch "/denied" page)) page in
     Alcotest.(check (option string)) "error code" (Some "net::ERR_ACCESS_DENIED") (Request.failure failed);
     Page.route "**/echo?*"
         (fun route ->
             let request = Route.request route in
             Route.continue ~method_:"POST" ~post_data:"changed" ~headers:(("x-added", "by the route") :: Request.headers request) route)
-        page;
+        page
+    |> ignore;
     let seen = Yojson.Safe.from_string (body (fetch "/echo?q=1" page)) in
     let member name = Yojson.Safe.Util.member name seen in
     Alcotest.(check string) "method changed" "POST" (member "method" |> Yojson.Safe.Util.to_string);
@@ -77,21 +79,31 @@ let test_handler_order t page =
     BrowserContext.route "**/chain" (fun route ->
         order := "context" :: !order;
         Route.fulfill ~body:"from the context" route)
-        context;
-    Page.route "**/chain" (passing "page, first") page;
-    Page.route "**/chain" (passing "page, second") page;
-    Page.route_matching (fun url -> contains ~sub:"/chain" url) (passing "page, predicate") page;
+        context
+    |> ignore;
+    Page.route "**/chain" (passing "page, first") page |> ignore;
+    Page.route "**/chain" (passing "page, second") page |> ignore;
+    Page.route_matching (fun url -> contains ~sub:"/chain" url) (passing "page, predicate") page |> ignore;
     Alcotest.(check string) "the first handler registered answers last" "from the context" (body (fetch "/chain" page));
     Alcotest.(check (list string)) "newest first, page before context" [ "page, predicate"; "page, second"; "page, first"; "context" ] (List.rev !order);
     (* A handler limited to a number of requests. *)
-    Page.route ~times:1 "**/echo" (Route.fulfill ~body:"mocked once") page;
+    Page.route ~times:1 "**/echo" (Route.fulfill ~body:"mocked once") page |> ignore;
     Alcotest.(check string) "first request" "mocked once" (body (fetch "/echo" page));
     Alcotest.(check bool) "second request reaches the server" true (contains ~sub:{|"method":"GET"|} (body (fetch "/echo" page)));
     (* Removing handlers. *)
-    Page.route "**/echo" (Route.fulfill ~body:"mocked") page;
+    Page.route "**/echo" (Route.fulfill ~body:"mocked") page |> ignore;
     Alcotest.(check string) "mocked" "mocked" (body (fetch "/echo" page));
     Page.unroute "**/echo" page;
     Alcotest.(check bool) "unrouted" true (contains ~sub:{|"method":"GET"|} (body (fetch "/echo" page)));
+    (* What registering returns removes that handler alone, however it was registered. *)
+    let by_glob = Page.route "**/echo" (Route.fulfill ~body:"by glob") page in
+    let by_predicate = Page.route_matching (contains ~sub:"/echo") (Route.fulfill ~body:"by predicate") page in
+    Alcotest.(check string) "the newest handler" "by predicate" (body (fetch "/echo" page));
+    Disposable.dispose by_predicate;
+    Alcotest.(check string) "the one that remains" "by glob" (body (fetch "/echo" page));
+    Disposable.dispose by_glob;
+    Disposable.dispose by_glob;
+    Alcotest.(check bool) "none" true (contains ~sub:{|"method":"GET"|} (body (fetch "/echo" page)));
     Page.unroute_all page;
     BrowserContext.unroute_all context;
     Alcotest.(check int) "nothing intercepts any more" 404 (fetch "/chain" page |> field "status" |> Js.to_int)
@@ -105,26 +117,74 @@ let test_modifying_responses t page =
             Alcotest.(check int) "fetched" 200 (APIResponse.status response);
             let items = APIResponse.json response |> Yojson.Safe.Util.member "items" |> Yojson.Safe.Util.to_list in
             Route.fulfill ~response ~json:(`Assoc [ "items", `List (items @ [ `Int 3 ]) ]) route)
-        page;
+        page
+    |> ignore;
     let response = fetch "/api/items" page in
     Alcotest.(check string) "modified body" {|{"items":[1,2,3]}|} (body response);
     Alcotest.(check string) "other parts of the response are kept" "from the server" (field "test" response |> Js.to_string)
 
 let test_failing_handler t page =
     start t page;
-    Page.route "**/echo" (fun _ -> failwith "handler failed") page;
-    Alcotest.(check bool) "the request is not left hanging" true (contains ~sub:{|"method":"GET"|} (body (fetch "/echo" page)));
-    (match take_reports t with
-    | [ (_, Failure message) ] -> Alcotest.(check string) "reported" "handler failed" message
-    | reports -> Alcotest.failf "expected one report, got %d" (List.length reports));
+    let one_report what expected =
+        match take_reports t with
+        | [ (_, Failure message) ] -> Alcotest.(check string) what expected message
+        | reports -> Alcotest.failf "%s: expected one report, got %d" what (List.length reports)
+    in
+    (* A handler that fails has not let the request through: what it was there to block stays blocked. *)
+    Page.route "**/echo" (fun _ -> failwith "handler failed") page |> ignore;
+    let failed = Page.expect_event Page.Request_failed (fun () -> ignore (fetch "/echo" page)) page in
+    Alcotest.(check (option string)) "the request fails" (Some "net::ERR_FAILED") (Request.failure failed);
+    one_report "reported" "handler failed";
+    (* Failing after the route was settled changes nothing about the request. *)
+    Page.unroute_all page;
+    Page.route "**/echo" (fun route -> Route.fulfill ~body:"settled" route; failwith "failed afterwards") page |> ignore;
+    Alcotest.(check string) "the answer stands" "settled" (body (fetch "/echo" page));
+    one_report "reported all the same" "failed afterwards";
     (* Concluding a route twice is a programming error that is pointed out. *)
     Page.unroute_all page;
     Page.route "**/echo"
         (fun route ->
             Route.fulfill ~body:"once" route;
             check_failure "handled twice" ~message:"already handled" (fun () -> Route.continue route))
-        page;
+        page
+    |> ignore;
     Alcotest.(check string) "first conclusion counts" "once" (body (fetch "/echo" page))
+
+(* Removing handlers while they are at work. *)
+let test_unrouting_at_work t page =
+    start t page;
+    (* [`Wait] returns when they are done. *)
+    let entered, enter = Promise.create () in
+    let finished = ref false in
+    Page.route "**/echo"
+        (fun route ->
+            Promise.resolve enter ();
+            sleep t 0.2;
+            finished := true;
+            Route.fulfill ~body:"slowly" route)
+        page
+    |> ignore;
+    let request = Fiber.fork_promise ~sw:t.sw (fun () -> body (fetch "/echo" page)) in
+    Promise.await entered;
+    Page.unroute_all ~behavior:`Wait page;
+    Alcotest.(check bool) "waited for the handler" true !finished;
+    Alcotest.(check string) "which answered" "slowly" (Promise.await_exn request);
+    (* [`Ignore_errors] silences them, and their requests go on. *)
+    let entered, enter = Promise.create () in
+    let removed, remove = Promise.create () in
+    Page.route "**/echo"
+        (fun _ ->
+            Promise.resolve enter ();
+            Promise.await removed;
+            failwith "failed after its removal")
+        page
+    |> ignore;
+    let request = Fiber.fork_promise ~sw:t.sw (fun () -> body (fetch "/echo" page)) in
+    Promise.await entered;
+    Page.unroute_all ~behavior:`Ignore_errors page;
+    Promise.resolve remove ();
+    Alcotest.(check bool) "the request reaches the server" true (contains ~sub:{|"method":"GET"|} (Promise.await_exn request));
+    Alcotest.(check int) "and nothing is reported" 0 (List.length (take_reports t))
 
 let test_context_network_settings t () =
     Server.route t.server "/echo" echo;
@@ -244,7 +304,8 @@ let test_web_socket_routes t page =
                     | Text text -> WebSocketRoute.send (Text ("echo: " ^ text)) socket
                     | Binary bytes -> WebSocketRoute.send (Binary (String.uppercase_ascii bytes)) socket)
                 socket)
-        page;
+        page
+    |> ignore;
     let conversation =
         Page.evaluate
             {|() => new Promise(resolve => {
@@ -257,7 +318,29 @@ let test_web_socket_routes t page =
             })|}
             page
     in
-    Alcotest.(check (list string)) "a mocked server" [ "echo: hello"; "binary BIN"; "closed 4000 goodbye" ] (Js.to_list Js.to_string conversation)
+    Alcotest.(check (list string)) "a mocked server" [ "echo: hello"; "binary BIN"; "closed 4000 goodbye" ] (Js.to_list Js.to_string conversation);
+    (* What a socket comes to: opened, or closed without having been. *)
+    let fate url =
+        Page.evaluate
+            {|url => new Promise(resolve => {
+                const socket = new WebSocket(url);
+                socket.onopen = () => resolve('opened');
+                socket.onclose = event => resolve('closed, ' + (event.wasClean ? 'cleanly' : 'not cleanly'));
+            })|}
+            ~arg:(Js.string url) page
+        |> Js.to_string
+    in
+    (* A handler that fails serves nobody; the page is told, rather than left waiting. *)
+    Page.route_web_socket "ws://mock.test/broken" (fun _ -> failwith "socket handler failed") page |> ignore;
+    Alcotest.(check string) "the socket is closed" "closed, not cleanly" (fate "ws://mock.test/broken");
+    (match take_reports t with
+    | [ (_, Failure message) ] -> Alcotest.(check string) "reported" "socket handler failed" message
+    | reports -> Alcotest.failf "expected one report, got %d" (List.length reports));
+    (* Nothing listens on port 1, so this socket only opens for as long as it is mocked. *)
+    let mocked = Page.route_web_socket "ws://127.0.0.1:1/" (fun _ -> ()) page in
+    Alcotest.(check string) "mocked" "opened" (fate "ws://127.0.0.1:1/");
+    Disposable.dispose mocked;
+    Alcotest.(check string) "no longer mocked" "closed, not cleanly" (fate "ws://127.0.0.1:1/")
 
 let tests t =
     [ "routing",
@@ -266,6 +349,7 @@ let tests t =
         page_case t "handler order, limits and removal" (test_handler_order t);
         page_case t "modifying responses" (test_modifying_responses t);
         page_case t "failing handlers" (test_failing_handler t);
+        page_case t "removing handlers that are at work" (test_unrouting_at_work t);
         page_case t "WebSocket routes" (test_web_socket_routes t) ];
       "network",
       [ case t "context settings" (test_context_network_settings t);

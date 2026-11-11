@@ -38,15 +38,14 @@ let test_listeners () =
     remove_a ();
     emit peer emitter 3;
     Alcotest.(check (list string)) "what registering returns removes exactly that listener" [ "b:3" ] (noted ());
-    let (_ : unit -> unit) = Emitter.on emitter a in
-    let (_ : unit -> unit) = Emitter.on emitter a in
-    Emitter.off emitter a;
-    Emitter.off emitter (note "never registered");
+    let remove_first = Emitter.on emitter a in
+    let remove_second = Emitter.on emitter a in
+    remove_first ();
     emit peer emitter 4;
-    Alcotest.(check (list string)) "off removes one registration of the function" [ "b:4"; "a:4" ] (noted ());
+    Alcotest.(check (list string)) "one of two registrations of the same function" [ "b:4"; "a:4" ] (noted ());
     let remove_once = Emitter.once emitter (note "once") in
     remove_once ();
-    Emitter.off emitter a;
+    remove_second ();
     remove_b ();
     emit peer emitter 5;
     Alcotest.(check (list string)) "all removed" [] (noted ());

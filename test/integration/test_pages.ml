@@ -140,29 +140,44 @@ let test_exposed_functions _ page =
     Page.expose_function "add" (fun args ->
         calls := args :: !calls;
         match args with [ a; b ] -> Js.float (Js.to_float a +. Js.to_float b) | _ -> failwith "add takes two arguments")
-        page;
+        page
+    |> ignore;
     Alcotest.check js "result" (Js.Number 5.) (Page.evaluate "window.add(2, 3)" page);
     Alcotest.(check int) "called once" 1 (List.length !calls);
     Alcotest.check js "an exception rejects the promise" (Js.String "add takes two arguments")
         (Page.evaluate "window.add(1).then(() => 'resolved', error => error.message.replace(/^.*Failure\\(\"(.*)\"\\).*$/s, '$1'))" page);
-    Page.expose_binding "whoami" (fun source _ -> Js.string (Frame.url source.frame ^ (if Page.equal source.page page then " same page" else " other page"))) page;
+    Page.expose_binding "whoami" (fun source _ -> Js.string (Frame.url source.frame ^ (if Page.equal source.page page then " same page" else " other page"))) page |> ignore;
     Alcotest.check js "binding source" (Js.String "about:blank same page") (Page.evaluate "window.whoami()" page);
     (* Exposed functions survive navigations and may call back into the page. *)
-    Page.expose_function "title" (fun _ -> Js.string (Page.title page)) page;
+    let title = Page.expose_function "title" (fun _ -> Js.string (Page.title page)) page in
     Page.set_content "<title>Callback</title>" page;
     Alcotest.check js "reentrant" (Js.String "Callback") (Page.evaluate "window.title()" page);
-    check_failure "duplicate name" ~message:"add" (fun () -> Page.expose_function "add" (fun _ -> Js.null) page)
+    check_failure "duplicate name" ~message:"add" (fun () -> Page.expose_function "add" (fun _ -> Js.null) page);
+    (* Taken back, the name is free again. *)
+    Disposable.dispose title;
+    Disposable.dispose title;
+    Alcotest.check js "no longer exposed" (Js.String "undefined") (Page.evaluate "typeof window.title" page);
+    Page.expose_function "title" (fun _ -> Js.string "another") page |> ignore;
+    Alcotest.check js "exposed anew" (Js.String "another") (Page.evaluate "window.title()" page)
 
 let test_init_scripts t page =
     Server.page t.server "/init" "<script>window.seenByPage = window.injected</script>";
-    Page.add_init_script ~script:"window.injected = 'early'" page;
+    Page.add_init_script ~script:"window.injected = 'early'" page |> ignore;
     let script = scratch_file t "init.js" in
     write_file script "window.fromFile = 7";
-    BrowserContext.add_init_script ~path:script (Page.context page);
+    BrowserContext.add_init_script ~path:script (Page.context page) |> ignore;
     ignore (Page.goto (Server.url t.server "/init") page);
     Alcotest.(check string) "runs before the page's scripts" "early" (eval_string "window.seenByPage" page);
     Alcotest.(check int) "from a file, for the whole context" 7 (eval_int "window.fromFile" page);
-    Alcotest.check_raises "neither script nor path" (Invalid_argument "Playwright: pass either ~script or ~path") (fun () -> Page.add_init_script page)
+    (* Taken back, a script is not added to the documents that follow. *)
+    let passing = Page.add_init_script ~script:"window.passing = true" page in
+    ignore (Page.reload page);
+    Alcotest.(check string) "added" "boolean" (eval_string "typeof window.passing" page);
+    Disposable.dispose passing;
+    ignore (Page.reload page);
+    Alcotest.(check string) "not added any more" "undefined" (eval_string "typeof window.passing" page);
+    Alcotest.(check string) "the others still are" "early" (eval_string "window.injected" page);
+    Alcotest.check_raises "neither script nor path" (Invalid_argument "Playwright: pass either ~script or ~path") (fun () -> ignore (Page.add_init_script page))
 
 let test_script_and_style_tags t page =
     Server.route t.server "/lib.js" (fun _ -> Server.respond ~content_type:"text/javascript" "window.lib = 'loaded'");

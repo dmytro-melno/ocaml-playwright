@@ -88,10 +88,18 @@ let on_binding (context : t) (call : Protocol.Binding_call.t) =
     let init = Protocol.Binding_call.initializer_ call in
     Option.iter (Route.Binding.call call) (Hashtbl.find_opt context.c_bindings init.name)
 
+(* Removes the handlers that [removed] holds for. *)
+let remove_routes ?(behavior = `Default) removed (context : t) =
+    let removed, remaining = List.partition removed context.c_routes in
+    context.c_routes <- remaining;
+    List.iter (Route.Handler.stop behavior) removed;
+    update_interception context
+
 let add_route ?times matcher handler (context : t) =
     let handler = Route.Handler.make context.c_session ?base_url:context.base_url ?times matcher handler in
     context.c_routes <- handler :: context.c_routes;
-    update_interception context
+    update_interception context;
+    Disposable.make (fun () -> remove_routes (fun h -> h == handler) context)
 
 let route ?times glob handler context = add_route ?times (Glob glob) handler context
 let route_matching ?times predicate handler context = add_route ?times (Predicate predicate) handler context
@@ -102,20 +110,19 @@ let route_from_har ?url ?not_found ?(update = false) ?update_content ?update_mod
     else begin
         let handler, close = Route.Har.open_ context.c_session ?not_found har in
         ignore (Emitter.once context.ce_close (fun _ -> close ()) : unit -> unit);
-        add_route (Glob (Option.value url ~default:"**/*")) handler context
+        ignore (add_route (Glob (Option.value url ~default:"**/*")) handler context : Disposable.t)
     end
 
-let unroute glob (context : t) =
-    context.c_routes <- List.filter (fun (handler : route_handler) -> not (Route.Handler.matcher_equal handler.rh_matcher (Glob glob))) context.c_routes;
-    update_interception context
-
-let unroute_all (context : t) =
-    context.c_routes <- [];
-    update_interception context
+let unroute glob context = remove_routes (fun (handler : route_handler) -> Route.Handler.matcher_equal handler.rh_matcher (Glob glob)) context
+let unroute_all ?behavior context = remove_routes ?behavior (fun _ -> true) context
 
 let add_web_socket_route matcher handler (context : t) =
-    context.c_ws_routes <- Route.Web_socket.make_handler context.c_session ?base_url:context.base_url matcher handler :: context.c_ws_routes;
-    update_web_socket_interception context
+    let handler = Route.Web_socket.make_handler context.c_session ?base_url:context.base_url matcher handler in
+    context.c_ws_routes <- handler :: context.c_ws_routes;
+    update_web_socket_interception context;
+    Disposable.make (fun () ->
+        context.c_ws_routes <- List.filter (fun h -> h != handler) context.c_ws_routes;
+        update_web_socket_interception context)
 
 let route_web_socket glob handler context = add_web_socket_route (Glob glob) handler context
 let route_web_socket_matching predicate handler context = add_web_socket_route (Predicate predicate) handler context
@@ -243,9 +250,8 @@ let start_har_recording (options : Context_options.t) (context : t) =
 
 (* {1 Events for the user} *)
 
-let on event listener (context : t) = ignore (Emitter.on (emitter context event) listener : unit -> unit)
-let once event listener (context : t) = ignore (Emitter.once (emitter context event) listener : unit -> unit)
-let off event listener (context : t) = Emitter.off (emitter context event) listener
+let on event listener (context : t) = Disposable.make (Emitter.on (emitter context event) listener)
+let once event listener (context : t) = Disposable.make (Emitter.once (emitter context event) listener)
 
 let expect_event (type a) ?timeout ?predicate (event : a event) action (context : t) : a =
     let timeout = Timeouts.action ?timeout context.c_timeouts in
@@ -302,11 +308,17 @@ let init_script ?path ?script () =
     | _ -> invalid_arg "Playwright: pass either ~script or ~path"
 
 let add_init_script ?path ?script (context : t) =
-    ignore (Protocol.Browser_context.add_init_script ~source:(init_script ?path ?script ()) context.c_channel)
+    Disposable.of_channel (Protocol.Browser_context.add_init_script ~source:(init_script ?path ?script ()) context.c_channel)
+
+(* Registers [binding] in [bindings] under [name]; [registration] is what the driver gave for it. *)
+let keep_binding bindings name (binding : binding) (registration : Protocol.Disposable.t) =
+    Hashtbl.replace bindings name binding;
+    Disposable.make (fun () ->
+        (match Hashtbl.find_opt bindings name with Some current when current == binding -> Hashtbl.remove bindings name | _ -> ());
+        Protocol.Disposable.dispose registration)
 
 let expose_binding name (binding : binding) (context : t) =
-    ignore (Protocol.Browser_context.expose_binding ~name context.c_channel);
-    Hashtbl.replace context.c_bindings name binding
+    keep_binding context.c_bindings name binding (Protocol.Browser_context.expose_binding ~name context.c_channel)
 
 let expose_function name f context = expose_binding name (fun _ args -> f args) context
 

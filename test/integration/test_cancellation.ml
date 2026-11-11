@@ -27,7 +27,7 @@ let test_closing t () =
     let context = Browser.new_context t.browser in
     let page = BrowserContext.new_page context in
     let closes = ref 0 in
-    BrowserContext.on Close (fun _ -> incr closes) context;
+    BrowserContext.on Close (fun _ -> incr closes) context |> ignore;
     cancelled (fun () -> BrowserContext.close context);
     Alcotest.(check bool) "closing" true (BrowserContext.is_closed context);
     BrowserContext.close context;
@@ -52,7 +52,7 @@ let test_closing t () =
         match APIResponse.body response with _ -> false | exception Playwright.Error _ -> true);
     let session = BrowserContext.new_cdp_session (BrowserContext.new_page context) context in
     let detached = ref false in
-    CDPSession.on_close (fun _ -> detached := true) session;
+    CDPSession.on_close (fun _ -> detached := true) session |> ignore;
     cancelled (fun () -> CDPSession.detach session);
     eventually t "a session is detached" (fun () -> !detached);
     BrowserContext.close context;

@@ -154,10 +154,10 @@ let test_clock t page =
 
 let test_context_scripting t () =
     let context = Browser.new_context t.browser in
-    BrowserContext.expose_function "double" (function [ n ] -> Js.float (2. *. Js.to_float n) | _ -> Js.undefined) context;
-    BrowserContext.expose_binding "origin" (fun source _ -> Js.string (if BrowserContext.pages source.context = [] then "?" else Page.url source.page)) context;
+    BrowserContext.expose_function "double" (function [ n ] -> Js.float (2. *. Js.to_float n) | _ -> Js.undefined) context |> ignore;
+    BrowserContext.expose_binding "origin" (fun source _ -> Js.string (if BrowserContext.pages source.context = [] then "?" else Page.url source.page)) context |> ignore;
     let created = ref [] in
-    BrowserContext.on BrowserContext.Page (fun page -> created := page :: !created) context;
+    BrowserContext.on BrowserContext.Page (fun page -> created := page :: !created) context |> ignore;
     let first = BrowserContext.new_page context and second = BrowserContext.new_page context in
     Alcotest.(check bool) "page events" true (List.equal Page.equal (List.rev !created) [ first; second ]);
     visit t second;

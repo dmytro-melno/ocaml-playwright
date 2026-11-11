@@ -257,9 +257,8 @@ let frame ?name ?url (page : t) =
 
 (* {1 Events for the user} *)
 
-let on event listener (page : t) = ignore (Emitter.on (emitter page event) listener : unit -> unit)
-let once event listener (page : t) = ignore (Emitter.once (emitter page event) listener : unit -> unit)
-let off event listener (page : t) = Emitter.off (emitter page event) listener
+let on event listener (page : t) = Disposable.make (Emitter.on (emitter page event) listener)
+let once event listener (page : t) = Disposable.make (Emitter.once (emitter page event) listener)
 
 let expect_event (type a) ?timeout ?predicate (event : a event) action (page : t) : a =
     let timeout = Timeouts.action ?timeout page.p_timeouts in
@@ -356,11 +355,10 @@ let emulate_media ?media ?color_scheme ?reduced_motion ?forced_colors ?contrast 
 let set_extra_http_headers headers (page : t) = Protocol.Page.set_extra_http_headers ~headers:(Network.name_values headers) page.p_channel
 
 let add_init_script ?path ?script (page : t) =
-    ignore (Protocol.Page.add_init_script ~source:(Browser_context.init_script ?path ?script ()) page.p_channel)
+    Disposable.of_channel (Protocol.Page.add_init_script ~source:(Browser_context.init_script ?path ?script ()) page.p_channel)
 
 let expose_binding name (binding : binding) (page : t) =
-    ignore (Protocol.Page.expose_binding ~name page.p_channel);
-    Hashtbl.replace page.p_bindings name binding
+    Browser_context.keep_binding page.p_bindings name binding (Protocol.Page.expose_binding ~name page.p_channel)
 
 let expose_function name f page = expose_binding name (fun _ args -> f args) page
 
@@ -369,10 +367,17 @@ let aria_snapshot ?timeout ?mode ?depth ?boxes (page : t) =
 
 (* {1 Routing} *)
 
+let remove_routes ?(behavior = `Default) removed (page : t) =
+    let removed, remaining = List.partition removed page.p_routes in
+    page.p_routes <- remaining;
+    List.iter (Route.Handler.stop behavior) removed;
+    update_interception page
+
 let add_route ?times matcher handler (page : t) =
     let handler = Route.Handler.make (session page) ?base_url:page.context.base_url ?times matcher handler in
     page.p_routes <- handler :: page.p_routes;
-    update_interception page
+    update_interception page;
+    Disposable.make (fun () -> remove_routes (fun h -> h == handler) page)
 
 let route ?times glob handler page = add_route ?times (Glob glob) handler page
 let route_matching ?times predicate handler page = add_route ?times (Predicate predicate) handler page
@@ -382,20 +387,19 @@ let route_from_har ?url ?not_found ?(update = false) ?update_content ?update_mod
     else begin
         let handler, close = Route.Har.open_ (session page) ?not_found har in
         ignore (Emitter.once page.pe_close (fun _ -> close ()) : unit -> unit);
-        add_route (Glob (Option.value url ~default:"**/*")) handler page
+        ignore (add_route (Glob (Option.value url ~default:"**/*")) handler page : Disposable.t)
     end
 
-let unroute glob (page : t) =
-    page.p_routes <- List.filter (fun (handler : route_handler) -> not (Route.Handler.matcher_equal handler.rh_matcher (Glob glob))) page.p_routes;
-    update_interception page
-
-let unroute_all (page : t) =
-    page.p_routes <- [];
-    update_interception page
+let unroute glob page = remove_routes (fun (handler : route_handler) -> Route.Handler.matcher_equal handler.rh_matcher (Glob glob)) page
+let unroute_all ?behavior page = remove_routes ?behavior (fun _ -> true) page
 
 let add_web_socket_route matcher handler (page : t) =
-    page.p_ws_routes <- Route.Web_socket.make_handler (session page) ?base_url:page.context.base_url matcher handler :: page.p_ws_routes;
-    update_web_socket_interception page
+    let handler = Route.Web_socket.make_handler (session page) ?base_url:page.context.base_url matcher handler in
+    page.p_ws_routes <- handler :: page.p_ws_routes;
+    update_web_socket_interception page;
+    Disposable.make (fun () ->
+        page.p_ws_routes <- List.filter (fun h -> h != handler) page.p_ws_routes;
+        update_web_socket_interception page)
 
 let route_web_socket glob handler page = add_web_socket_route (Glob glob) handler page
 let route_web_socket_matching predicate handler page = add_web_socket_route (Predicate predicate) handler page

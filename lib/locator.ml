@@ -175,8 +175,11 @@ let drop ?timeout ?position ?files ?payloads ?data (l : t) =
 
 let dispatch_event ?timeout ?event_init type_ (l : t) = Frame.dispatch_event ~strict:true ?timeout ?event_init l.selector ~type_ l.l_frame
 
-let highlight ?style (l : t) = Protocol.Frame.highlight ~selector:l.selector ?style l.l_frame.f_channel
 let hide_highlight (l : t) = Protocol.Frame.hide_highlight ~selector:l.selector l.l_frame.f_channel
+
+let highlight ?style (l : t) =
+    Protocol.Frame.highlight ~selector:l.selector ?style l.l_frame.f_channel;
+    Disposable.make (fun () -> hide_highlight l)
 
 (* {1 Queries} *)
 
