@@ -57,7 +57,7 @@ let test_keyboard_and_mouse _ page =
           </body>|}
         page;
     let keyboard = Page.keyboard page and mouse = Page.mouse page in
-    Mouse.click 30. 30. mouse;
+    Mouse.click ~x:30. ~y:30. mouse;
     Alcotest.(check string) "a click focuses" "field" (eval_string "document.activeElement.id" page);
     Keyboard.type_ "hello" keyboard;
     Keyboard.down "Shift" keyboard;
@@ -68,25 +68,25 @@ let test_keyboard_and_mouse _ page =
     Keyboard.press "ControlOrMeta+A" keyboard;
     Keyboard.press "Backspace" keyboard;
     Alcotest.(check string) "select all and delete" "" (Page.input_value "#field" page);
-    Mouse.move 50. 120. mouse;
+    Mouse.move ~x:50. ~y:120. mouse;
     Mouse.down mouse;
-    Mouse.move ~steps:2 70. 140. mouse;
+    Mouse.move ~steps:2 ~x:70. ~y:140. mouse;
     Mouse.up mouse;
-    Mouse.click ~button:`Middle 100. 150. mouse;
-    Mouse.dblclick 30. 110. mouse;
+    Mouse.click ~button:`Middle ~x:100. ~y:150. mouse;
+    Mouse.dblclick ~x:30. ~y:110. mouse;
     Alcotest.(check (list string)) "mouse events"
         [ "mousemove 50,120 0"; "mousedown 50,120 0"; "mousemove 60,130 0"; "mousemove 70,140 0"; "mouseup 70,140 0"; "click 70,140 0";
           "mousemove 100,150 0"; "mousedown 100,150 1"; "mouseup 100,150 1"; "mousemove 30,110 0"; "mousedown 30,110 0"; "mouseup 30,110 0";
           "click 30,110 0"; "mousedown 30,110 0"; "mouseup 30,110 0"; "click 30,110 0"; "dblclick 30,110 0" ]
         (Page.evaluate "window.log" page |> Js.to_list Js.to_string);
-    Mouse.wheel 0. 500. mouse;
+    Mouse.wheel ~delta_x:0. ~delta_y:500. mouse;
     ignore (Page.wait_for_function "window.scrollY === 500" page)
 
 let test_touch t () =
     let context = Browser.new_context ~has_touch:true t.browser in
     let page = BrowserContext.new_page context in
     Page.set_content {|<button style="width: 100px; height: 100px" ontouchstart="this.textContent = 'touched'">Tap</button>|} page;
-    Touchscreen.tap 50. 50. (Page.touchscreen page);
+    Touchscreen.tap ~x:50. ~y:50. (Page.touchscreen page);
     Expect.to_have_text "touched" (Page.locator "button" page);
     Page.set_content {|<button ontouchstart="this.textContent = 'tapped'">Tap</button>|} page;
     Page.locator "button" page |> Locator.tap;

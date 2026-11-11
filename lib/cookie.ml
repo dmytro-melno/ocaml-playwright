@@ -16,7 +16,7 @@ type t = {
 
 type init = Protocol.Set_network_cookie.t
 
-let make ?url ?domain ?path ?expires ?http_only ?secure ?(same_site : same_site option) ?partition_key name value : init =
+let make ?url ?domain ?path ?expires ?http_only ?secure ?(same_site : same_site option) ?partition_key name ~value : init =
     { name; value; url; domain; path; expires; http_only; secure; same_site; partition_key; cr_has_cross_site_ancestor = None }
 
 let to_init (c : t) : init =

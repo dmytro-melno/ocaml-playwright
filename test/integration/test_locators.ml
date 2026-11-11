@@ -144,7 +144,7 @@ let test_mouse_actions _ page =
     Alcotest.(check (list string)) "events"
         [ "mouseenter@50,50"; "click+shift@10,20"; "contextmenu@50,50"; "click@1,1"; "click@1,1"; "dblclick@1,1" ]
         (Page.evaluate "window.log" page |> Js.to_list Js.to_string);
-    Locator.drag_to (Page.locator "#b" page) (Page.locator "#a" page);
+    Locator.drag_to ~target:(Page.locator "#b" page) (Page.locator "#a" page);
     Alcotest.(check string) "drag and drop" "dropped a" (Page.locator "#b" page |> Locator.inner_text);
     Locator.click ~trial:true c;
     Alcotest.(check int) "a trial run does not click" 3 (eval_int "window.log.filter(entry => entry.startsWith('click')).length" page)
@@ -172,18 +172,18 @@ let test_waiting_and_strictness _ page =
 
 let test_selector_operations _ page =
     Page.set_content form page;
-    Page.fill "#name" "Ada" page;
+    Page.fill "#name" ~value:"Ada" page;
     Page.click "text=Submit" page;
     Alcotest.(check string) "fill and click" "submitted Ada" (Page.inner_text "#out" page);
     Alcotest.(check (option string)) "text content" (Some "Sign up") (Page.text_content "h1" page);
-    Alcotest.(check (option string)) "attribute" (Some "Your name") (Page.get_attribute "#name" "placeholder" page);
+    Alcotest.(check (option string)) "attribute" (Some "Your name") (Page.get_attribute "#name" ~name:"placeholder" page);
     Alcotest.(check string) "input value" "Ada" (Page.input_value "#name" page);
     Page.check "#terms" page;
     Alcotest.(check bool) "checked" true (Page.is_checked "#terms" page);
     Alcotest.(check bool) "states" true (Page.is_visible "h1" page && Page.is_hidden "#hidden" page && Page.is_disabled "text=Disabled" page);
     Alcotest.(check (list string)) "select" [ "g" ] (Page.select_option "#colour" [ `Value "g" ] page);
-    Alcotest.check js "eval on selector" (Js.String "Apple!") (Page.eval_on_selector "li" "(li, suffix) => li.textContent + suffix" ~arg:(Js.string "!") page);
-    Alcotest.check js "eval on all" (Js.Number 3.) (Page.eval_on_selector_all "li" "items => items.length" page);
+    Alcotest.check js "eval on selector" (Js.String "Apple!") (Page.eval_on_selector "li" ~expression:"(li, suffix) => li.textContent + suffix" ~arg:(Js.string "!") page);
+    Alcotest.check js "eval on all" (Js.Number 3.) (Page.eval_on_selector_all "li" ~expression:"items => items.length" page);
     Alcotest.(check int) "query all" 3 (List.length (Page.query_selector_all "li" page));
     Alcotest.(check bool) "query nothing" true (Option.is_none (Page.query_selector "#missing" page));
     let element = Page.wait_for_selector "#name" page |> Option.get in
@@ -274,8 +274,8 @@ let test_expect _ page =
     Expect.to_be_editable name;
     Expect.to_be_empty name;
     Expect.to_be_disabled (Page.get_by_text "Disabled" page);
-    Expect.to_have_attribute "placeholder" "Your name" name;
-    Expect.to_have_attribute_regex "placeholder" "/name$/" name;
+    Expect.to_have_attribute "placeholder" ~value:"Your name" name;
+    Expect.to_have_attribute_regex "placeholder" ~value:"/name$/" name;
     Expect.to_have_attribute_present "data-testid" name;
     Expect.Not.to_have_attribute_present "disabled" name;
     Expect.to_have_id "name" name;
@@ -293,7 +293,7 @@ let test_expect _ page =
     Expect.to_be_focused name;
     ignore (Locator.select_option [ `Value "r"; `Value "g" ] (Page.locator "#colour" page));
     Expect.to_have_values [ "r"; "g" ] (Page.locator "#colour" page);
-    Expect.to_have_css "display" "none" (Page.locator "#hidden" page);
+    Expect.to_have_css "display" ~value:"none" (Page.locator "#hidden" page);
     Expect.to_be_in_viewport heading;
     Expect.to_have_title "Form" page;
     Expect.to_have_title_regex "/^F/" page;

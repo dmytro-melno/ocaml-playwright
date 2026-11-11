@@ -327,13 +327,13 @@ struct
         Protocol.Frame.wait_for_selector ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?state frame.f_channel
         |> Option.map Types.element
 
-    let eval_on_selector ?strict ?(arg = Js.Undefined) selector expression t =
+    let eval_on_selector ?strict ?(arg = Js.Undefined) selector ~expression t =
         Protocol.Frame.eval_on_selector ~selector ?strict ~expression ~arg:(Js.to_argument arg) (T.frame t).f_channel |> Js.of_wire
 
-    let eval_on_selector_all ?(arg = Js.Undefined) selector expression t =
+    let eval_on_selector_all ?(arg = Js.Undefined) selector ~expression t =
         Protocol.Frame.eval_on_selector_all ~selector ~expression ~arg:(Js.to_argument arg) (T.frame t).f_channel |> Js.of_wire
 
-    let dispatch_event ?timeout ?strict ?(event_init = Js.Undefined) selector type_ t =
+    let dispatch_event ?timeout ?strict ?(event_init = Js.Undefined) selector ~type_ t =
         let frame = T.frame t in
         Protocol.Frame.dispatch_event ~timeout:(action_timeout ?timeout frame) ~selector ?strict ~type_ ~event_init:(Js.to_argument event_init)
             frame.f_channel
@@ -364,7 +364,7 @@ struct
             ?source_position:(Option.map point source_position) ?target_position:(Option.map point target_position) ?strict ?steps
             frame.f_channel
 
-    let fill ?timeout ?strict ?force selector value t =
+    let fill ?timeout ?strict ?force selector ~value t =
         let frame = T.frame t in
         Protocol.Frame.fill ~timeout:(action_timeout ?timeout frame) ~selector ?strict ~value ?force frame.f_channel
 
@@ -376,11 +376,11 @@ struct
         let frame = T.frame t in
         Protocol.Frame.blur ~timeout:(action_timeout ?timeout frame) ~selector ?strict frame.f_channel
 
-    let press ?timeout ?strict ?delay ?no_wait_after selector key t =
+    let press ?timeout ?strict ?delay ?no_wait_after selector ~key t =
         let frame = T.frame t in
         Protocol.Frame.press ~timeout:(action_timeout ?timeout frame) ~selector ?strict ~key ?delay ?no_wait_after frame.f_channel
 
-    let type_ ?timeout ?strict ?delay selector text t =
+    let type_ ?timeout ?strict ?delay selector ~text t =
         let frame = T.frame t in
         Protocol.Frame.type_ ~timeout:(action_timeout ?timeout frame) ~selector ?strict ~text ?delay frame.f_channel
 
@@ -446,7 +446,7 @@ struct
         let frame = T.frame t in
         Protocol.Frame.inner_html ~timeout:(action_timeout ?timeout frame) ~selector ?strict frame.f_channel
 
-    let get_attribute ?timeout ?strict selector name t =
+    let get_attribute ?timeout ?strict selector ~name t =
         let frame = T.frame t in
         Protocol.Frame.get_attribute ~timeout:(action_timeout ?timeout frame) ~selector ?strict ~name frame.f_channel
 

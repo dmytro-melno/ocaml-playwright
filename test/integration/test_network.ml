@@ -207,7 +207,7 @@ let test_api_requests t page =
     Alcotest.(check (list string)) "the cookies of the request context" [ "session"; "theme" ]
         (APIRequestContext.cookies request |> List.map (fun (c : Cookie.t) -> c.name) |> List.sort compare);
     APIRequestContext.clear_cookies ~name:"theme" request;
-    APIRequestContext.add_cookies [ Cookie.make ~url:(Server.origin t.server) "added" "1" ] request;
+    APIRequestContext.add_cookies [ Cookie.make ~url:(Server.origin t.server) "added" ~value:"1" ] request;
     Alcotest.(check string) "changed through the request context" "added=1; session=abc"
         (eval_string "document.cookie.split('; ').sort().join('; ')" page);
     APIResponse.dispose response;

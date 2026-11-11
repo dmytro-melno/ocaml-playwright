@@ -338,7 +338,7 @@ module Web_storage = struct
         Protocol.Page.web_storage_items ~kind page.p_channel |> List.map (fun (item : Protocol.Name_value.t) -> item.name, item.value)
 
     let get_item name ((page, kind) : t) = Protocol.Page.web_storage_get_item ~kind ~name page.p_channel
-    let set_item name value ((page, kind) : t) = Protocol.Page.web_storage_set_item ~kind ~name ~value page.p_channel
+    let set_item name ~value ((page, kind) : t) = Protocol.Page.web_storage_set_item ~kind ~name ~value page.p_channel
     let remove_item name ((page, kind) : t) = Protocol.Page.web_storage_remove_item ~kind ~name page.p_channel
     let clear ((page, kind) : t) = Protocol.Page.web_storage_clear ~kind page.p_channel
 end
@@ -477,12 +477,12 @@ module Mouse = struct
     let compare = compare
     let hash = hash
 
-    let move ?steps x y (page : t) = Protocol.Page.mouse_move ~x ~y ?steps page.p_channel
+    let move ?steps ~x ~y (page : t) = Protocol.Page.mouse_move ~x ~y ?steps page.p_channel
     let down ?button ?click_count (page : t) = Protocol.Page.mouse_down ?button ?click_count page.p_channel
     let up ?button ?click_count (page : t) = Protocol.Page.mouse_up ?button ?click_count page.p_channel
-    let click ?delay ?button ?click_count x y (page : t) = Protocol.Page.mouse_click ~x ~y ?delay ?button ?click_count page.p_channel
-    let dblclick ?delay ?button x y page = click ?delay ?button ~click_count:2 x y page
-    let wheel delta_x delta_y (page : t) = Protocol.Page.mouse_wheel ~delta_x ~delta_y page.p_channel
+    let click ?delay ?button ?click_count ~x ~y (page : t) = Protocol.Page.mouse_click ~x ~y ?delay ?button ?click_count page.p_channel
+    let dblclick ?delay ?button ~x ~y page = click ?delay ?button ~click_count:2 ~x ~y page
+    let wheel ~delta_x ~delta_y (page : t) = Protocol.Page.mouse_wheel ~delta_x ~delta_y page.p_channel
 end
 
 module Touchscreen = struct
@@ -492,7 +492,7 @@ module Touchscreen = struct
     let compare = compare
     let hash = hash
 
-    let tap x y (page : t) = Protocol.Page.touchscreen_tap ~x ~y page.p_channel
+    let tap ~x ~y (page : t) = Protocol.Page.touchscreen_tap ~x ~y page.p_channel
 end
 
 module Video = struct

@@ -113,10 +113,10 @@ let query_selector selector (handle : t) =
 let query_selector_all selector (handle : t) =
     Protocol.Element_handle.query_selector_all ~selector (element_channel handle) |> List.map Types.element
 
-let eval_on_selector ?(arg = Js.Undefined) selector expression (handle : t) =
+let eval_on_selector ?(arg = Js.Undefined) selector ~expression (handle : t) =
     Protocol.Element_handle.eval_on_selector ~selector ~expression ~arg:(Js.to_argument arg) (element_channel handle) |> Js.of_wire
 
-let eval_on_selector_all ?(arg = Js.Undefined) selector expression (handle : t) =
+let eval_on_selector_all ?(arg = Js.Undefined) selector ~expression (handle : t) =
     Protocol.Element_handle.eval_on_selector_all ~selector ~expression ~arg:(Js.to_argument arg) (element_channel handle) |> Js.of_wire
 
 let wait_for_element_state ?timeout state (handle : t) =

@@ -142,16 +142,16 @@ let tap ?timeout ?force ?modifiers ?position ?trial (l : t) =
 let hover ?timeout ?force ?modifiers ?position ?trial (l : t) =
     Frame.hover ~strict:true ?timeout ?force ?modifiers ?position ?trial l.selector l.l_frame
 
-let drag_to ?timeout ?force ?trial ?source_position ?target_position ?steps (target : t) (l : t) =
+let drag_to ?timeout ?force ?trial ?source_position ?target_position ?steps ~(target : t) (l : t) =
     Frame.drag_and_drop ~strict:true ?timeout ?force ?trial ?source_position ?target_position ?steps ~source:l.selector
         ~target:(same_frame "the target" l.l_frame target) l.l_frame
 
-let fill ?timeout ?force value (l : t) = Frame.fill ~strict:true ?timeout ?force l.selector value l.l_frame
+let fill ?timeout ?force value (l : t) = Frame.fill ~strict:true ?timeout ?force l.selector ~value l.l_frame
 let clear ?timeout ?force (l : t) = fill ?timeout ?force "" l
 let focus ?timeout (l : t) = Frame.focus ~strict:true ?timeout l.selector l.l_frame
 let blur ?timeout (l : t) = Frame.blur ~strict:true ?timeout l.selector l.l_frame
-let press ?timeout ?delay ?no_wait_after key (l : t) = Frame.press ~strict:true ?timeout ?delay ?no_wait_after l.selector key l.l_frame
-let press_sequentially ?timeout ?delay text (l : t) = Frame.type_ ~strict:true ?timeout ?delay l.selector text l.l_frame
+let press ?timeout ?delay ?no_wait_after key (l : t) = Frame.press ~strict:true ?timeout ?delay ?no_wait_after l.selector ~key l.l_frame
+let press_sequentially ?timeout ?delay text (l : t) = Frame.type_ ~strict:true ?timeout ?delay l.selector ~text l.l_frame
 let check ?timeout ?force ?position ?trial (l : t) = Frame.check ~strict:true ?timeout ?force ?position ?trial l.selector l.l_frame
 let uncheck ?timeout ?force ?position ?trial (l : t) = Frame.uncheck ~strict:true ?timeout ?force ?position ?trial l.selector l.l_frame
 
@@ -173,14 +173,14 @@ let drop ?timeout ?position ?files ?payloads ?data (l : t) =
     in
     Frame.drop ~strict:true ?timeout ?position ?files ?data l.selector l.l_frame
 
-let dispatch_event ?timeout ?event_init type_ (l : t) = Frame.dispatch_event ~strict:true ?timeout ?event_init l.selector type_ l.l_frame
+let dispatch_event ?timeout ?event_init type_ (l : t) = Frame.dispatch_event ~strict:true ?timeout ?event_init l.selector ~type_ l.l_frame
 
 let highlight ?style (l : t) = Protocol.Frame.highlight ~selector:l.selector ?style l.l_frame.f_channel
 let hide_highlight (l : t) = Protocol.Frame.hide_highlight ~selector:l.selector l.l_frame.f_channel
 
 (* {1 Queries} *)
 
-let get_attribute ?timeout name (l : t) = Frame.get_attribute ~strict:true ?timeout l.selector name l.l_frame
+let get_attribute ?timeout name (l : t) = Frame.get_attribute ~strict:true ?timeout l.selector ~name l.l_frame
 let text_content ?timeout (l : t) = Frame.text_content ~strict:true ?timeout l.selector l.l_frame
 let inner_text ?timeout (l : t) = Frame.inner_text ~strict:true ?timeout l.selector l.l_frame
 let inner_html ?timeout (l : t) = Frame.inner_html ~strict:true ?timeout l.selector l.l_frame
@@ -196,10 +196,10 @@ let count (l : t) = Protocol.Frame.query_count ~selector:l.selector l.l_frame.f_
 let all (l : t) = List.init (count l) (fun index -> nth index l)
 
 let all_inner_texts (l : t) =
-    Frame.eval_on_selector_all l.selector "elements => elements.map(element => element.innerText)" l.l_frame |> Js.to_list Js.to_string
+    Frame.eval_on_selector_all l.selector ~expression:"elements => elements.map(element => element.innerText)" l.l_frame |> Js.to_list Js.to_string
 
 let all_text_contents (l : t) =
-    Frame.eval_on_selector_all l.selector "elements => elements.map(element => element.textContent || '')" l.l_frame
+    Frame.eval_on_selector_all l.selector ~expression:"elements => elements.map(element => element.textContent || '')" l.l_frame
     |> Js.to_list Js.to_string
 
 let wait_for ?timeout ?state (l : t) =
@@ -232,7 +232,7 @@ let with_element ?timeout (l : t) f =
 
 let evaluate ?timeout ?arg expression (l : t) = with_element ?timeout l (fun handle _ -> Js_handle.evaluate ?arg expression handle)
 let evaluate_handle ?timeout ?arg expression (l : t) = with_element ?timeout l (fun handle _ -> Js_handle.evaluate_handle ?arg expression handle)
-let evaluate_all ?arg expression (l : t) = Frame.eval_on_selector_all ?arg l.selector expression l.l_frame
+let evaluate_all ?arg expression (l : t) = Frame.eval_on_selector_all ?arg l.selector ~expression l.l_frame
 let bounding_box ?timeout (l : t) = with_element ?timeout l (fun handle _ -> Element_handle.bounding_box handle)
 let scroll_into_view_if_needed ?timeout (l : t) = with_element ?timeout l (fun handle timeout -> Element_handle.scroll_into_view_if_needed ~timeout handle)
 let select_text ?timeout ?force (l : t) = with_element ?timeout l (fun handle timeout -> Element_handle.select_text ~timeout ?force handle)

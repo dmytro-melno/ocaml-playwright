@@ -13,8 +13,8 @@ let test_cookies t page =
     let origin = Server.origin t.server in
     let expires = Float.round (Unix.time ()) +. 86_400. in
     BrowserContext.add_cookies
-        [ Cookie.make ~url:origin "plain" "1";
-          Cookie.make ~domain:"127.0.0.1" ~path:"/private" ~http_only:true ~same_site:`Strict ~expires "guarded" "2" ]
+        [ Cookie.make ~url:origin "plain" ~value:"1";
+          Cookie.make ~domain:"127.0.0.1" ~path:"/private" ~http_only:true ~same_site:`Strict ~expires "guarded" ~value:"2" ]
         context;
     Alcotest.(check string) "visible to the page" "plain=1" (eval_string "document.cookie" page);
     let cookies = BrowserContext.cookies context |> List.sort compare in
@@ -34,12 +34,12 @@ let test_cookies t page =
     Alcotest.(check (list string)) "cleared by name" [ "guarded" ] (List.map (fun (c : Cookie.t) -> c.name) (BrowserContext.cookies context));
     BrowserContext.clear_cookies context;
     Alcotest.(check int) "cleared" 0 (List.length (BrowserContext.cookies context));
-    check_failure "a cookie needs a URL or a domain" (fun () -> BrowserContext.add_cookies [ Cookie.make "orphan" "1" ] context)
+    check_failure "a cookie needs a URL or a domain" (fun () -> BrowserContext.add_cookies [ Cookie.make "orphan" ~value:"1" ] context)
 
 let test_storage_state t page =
     visit t page;
     let context = Page.context page in
-    BrowserContext.add_cookies [ Cookie.make ~url:(Server.origin t.server) "session" "abc" ] context;
+    BrowserContext.add_cookies [ Cookie.make ~url:(Server.origin t.server) "session" ~value:"abc" ] context;
     ignore (Page.evaluate "localStorage.setItem('theme', 'dark')" page);
     let file = scratch_file t "state.json" in
     let state = BrowserContext.storage_state ~path:file context in
@@ -64,9 +64,9 @@ let test_storage_state t page =
 let test_web_storage t page =
     visit t page;
     let local = Page.local_storage page and session = Page.session_storage page in
-    WebStorage.set_item "a" "1" local;
-    WebStorage.set_item "b" "2" local;
-    WebStorage.set_item "s" "x" session;
+    WebStorage.set_item "a" ~value:"1" local;
+    WebStorage.set_item "b" ~value:"2" local;
+    WebStorage.set_item "s" ~value:"x" session;
     Alcotest.(check (list (pair string string))) "items" [ "a", "1"; "b", "2" ] (List.sort compare (WebStorage.items local));
     Alcotest.(check (option string)) "an item" (Some "1") (WebStorage.get_item "a" local);
     Alcotest.(check (option string)) "no such item" None (WebStorage.get_item "s" local);

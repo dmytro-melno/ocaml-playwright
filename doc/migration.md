@@ -98,15 +98,14 @@ let () =
 | `Page.get_by_role ~name "button" page` | `` Page.get_by_role ~name `Button page `` |
 | `Page.evaluate ~expression ?is_function ?arg page` | `Page.evaluate ?arg expression page`, with `Js.t` |
 | `Page.wait_for_function ~expression ~polling_interval page` | `Page.wait_for_function ~polling expression page` |
-| `Page.eval_on_selector ~selector ~expression page` | `Page.eval_on_selector selector expression page` |
-| `Page.dispatch_event ~selector ~type_ page` | `Page.dispatch_event selector type_ page` |
+| `Page.eval_on_selector ~selector ~expression page` | `Page.eval_on_selector selector ~expression page` |
+| `Page.dispatch_event ~selector ~type_ page` | `Page.dispatch_event selector ~type_ page` |
 | `Locator.locator ~selector locator` | `Locator.locator selector locator` |
 | `Locator.fill ~value locator` | `Locator.fill value locator` |
 | `Locator.press ~key locator` | `Locator.press key locator` |
 | `Locator.type_ ~text locator` | `Locator.press_sequentially text locator` |
 | `Locator.get_attribute ~name locator` | `Locator.get_attribute name locator` |
 | `Locator.evaluate ~expression locator` | `Locator.evaluate expression locator` |
-| `Locator.drag_to ~target source` | `Locator.drag_to target source` |
 | `Locator.select_option ~options:[\| ... \|] locator` | `` Locator.select_option [ `Value "v" ] locator `` |
 | `Locator.set_input_files ~local_paths:[\| p \|] locator` | `Locator.set_input_files [ p ] locator` |
 | `Locator.element_handle locator` (an option) | returns the handle, or raises |

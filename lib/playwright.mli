@@ -22,7 +22,9 @@
       are of the type [t] of that module ([Page.t]), and its methods are functions in [snake_case]. A name that is an
       OCaml keyword gets a trailing underscore ([type_], [method_]).
     - The object a function operates on comes {e last}, so calls compose with [|>]. Required arguments are
-      positional and precede it; everything optional is an optional labelled argument.
+      positional and precede it; everything optional is an optional labelled argument. Where two required
+      arguments of the same type follow each other, a label tells them apart:
+      [Page.fill "#name" ~value:"Ada" page], [Mouse.move ~x:10. ~y:20. mouse].
     - All functions block the calling fiber until the browser has answered. Run them in separate
       {{:https://github.com/ocaml-multicore/eio} Eio} fibers to work with several pages concurrently. Cancelling a
       fiber cancels the call it is blocked in.
@@ -176,8 +178,8 @@ module Cookie : sig
 
     val make :
         ?url:string -> ?domain:string -> ?path:string -> ?expires:float -> ?http_only:bool -> ?secure:bool -> ?same_site:same_site ->
-        ?partition_key:string -> string -> string -> init
-    (** [make name value]. Either [url], or both [domain] and [path] are required. *)
+        ?partition_key:string -> string -> value:string -> init
+    (** [make name ~value]. Either [url], or both [domain] and [path] are required. *)
 
     val to_init : t -> init
 end
@@ -469,11 +471,11 @@ module type Frame_operations = sig
     val wait_for_selector : ?timeout:float -> ?strict:bool -> ?state:element_state -> string -> t -> element_handle option
     (** Waits for an element to reach [state], [`Visible] by default. [None] when waiting for [`Hidden] or [`Detached]. *)
 
-    val eval_on_selector : ?strict:bool -> ?arg:js_value -> string -> string -> t -> js_value
+    val eval_on_selector : ?strict:bool -> ?arg:js_value -> string -> expression:string -> t -> js_value
     (** [eval_on_selector selector expression] calls the function that [expression] evaluates to with the element. *)
 
-    val eval_on_selector_all : ?arg:js_value -> string -> string -> t -> js_value
-    val dispatch_event : ?timeout:float -> ?strict:bool -> ?event_init:js_value -> string -> string -> t -> unit
+    val eval_on_selector_all : ?arg:js_value -> string -> expression:string -> t -> js_value
+    val dispatch_event : ?timeout:float -> ?strict:bool -> ?event_init:js_value -> string -> type_:string -> t -> unit
 
     val click :
         ?timeout:float -> ?strict:bool -> ?force:bool -> ?no_wait_after:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float ->
@@ -495,16 +497,16 @@ module type Frame_operations = sig
         ?timeout:float -> ?strict:bool -> ?force:bool -> ?trial:bool -> ?source_position:float * float -> ?target_position:float * float ->
         ?steps:int -> source:string -> target:string -> t -> unit
 
-    val fill : ?timeout:float -> ?strict:bool -> ?force:bool -> string -> string -> t -> unit
+    val fill : ?timeout:float -> ?strict:bool -> ?force:bool -> string -> value:string -> t -> unit
     (** [fill selector value]. *)
 
     val focus : ?timeout:float -> ?strict:bool -> string -> t -> unit
     val blur : ?timeout:float -> ?strict:bool -> string -> t -> unit
 
-    val press : ?timeout:float -> ?strict:bool -> ?delay:float -> ?no_wait_after:bool -> string -> string -> t -> unit
+    val press : ?timeout:float -> ?strict:bool -> ?delay:float -> ?no_wait_after:bool -> string -> key:string -> t -> unit
     (** [press selector key]. *)
 
-    val type_ : ?timeout:float -> ?strict:bool -> ?delay:float -> string -> string -> t -> unit
+    val type_ : ?timeout:float -> ?strict:bool -> ?delay:float -> string -> text:string -> t -> unit
     (** [type_ selector text]. *)
 
     val check : ?timeout:float -> ?strict:bool -> ?force:bool -> ?position:float * float -> ?trial:bool -> string -> t -> unit
@@ -517,7 +519,7 @@ module type Frame_operations = sig
     val inner_text : ?timeout:float -> ?strict:bool -> string -> t -> string
     val inner_html : ?timeout:float -> ?strict:bool -> string -> t -> string
 
-    val get_attribute : ?timeout:float -> ?strict:bool -> string -> string -> t -> string option
+    val get_attribute : ?timeout:float -> ?strict:bool -> string -> name:string -> t -> string option
     (** [get_attribute selector name]. *)
 
     val input_value : ?timeout:float -> ?strict:bool -> string -> t -> string
@@ -1160,9 +1162,9 @@ and Locator : sig
     val hover : ?timeout:float -> ?force:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> t -> unit
 
     val drag_to :
-        ?timeout:float -> ?force:bool -> ?trial:bool -> ?source_position:float * float -> ?target_position:float * float -> ?steps:int -> t -> t ->
-        unit
-    (** [drag_to target source] drags the element of [source] onto that of [target]. *)
+        ?timeout:float -> ?force:bool -> ?trial:bool -> ?source_position:float * float -> ?target_position:float * float -> ?steps:int ->
+        target:t -> t -> unit
+    (** [drag_to ~target source] drags the element of [source] onto that of [target]. *)
 
     val fill : ?timeout:float -> ?force:bool -> string -> t -> unit
     (** Sets the value of an [<input>], [<textarea>] or [contenteditable] element and dispatches the [input] event. *)
@@ -1332,8 +1334,8 @@ and ElementHandle : sig
 
     val query_selector : string -> t -> t option
     val query_selector_all : string -> t -> t list
-    val eval_on_selector : ?arg:Js.t -> string -> string -> t -> Js.t
-    val eval_on_selector_all : ?arg:Js.t -> string -> string -> t -> Js.t
+    val eval_on_selector : ?arg:Js.t -> string -> expression:string -> t -> Js.t
+    val eval_on_selector_all : ?arg:Js.t -> string -> expression:string -> t -> Js.t
     val wait_for_selector : ?timeout:float -> ?strict:bool -> ?state:element_state -> string -> t -> t option
     val wait_for_element_state : ?timeout:float -> [ `Visible | `Hidden | `Stable | `Enabled | `Disabled | `Editable ] -> t -> unit
     val get_attribute : string -> t -> string option
@@ -1408,14 +1410,14 @@ end
 and Mouse : sig
     type t
 
-    val move : ?steps:int -> float -> float -> t -> unit
+    val move : ?steps:int -> x:float -> y:float -> t -> unit
     val down : ?button:mouse_button -> ?click_count:int -> t -> unit
     val up : ?button:mouse_button -> ?click_count:int -> t -> unit
-    val click : ?delay:float -> ?button:mouse_button -> ?click_count:int -> float -> float -> t -> unit
-    val dblclick : ?delay:float -> ?button:mouse_button -> float -> float -> t -> unit
+    val click : ?delay:float -> ?button:mouse_button -> ?click_count:int -> x:float -> y:float -> t -> unit
+    val dblclick : ?delay:float -> ?button:mouse_button -> x:float -> y:float -> t -> unit
 
-    val wheel : float -> float -> t -> unit
-    (** [wheel delta_x delta_y] scrolls. *)
+    val wheel : delta_x:float -> delta_y:float -> t -> unit
+    (** Scrolls. *)
 
     include Identity with type t := t
 end
@@ -1424,7 +1426,7 @@ end
 and Touchscreen : sig
     type t
 
-    val tap : float -> float -> t -> unit
+    val tap : x:float -> y:float -> t -> unit
 
     include Identity with type t := t
 end
@@ -1730,7 +1732,7 @@ and WebStorage : sig
 
     val items : t -> (string * string) list
     val get_item : string -> t -> string option
-    val set_item : string -> string -> t -> unit
+    val set_item : string -> value:string -> t -> unit
     val remove_item : string -> t -> unit
     val clear : t -> unit
 
@@ -1957,10 +1959,10 @@ module Expect : sig
 
         val to_contain_texts : ?timeout:float -> ?ignore_case:bool -> ?use_inner_text:bool -> string list -> Locator.t -> unit
 
-        val to_have_attribute : ?timeout:float -> ?ignore_case:bool -> string -> string -> Locator.t -> unit
-        (** [to_have_attribute name value]. *)
+        val to_have_attribute : ?timeout:float -> ?ignore_case:bool -> string -> value:string -> Locator.t -> unit
+        (** [to_have_attribute name ~value]. *)
 
-        val to_have_attribute_regex : ?timeout:float -> string -> string -> Locator.t -> unit
+        val to_have_attribute_regex : ?timeout:float -> string -> value:string -> Locator.t -> unit
 
         val to_have_attribute_present : ?timeout:float -> string -> Locator.t -> unit
         (** The element has the attribute, with whatever value. *)
@@ -1981,8 +1983,8 @@ module Expect : sig
         val to_have_values : ?timeout:float -> string list -> Locator.t -> unit
         (** The selected options of a [<select multiple>]. *)
 
-        val to_have_css : ?timeout:float -> ?pseudo:[ `Before | `After ] -> string -> string -> Locator.t -> unit
-        (** [to_have_css property value] compares against the computed style of the element. *)
+        val to_have_css : ?timeout:float -> ?pseudo:[ `Before | `After ] -> string -> value:string -> Locator.t -> unit
+        (** [to_have_css property ~value] compares against the computed style of the element. *)
 
         val to_have_js_property : ?timeout:float -> string -> Js.t -> Locator.t -> unit
         val to_have_count : ?timeout:float -> int -> Locator.t -> unit

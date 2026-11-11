@@ -164,9 +164,9 @@ module type Frame_operations = sig
     val query_selector : ?strict:bool -> string -> t -> element_handle option
     val query_selector_all : string -> t -> element_handle list
     val wait_for_selector : ?timeout:float -> ?strict:bool -> ?state:element_state -> string -> t -> element_handle option
-    val eval_on_selector : ?strict:bool -> ?arg:js_value -> string -> string -> t -> js_value
-    val eval_on_selector_all : ?arg:js_value -> string -> string -> t -> js_value
-    val dispatch_event : ?timeout:float -> ?strict:bool -> ?event_init:js_value -> string -> string -> t -> unit
+    val eval_on_selector : ?strict:bool -> ?arg:js_value -> string -> expression:string -> t -> js_value
+    val eval_on_selector_all : ?arg:js_value -> string -> expression:string -> t -> js_value
+    val dispatch_event : ?timeout:float -> ?strict:bool -> ?event_init:js_value -> string -> type_:string -> t -> unit
     val click :
         ?timeout:float -> ?strict:bool -> ?force:bool -> ?no_wait_after:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float ->
         ?delay:float -> ?button:mouse_button -> ?click_count:int -> ?trial:bool -> ?steps:int -> string -> t -> unit
@@ -182,11 +182,11 @@ module type Frame_operations = sig
     val drag_and_drop :
         ?timeout:float -> ?strict:bool -> ?force:bool -> ?trial:bool -> ?source_position:float * float -> ?target_position:float * float ->
         ?steps:int -> source:string -> target:string -> t -> unit
-    val fill : ?timeout:float -> ?strict:bool -> ?force:bool -> string -> string -> t -> unit
+    val fill : ?timeout:float -> ?strict:bool -> ?force:bool -> string -> value:string -> t -> unit
     val focus : ?timeout:float -> ?strict:bool -> string -> t -> unit
     val blur : ?timeout:float -> ?strict:bool -> string -> t -> unit
-    val press : ?timeout:float -> ?strict:bool -> ?delay:float -> ?no_wait_after:bool -> string -> string -> t -> unit
-    val type_ : ?timeout:float -> ?strict:bool -> ?delay:float -> string -> string -> t -> unit
+    val press : ?timeout:float -> ?strict:bool -> ?delay:float -> ?no_wait_after:bool -> string -> key:string -> t -> unit
+    val type_ : ?timeout:float -> ?strict:bool -> ?delay:float -> string -> text:string -> t -> unit
     val check : ?timeout:float -> ?strict:bool -> ?force:bool -> ?position:float * float -> ?trial:bool -> string -> t -> unit
     val uncheck : ?timeout:float -> ?strict:bool -> ?force:bool -> ?position:float * float -> ?trial:bool -> string -> t -> unit
     val set_checked : ?timeout:float -> ?strict:bool -> ?force:bool -> ?position:float * float -> ?trial:bool -> string -> bool -> t -> unit
@@ -196,7 +196,7 @@ module type Frame_operations = sig
     val text_content : ?timeout:float -> ?strict:bool -> string -> t -> string option
     val inner_text : ?timeout:float -> ?strict:bool -> string -> t -> string
     val inner_html : ?timeout:float -> ?strict:bool -> string -> t -> string
-    val get_attribute : ?timeout:float -> ?strict:bool -> string -> string -> t -> string option
+    val get_attribute : ?timeout:float -> ?strict:bool -> string -> name:string -> t -> string option
     val input_value : ?timeout:float -> ?strict:bool -> string -> t -> string
     val is_checked : ?timeout:float -> ?strict:bool -> string -> t -> bool
     val is_disabled : ?timeout:float -> ?strict:bool -> string -> t -> bool

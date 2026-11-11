@@ -165,10 +165,10 @@ struct
 
     (* {1 Attributes and properties} *)
 
-    let to_have_attribute ?timeout ?ignore_case name value l =
+    let to_have_attribute ?timeout ?ignore_case name ~value l =
         simple_text "to.have.attribute.value" ("attribute " ^ name) ?timeout ?ignore_case ~expression_arg:(`String name) (Text value) l
 
-    let to_have_attribute_regex ?timeout name regex l =
+    let to_have_attribute_regex ?timeout name ~value:regex l =
         simple_text "to.have.attribute.value" ("attribute " ^ name) ?timeout ~expression_arg:(`String name) (Regex regex) l
 
     let to_have_attribute_present ?timeout name l =
@@ -189,7 +189,7 @@ struct
         let values = List.map (fun value -> Selector.Text value) values in
         locator ?timeout ~expected_text:(text_values values) "to.have.values" ~condition:("to have values " ^ show_texts values) l
 
-    let to_have_css ?timeout ?(pseudo : [ `Before | `After ] option) name value l =
+    let to_have_css ?timeout ?(pseudo : [ `Before | `After ] option) name ~value l =
         locator ?timeout ?pseudo ~expression_arg:(`String name) ~expected_text:(text_values [ Text value ]) "to.have.css"
             ~condition:(Printf.sprintf "to have CSS property %s %S" name value) l
 

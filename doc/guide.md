@@ -81,7 +81,9 @@ rules of translation:
   `page.waitForURL` is a function `Page.wait_for_url`. Names that are OCaml keywords get a
   trailing underscore: `Keyboard.type_`, `Request.method_`.
 - **The object comes last**, required arguments come before it, and everything optional is a
-  labelled optional argument. This makes calls compose with `|>`:
+  labelled optional argument. Where two required arguments of the same type follow each other, a
+  label tells them apart: `Page.fill "#name" ~value:"Ada" page`, `Mouse.move ~x:10. ~y:20. mouse`.
+  Having the object last makes calls compose with `|>`:
 
   ```ocaml
   Page.get_by_role `Listitem page |> Locator.filter ~has_text:"Milk" |> Locator.get_by_role `Button ~name:"Remove" |> Locator.click
@@ -306,8 +308,8 @@ Lower-level input goes through the keyboard, mouse and touchscreen of the page:
 
 ```ocaml
 Keyboard.press "Escape" (Page.keyboard page);
-Mouse.move 100. 200. (Page.mouse page);
-Mouse.wheel 0. 500. (Page.mouse page)
+Mouse.move ~x:100. ~y:200. (Page.mouse page);
+Mouse.wheel ~delta_x:0. ~delta_y:500. (Page.mouse page)
 ```
 
 ### Reading from the page
@@ -343,7 +345,7 @@ Expect.to_have_count 3 (Page.get_by_role `Listitem page);
 Expect.to_have_texts [ "One"; "Two"; "Three" ] (Page.get_by_role `Listitem page);
 Expect.to_have_value "Ada" (Page.get_by_label "Name" page);
 Expect.to_be_checked (Page.get_by_label "Subscribe" page);
-Expect.to_have_attribute "href" "/docs" (Page.get_by_role `Link ~name:"Docs" page);
+Expect.to_have_attribute "href" ~value:"/docs" (Page.get_by_role `Link ~name:"Docs" page);
 Expect.to_have_url "https://example.com/dashboard" page;
 Expect.to_have_title_regex "/dashboard/i" page
 ```
@@ -663,13 +665,13 @@ use: `BrowserContext.set_offline`, `set_geolocation`, `grant_permissions`,
 ### Cookies and storage
 
 ```ocaml
-BrowserContext.add_cookies [ Cookie.make ~url:"https://example.com" "session" "abc123" ] context;
+BrowserContext.add_cookies [ Cookie.make ~url:"https://example.com" "session" ~value:"abc123" ] context;
 let cookies = BrowserContext.cookies ~urls:[ "https://example.com" ] context in
 List.iter (fun (cookie : Cookie.t) -> Printf.printf "%s=%s\n" cookie.name cookie.value) cookies;
 BrowserContext.clear_cookies ~name:"session" context;
 
 let storage = Page.local_storage page in
-WebStorage.set_item "theme" "dark" storage;
+WebStorage.set_item "theme" ~value:"dark" storage;
 WebStorage.get_item "theme" storage
 ```
 
