@@ -315,7 +315,7 @@ let init_script ?path ?script () =
     match path, script with
     | Some path, None -> Frame.script_with_source_url ~path (Files.read path)
     | None, Some script -> script
-    | _ -> invalid_arg "Playwright: pass either a script or ~path"
+    | _ -> invalid_arg "Playwright: pass either ~script or ~path"
 
 let add_init_script ?path ?script (context : t) =
     ignore (Protocol.Browser_context.add_init_script ~source:(init_script ?path ?script ()) context.c_channel)

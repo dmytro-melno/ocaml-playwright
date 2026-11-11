@@ -34,7 +34,10 @@
     - URL patterns are {{:https://playwright.dev/docs/network#glob-url-patterns} glob patterns}; functions named
       [..._matching] take an OCaml predicate on the URL instead.
     - Events are values of a GADT, which gives every event its payload type:
-      [Page.on Page.Console (fun message -> ...) page]. *)
+      [Page.on Page.Console (fun message -> ...) page].
+    - Pages, frames, requests and the other objects have identity: the library always returns the same OCaml value
+      for the same object in the browser. Compare them with physical equality, [==]; the polymorphic [=] and
+      [compare] must not be used on them. *)
 
 (** {1 Errors} *)
 

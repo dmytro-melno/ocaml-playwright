@@ -1,0 +1,6 @@
+; Tests against a real browser.  They are skipped, successfully, where there is no Node.js, no
+; driver or no Chromium to run; see doc/dev/testing.md.
+
+(test
+ (name main)
+ (libraries playwright alcotest eio eio.unix eio_main yojson unix))
