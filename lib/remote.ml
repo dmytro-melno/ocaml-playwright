@@ -38,8 +38,7 @@ let connect ?(timeout = 0.) ?(headers = []) ?slow_mo ?expose_network endpoint (t
         Connection.with_timeout conn ~timeout
             ~message:(fun () -> Printf.sprintf "Timeout %gms exceeded while connecting to %s" timeout endpoint)
             (fun () ->
-                let playwright = Protocol.Root.initialize ~sdk_language:`Python (Connection.root conn) in
-                let init = Protocol.Playwright.Initializer.of_json conn playwright.initializer_ in
+                let init = Protocol.Playwright.initializer_ (Objects.initialize conn) in
                 match init.pre_launched_browser with
                 | Some channel -> Types.browser channel
                 | None -> Error.raise_ "Malformed endpoint. Did you use BrowserType.launchServer method?")

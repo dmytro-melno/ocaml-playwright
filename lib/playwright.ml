@@ -497,9 +497,9 @@ let create ?on_error ?handler_concurrency ?handler_backlog ~sw
         let channel =
             Connection.with_timeout conn ~timeout:initialize_timeout
                 ~message:(fun () -> "Timed out waiting for the Playwright driver to start")
-                (fun () -> Protocol.Root.initialize ~sdk_language:`Python (Connection.root conn))
+                (fun () -> Objects.initialize conn)
         in
-        let init = Protocol.Playwright.Initializer.of_json conn channel.initializer_ in
+        let init = Protocol.Playwright.initializer_ channel in
         { Types.session; pw_channel = channel; chromium = Types.browser_type init.chromium; firefox = Types.browser_type init.firefox;
           webkit = Types.browser_type init.webkit; stopped }
     with

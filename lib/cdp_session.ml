@@ -6,24 +6,21 @@ type t = cdp_session
 let did_close (session : t) =
     if not session.cdp_detached then begin
         session.cdp_detached <- true;
-        ignore (Emitter.emit session.cdp_channel.conn session.cdpe_close session)
+        ignore (Emitter.emit (Channel.conn session.cdp_channel) session.cdpe_close session)
     end
 
-let handle_event (session : t) name params =
-    let conn = session.cdp_channel.conn in
-    match Protocol.Cdp_session.event_of_json conn name params with
-    | Some (Event { method_; params }) -> ignore (Emitter.emit conn session.cdpe_event (method_, Option.value params ~default:(`Assoc [])))
-    | Some Close -> did_close session
-    | None -> ()
+let handle_event (session : t) : Protocol.Cdp_session.event -> unit = function
+    | Event { method_; params } -> ignore (Emitter.emit (Channel.conn session.cdp_channel) session.cdpe_event (method_, Option.value params ~default:(`Assoc [])))
+    | Close -> did_close session
 
-let create (channel : Channel.t) =
+let create (channel : Protocol.Cdp_session.t) : t =
     let session = { cdp_channel = channel; cdp_detached = false; cdpe_event = Emitter.create (); cdpe_close = Emitter.create (); cdp_listeners = [] } in
-    channel.impl <- Cdp_session session;
-    channel.on_event <- handle_event session;
-    channel.on_lost <- (fun _ -> did_close session)
+    Protocol.Cdp_session.listen channel (handle_event session);
+    Channel.on_lost channel (fun _ -> did_close session);
+    session
 
 let send ?params method_ (session : t) : Yojson.Safe.t = Protocol.Cdp_session.send ~method_ ?params session.cdp_channel
-let detach (session : t) = Connection.detached session.cdp_channel.conn (fun () -> Protocol.Cdp_session.detach session.cdp_channel)
+let detach (session : t) = Connection.detached (Channel.conn session.cdp_channel) (fun () -> Protocol.Cdp_session.detach session.cdp_channel)
 
 (* [listener] receives the name and parameters of every event of the session. *)
 let on_event listener (session : t) =

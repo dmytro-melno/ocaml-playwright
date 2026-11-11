@@ -25,7 +25,7 @@ let start peer f =
 
 let frame peer =
     create peer ~type_:"Frame" ~guid:"frame@1" (`Assoc []);
-    channel peer "frame@1"
+    typed Protocol.Frame.kind peer "frame@1"
 
 let element_reply request guid =
     `Assoc [ "id", `String (string_member "id" request); "result", `Assoc [ "element", `Assoc [ "guid", `String guid ] ] ]
@@ -61,7 +61,7 @@ let test_late_results () =
     | `Returned handle ->
         (* The reply won: the handle is the caller's. *)
         Alcotest.(check (option string)) "crossed: the caller has the handle" (Some "handle@2")
-            (Option.map (fun (handle : Connection.channel) -> handle.guid) handle));
+            (Option.map Channel.guid handle));
     nothing_sent "crossed" peer;
     (* An aborted command fails, and its failure is nobody's business. *)
     let request, cancel, _ = start peer wait_for_selector in
@@ -113,22 +113,22 @@ let test_release_by_kind () =
     in
     let ref_ guid = `Assoc [ "guid", `String guid ] in
     late "a context is closed" ~aborted:false
-        (fun () -> ignore (Protocol.Browser.new_context (channel peer "browser@1") : Connection.channel))
+        (fun () -> ignore (Protocol.Browser.new_context (typed Protocol.Browser.kind peer "browser@1") : Protocol.Browser_context.t))
         ~make:[ "BrowserContext", "context@1" ]
         ~result:(`Assoc [ "context", ref_ "context@1" ])
         [ "context@1", "close", `Assoc [] ];
     late "a browser takes its context along" ~aborted:false
-        (fun () -> ignore (Protocol.Browser_type.launch_persistent_context ~user_data_dir:"" (channel peer "type@1")))
+        (fun () -> ignore (Protocol.Browser_type.launch_persistent_context ~user_data_dir:"" (typed Protocol.Browser_type.kind peer "type@1")))
         ~make:[ "Browser", "browser@2"; "BrowserContext", "context@2" ]
         ~result:(`Assoc [ "browser", ref_ "browser@2"; "context", ref_ "context@2" ])
         [ "browser@2", "close", `Assoc [] ];
     late "every handle of a list is disposed of" ~aborted:true
-        (fun () -> ignore (Protocol.Frame.query_selector_all ~selector:"li" (frame peer) : Connection.channel list))
+        (fun () -> ignore (Protocol.Frame.query_selector_all ~selector:"li" (frame peer) : Protocol.Element_handle.t list))
         ~make:[ "ElementHandle", "handle@1"; "ElementHandle", "handle@2" ]
         ~result:(`Assoc [ "elements", `List [ ref_ "handle@1"; ref_ "handle@2" ] ])
         [ "handle@1", "dispose", `Assoc []; "handle@2", "dispose", `Assoc [] ];
     late "a response is disposed of through its context" ~aborted:true
-        (fun () -> ignore (Protocol.Api_request_context.fetch ~url:"http://localhost/" (channel peer "request@1")))
+        (fun () -> ignore (Protocol.Api_request_context.fetch ~url:"http://localhost/" (typed Protocol.Api_request_context.kind peer "request@1")))
         ~make:[]
         ~result:
             (`Assoc

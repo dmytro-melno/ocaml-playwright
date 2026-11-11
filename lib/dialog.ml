@@ -2,12 +2,9 @@ open Types
 
 type t = dialog
 
-let create (channel : Channel.t) =
-    let init = Protocol.Dialog.Initializer.of_json channel.conn channel.initializer_ in
-    channel.impl <-
-        Dialog
-            { d_channel = channel; d_page = Option.map Types.page init.page; d_type = init.type_; d_message = init.message;
-              d_default_value = init.default_value }
+let create (channel : Protocol.Dialog.t) : t =
+    let init = Protocol.Dialog.initializer_ channel in
+    { d_channel = channel; d_page = Option.map Types.page init.page; d_type = init.type_; d_message = init.message; d_default_value = init.default_value }
 
 let type_ (dialog : t) = dialog.d_type
 let message (dialog : t) = dialog.d_message

@@ -28,30 +28,27 @@ let did_close (worker : t) =
         ignore (Emitter.emit worker.w_session.conn worker.we_close worker)
     end
 
-let handle_event (worker : t) name params =
-    let conn = worker.w_session.conn in
-    match Protocol.Worker.event_of_json conn name params with
-    | Some (Console { type_; text; args; location; timestamp }) ->
+let handle_event (worker : t) : Protocol.Worker.event -> unit = function
+    | Console { type_; text; args; location; timestamp } ->
         (* Only workers attached to directly report their console here; others go through the context. *)
         let message =
             { cm_type = type_; cm_text = text; cm_args = List.map Types.js_handle args; cm_location = location; cm_timestamp = timestamp;
               cm_page = None; cm_worker = Some worker }
         in
-        ignore (Emitter.emit conn worker.we_console message)
-    | Some Close -> did_close worker
-    | None -> ()
+        ignore (Emitter.emit worker.w_session.conn worker.we_console message)
+    | Close -> did_close worker
 
-let create session (channel : Channel.t) =
-    let init = Protocol.Worker.Initializer.of_json channel.conn channel.initializer_ in
+let create session (channel : Protocol.Worker.t) : t =
+    let init = Protocol.Worker.initializer_ channel in
     let w_gone, w_gone_resolver = Promise.create () in
     let worker =
         { w_channel = channel; w_session = session; w_url = init.url; w_page = None; w_context = None; w_gone; w_gone_resolver;
           we_close = Emitter.create (); we_console = Emitter.create () }
     in
     Events.subscribe_on_demand session.conn worker.we_console (fun ~enabled -> Protocol.Worker.update_subscription ~event:`Console ~enabled channel);
-    channel.impl <- Worker worker;
-    channel.on_event <- handle_event worker;
-    channel.on_lost <- (fun _ -> did_close worker)
+    Protocol.Worker.listen channel (handle_event worker);
+    Channel.on_lost channel (fun _ -> did_close worker);
+    worker
 
 let url (worker : t) = worker.w_url
 

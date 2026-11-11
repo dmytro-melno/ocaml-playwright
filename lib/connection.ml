@@ -51,7 +51,7 @@ type t = {
     closed_resolver : Error.t Promise.u;
     stopped_promise : unit Promise.t;  (* resolved when {!run} has returned *)
     stopped_resolver : unit Promise.u;
-    mutable factory : channel -> unit;
+    mutable factory : channel -> impl;  (* makes the client side of an object that the driver announces *)
     report : string -> exn -> Printexc.raw_backtrace -> unit;
     trace : (string -> unit) option;
     render_value : Json.t -> string;
@@ -99,7 +99,7 @@ let make ~scope ~owns_scope ~clock ~report ~trace ~render_value transport =
     let conn =
         { transport; scope; owns_scope; clock; objects = Hashtbl.create 256; pending = Hashtbl.create 64; outbox = Eio.Stream.create max_int;
           id_prefix = random_prefix (); last_id = 0; last_object = 0; closed = None; closed_promise; closed_resolver; stopped_promise;
-          stopped_resolver; factory = (fun _ -> ()); report; trace; render_value }
+          stopped_resolver; factory = (fun _ -> No_impl); report; trace; render_value }
     in
     ignore (make_channel conn ~parent:None ~guid:"" ~type_:"Root" ~initializer_:(`Assoc []));
     conn
@@ -381,12 +381,6 @@ let adopt (parent : channel) (child : channel) =
     Hashtbl.replace parent.children child.guid child;
     child.parent <- Some parent
 
-let rec parent_of_type (channel : channel) type_ =
-    match channel.parent with
-    | Some p when p.type_ = type_ -> Some p
-    | Some p -> parent_of_type p type_
-    | None -> None
-
 (* Whatever goes wrong in here means that the two sides no longer agree on the protocol or on the
    state of the objects, and ends the connection: see {!run}. *)
 let dispatch conn (message : Json.t) =
@@ -424,7 +418,7 @@ let dispatch conn (message : Json.t) =
                     make_channel conn ~parent:(Some channel) ~guid:(D.req "guid" D.string params)
                         ~type_:(D.req "type" D.string params) ~initializer_
                 in
-                conn.factory child;
+                child.impl <- conn.factory child;
                 (* The client object holds the decoded initializer.  Keeping the JSON as well would
                    double what every request and response costs for as long as the driver keeps it. *)
                 (match child.impl with No_impl -> () | _ -> child.initializer_ <- `Null)

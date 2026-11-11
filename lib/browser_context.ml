@@ -80,8 +80,8 @@ let on_route (context : t) (route : route) =
 let on_web_socket_route (context : t) (route : web_socket_route) =
     if not (Route.Web_socket.dispatch context.c_ws_routes route) then ignore (Route.Web_socket.connect_to_server route)
 
-let on_binding (context : t) (call : Channel.t) =
-    let init = Protocol.Binding_call.Initializer.of_json call.conn call.initializer_ in
+let on_binding (context : t) (call : Protocol.Binding_call.t) =
+    let init = Protocol.Binding_call.initializer_ call in
     Option.iter (Route.Binding.call call) (Hashtbl.find_opt context.c_bindings init.name)
 
 let add_route ?times matcher handler (context : t) =
@@ -134,27 +134,27 @@ let did_close (context : t) =
         emit context context.ce_close context
     end
 
-let handle_event (context : t) name params =
+let handle_event (context : t) (event : Protocol.Browser_context.event) =
     let conn = context.c_session.conn in
     let fork what f = Connection.fork conn what f in
     let handle what f = Connection.handle conn what f in
-    match Protocol.Browser_context.event_of_json conn name params with
-    | Some (Binding_call { binding }) -> handle "exposed binding" (fun () -> on_binding context binding)
-    | Some Close -> did_close context
-    | Some (Page { page }) ->
+    match event with
+    | Binding_call { binding } -> handle "exposed binding" (fun () -> on_binding context binding)
+    | Close -> did_close context
+    | Page { page } ->
         let page = Types.page page in
         context.pages <- context.pages @ [ page ];
         emit context context.ce_page page;
         (match page.opener with Some opener when not opener.closed -> emit context opener.pe_popup page | _ -> ())
-    | Some (Route { route }) -> handle "route" (fun () -> on_route context (Types.route route))
-    | Some (Web_socket_route { web_socket_route }) ->
+    | Route { route } -> handle "route" (fun () -> on_route context (Types.route route))
+    | Web_socket_route { web_socket_route } ->
         handle "WebSocket route" (fun () -> on_web_socket_route context (Types.web_socket_route web_socket_route))
-    | Some (Service_worker { worker }) ->
+    | Service_worker { worker } ->
         let worker = Types.worker worker in
         worker.w_context <- Some context;
         context.service_workers <- context.service_workers @ [ worker ];
         emit context context.ce_service_worker worker
-    | Some (Console { type_; text; args; location; timestamp; page; worker }) ->
+    | Console { type_; text; args; location; timestamp; page; worker } ->
         let page = Option.map Types.page page in
         let worker = Option.map Types.worker worker in
         let message =
@@ -164,12 +164,12 @@ let handle_event (context : t) name params =
         Option.iter (fun (worker : worker) -> emit context worker.we_console message) worker;
         Option.iter (fun (page : page) -> emit context page.pe_console message) page;
         emit context context.ce_console message
-    | Some (Page_error { error; page; location = _ }) ->
+    | Page_error { error; page; location = _ } ->
         let page = Types.page page in
         let error = js_error error in
         emit context context.ce_web_error { we_page = Some page; we_error = error };
         emit context page.pe_page_error error
-    | Some (Dialog { dialog }) ->
+    | Dialog { dialog } ->
         let channel = dialog in
         let dialog = Types.dialog channel in
         let handled = Emitter.emit conn context.ce_dialog dialog in
@@ -180,18 +180,18 @@ let handle_event (context : t) name params =
             fork "dialog" (fun () ->
                 try if dialog.d_type = "beforeunload" then Protocol.Dialog.accept channel else Protocol.Dialog.dismiss channel
                 with Error.E _ -> ())
-    | Some (Dialog_closed _) -> ()
-    | Some (Request { request; page }) ->
+    | Dialog_closed _ -> ()
+    | Request { request; page } ->
         let request = Types.request request in
         emit context context.ce_request request;
         Option.iter (fun page -> emit context (Types.page page).pe_request request) page
-    | Some (Request_failed { request; failure_text; response_end_timing; page }) ->
+    | Request_failed { request; failure_text; response_end_timing; page } ->
         let request = Types.request request in
         request.failure <- Some (Option.value failure_text ~default:"");
         Network.Request.set_response_end request response_end_timing;
         emit context context.ce_request_failed request;
         Option.iter (fun page -> emit context (Types.page page).pe_request_failed request) page
-    | Some (Request_finished { request; response; response_end_timing; page }) ->
+    | Request_finished { request; response; response_end_timing; page } ->
         let request = Types.request request in
         Network.Request.set_response_end request response_end_timing;
         emit context context.ce_request_finished request;
@@ -201,14 +201,14 @@ let handle_event (context : t) name params =
                 let response = Types.response response in
                 if not (Promise.is_resolved response.rs_finished) then Promise.resolve response.rs_finished_resolver (Ok ()))
             response
-    | Some (Response { response; page }) ->
+    | Response { response; page } ->
         let response = Types.response response in
         emit context context.ce_response response;
         Option.iter (fun page -> emit context (Types.page page).pe_response response) page
-    | Some (Recorder_event _) | None -> ()
+    | Recorder_event _ -> ()
 
-let create session (channel : Channel.t) =
-    let init = Protocol.Browser_context.Initializer.of_json channel.conn channel.initializer_ in
+let create session (channel : Protocol.Browser_context.t) : t =
+    let init = Protocol.Browser_context.initializer_ channel in
     let c_closed, c_closed_resolver = Promise.create () in
     let c_timeouts = Timeouts.create () in
     let request = Types.api_request_context init.request_context in
@@ -231,9 +231,9 @@ let create session (channel : Channel.t) =
     subscribe context.ce_request_finished `Request_finished;
     subscribe context.ce_request_failed `Request_failed;
     session.selectors.all_contexts <- context :: session.selectors.all_contexts;
-    channel.impl <- Browser_context context;
-    channel.on_event <- handle_event context;
-    channel.on_lost <- (fun _ -> did_close context)
+    Protocol.Browser_context.listen channel (handle_event context);
+    Channel.on_lost channel (fun _ -> did_close context);
+    context
 
 (* Starts the HAR recording that a context was created with, if any. *)
 let start_har_recording (options : Context_options.t) (context : t) =

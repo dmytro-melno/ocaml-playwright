@@ -19,23 +19,21 @@ let did_close (browser : t) =
         ignore (Emitter.emit browser.b_session.conn browser.e_disconnected browser)
     end
 
-let handle_event (browser : t) name params =
-    match Protocol.Browser.event_of_json browser.b_session.conn name params with
-    | Some (Context { context }) -> setup_context browser (Types.browser_context context)
-    | Some Close -> did_close browser
-    | None -> ()
+let handle_event (browser : t) : Protocol.Browser.event -> unit = function
+    | Context { context } -> setup_context browser (Types.browser_context context)
+    | Close -> did_close browser
 
-let create session (channel : Channel.t) =
-    let init = Protocol.Browser.Initializer.of_json channel.conn channel.initializer_ in
-    let browser_type = match channel.parent with Some { impl = Browser_type browser_type; _ } -> Some browser_type | _ -> None in
+let create session (channel : Protocol.Browser.t) : t =
+    let init = Protocol.Browser.initializer_ channel in
+    let browser_type = Option.map Types.browser_type (Channel.parent Protocol.Browser_type.kind channel) in
     let b_closed, b_closed_resolver = Promise.create () in
     let browser =
         { b_channel = channel; b_session = session; browser_type; b_name = init.name; version = init.version; contexts = []; b_close_state = Closing.create ();
           b_close_reason = None; b_traces_dir = None; disconnect = None; b_closed; b_closed_resolver; e_disconnected = Emitter.create () }
     in
-    channel.impl <- Browser browser;
-    channel.on_event <- handle_event browser;
-    channel.on_lost <- (fun _ -> did_close browser)
+    Protocol.Browser.listen channel (handle_event browser);
+    Channel.on_lost channel (fun _ -> did_close browser);
+    browser
 
 let browser_type (browser : t) =
     match browser.browser_type with

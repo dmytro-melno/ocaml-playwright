@@ -106,8 +106,8 @@ let on_route (page : t) (route : route) =
 let on_web_socket_route (page : t) (route : web_socket_route) =
     if not (Route.Web_socket.dispatch page.p_ws_routes route) then Browser_context.on_web_socket_route page.context route
 
-let on_binding (page : t) (call : Channel.t) =
-    let init = Protocol.Binding_call.Initializer.of_json call.conn call.initializer_ in
+let on_binding (page : t) (call : Protocol.Binding_call.t) =
+    let init = Protocol.Binding_call.initializer_ call in
     match Hashtbl.find_opt page.p_bindings init.name with
     | Some binding -> Route.Binding.call call binding
     | None -> Browser_context.on_binding page.context call
@@ -138,23 +138,22 @@ let did_close (page : t) =
         emit page page.pe_close page
     end
 
-let handle_event (page : t) name params =
-    let conn = conn page in
-    let handle what f = Connection.handle conn what f in
-    match Protocol.Page.event_of_json conn name params with
-    | Some (Binding_call { binding }) -> handle "exposed binding" (fun () -> on_binding page binding)
-    | Some Close -> did_close page
-    | Some Crash ->
+let handle_event (page : t) (event : Protocol.Page.event) =
+    let handle what f = Connection.handle (conn page) what f in
+    match event with
+    | Binding_call { binding } -> handle "exposed binding" (fun () -> on_binding page binding)
+    | Close -> did_close page
+    | Crash ->
         if not (Promise.is_resolved page.p_gone) then Promise.resolve page.p_gone_resolver (Error.target_closed ~message:"Page crashed" ());
         emit page page.pe_crash page
-    | Some (Download { url; suggested_filename; artifact }) ->
+    | Download { url; suggested_filename; artifact } ->
         emit page page.pe_download { dl_page = page; dl_url = url; suggested_filename; dl_artifact = artifact }
-    | Some (Viewport_size_changed { viewport_size }) ->
+    | Viewport_size_changed { viewport_size } ->
         page.viewport_size <-
             Option.map (fun (size : Protocol.Page.Viewport_size_changed_event_viewport_size.t) -> { width = size.width; height = size.height }) viewport_size
-    | Some (File_chooser { element; is_multiple }) ->
+    | File_chooser { element; is_multiple } ->
         emit page page.pe_file_chooser { fc_page = page; fc_element = Types.element element; is_multiple }
-    | Some (Frame_attached { frame }) ->
+    | Frame_attached { frame } ->
         let frame = Types.frame frame in
         frame.page <- Some page;
         page.frames <- page.frames @ [ frame ];
@@ -162,27 +161,31 @@ let handle_event (page : t) name params =
             (fun (parent : frame) -> if not (List.memq frame parent.child_frames) then parent.child_frames <- parent.child_frames @ [ frame ])
             frame.parent_frame;
         emit page page.pe_frame_attached frame
-    | Some (Frame_detached { frame }) ->
+    | Frame_detached { frame } ->
         let frame = Types.frame frame in
         page.frames <- List.filter (fun f -> f != frame) page.frames;
         frame.detached <- true;
         Option.iter (fun (parent : frame) -> parent.child_frames <- List.filter (fun f -> f != frame) parent.child_frames) frame.parent_frame;
         emit page page.pe_frame_detached frame
-    | Some (Locator_handler_triggered { uid }) -> handle "locator handler" (fun () -> on_locator_handler_triggered page uid)
-    | Some (Route { route }) -> handle "route" (fun () -> on_route page (Types.route route))
-    | Some (Web_socket_route { web_socket_route }) ->
+    | Locator_handler_triggered { uid } -> handle "locator handler" (fun () -> on_locator_handler_triggered page uid)
+    | Route { route } -> handle "route" (fun () -> on_route page (Types.route route))
+    | Web_socket_route { web_socket_route } ->
         handle "WebSocket route" (fun () -> on_web_socket_route page (Types.web_socket_route web_socket_route))
-    | Some (Web_socket { web_socket }) -> emit page page.pe_web_socket (Types.web_socket web_socket)
-    | Some (Worker { worker }) ->
+    | Web_socket { web_socket } -> emit page page.pe_web_socket (Types.web_socket web_socket)
+    | Worker { worker } ->
         let worker = Types.worker worker in
         worker.w_page <- Some page;
         page.workers <- page.workers @ [ worker ];
         emit page page.pe_worker worker
-    | Some (Screencast_frame _) | None -> ()
+    | Screencast_frame _ -> ()
 
-let create (channel : Channel.t) =
-    let init = Protocol.Page.Initializer.of_json channel.conn channel.initializer_ in
-    let context = match channel.parent with Some parent -> Types.browser_context parent | None -> Types.mismatch channel "child of a BrowserContext" in
+let create (channel : Protocol.Page.t) : t =
+    let init = Protocol.Page.initializer_ channel in
+    let context =
+        match Channel.parent Protocol.Browser_context.kind channel with
+        | Some context -> Types.browser_context context
+        | None -> Error.raise_ "Protocol error: page %S does not belong to a browser context" (Channel.guid channel)
+    in
     let main_frame = Types.frame init.main_frame in
     let p_gone, p_gone_resolver = Promise.create () in
     let page =
@@ -200,7 +203,7 @@ let create (channel : Channel.t) =
     in
     main_frame.page <- Some page;
     let subscribe emitter event =
-        Events.subscribe_on_demand channel.conn emitter (fun ~enabled -> Protocol.Page.update_subscription ~event ~enabled channel)
+        Events.subscribe_on_demand (Channel.conn channel) emitter (fun ~enabled -> Protocol.Page.update_subscription ~event ~enabled channel)
     in
     subscribe page.pe_console `Console;
     subscribe page.pe_dialog `Dialog;
@@ -209,9 +212,9 @@ let create (channel : Channel.t) =
     subscribe page.pe_request_finished `Request_finished;
     subscribe page.pe_request_failed `Request_failed;
     subscribe page.pe_file_chooser `File_chooser;
-    channel.impl <- Page page;
-    channel.on_event <- handle_event page;
-    channel.on_lost <- (fun _ -> did_close page)
+    Protocol.Page.listen channel (handle_event page);
+    Channel.on_lost channel (fun _ -> did_close page);
+    page
 
 (* {1 Everything a page shares with its main frame} *)
 
@@ -441,7 +444,7 @@ let close ?(run_before_unload = false) ?reason (page : t) =
         match page.owned_context with
         | Some context -> Browser_context.close context
         | None ->
-            Connection.detached page.p_channel.conn (fun () ->
+            Connection.detached (Channel.conn page.p_channel) (fun () ->
                 if run_before_unload then Protocol.Page.run_before_unload page.p_channel else Protocol.Page.close ?reason page.p_channel)
     with Error.E { kind = Target_closed; _ } when not run_before_unload -> ()
 
@@ -498,7 +501,7 @@ module Video = struct
     (* Where the browser writes the video.  The file is complete once the page is closed. *)
     let path (page : t) =
         if (session page).is_remote then Error.raise_ "Path is not available when connecting remotely. Use save_as to save a local copy.";
-        (Protocol.Artifact.Initializer.of_json (conn page) (artifact page).initializer_).absolute_path
+        (Protocol.Artifact.initializer_ (artifact page)).absolute_path
 
     let save_as path (page : t) = Artifact.save_as (session page) (artifact page) path
     let delete (page : t) = Option.iter Artifact.delete page.video_artifact

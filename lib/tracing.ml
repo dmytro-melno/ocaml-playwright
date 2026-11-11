@@ -2,11 +2,9 @@ open Types
 
 type t = tracing
 
-let create session (channel : Channel.t) =
-    channel.impl <-
-        Tracing
-            { t_channel = channel; t_session = session; include_sources = false; is_live = false; traces_dir = None; stacks_id = None; har_id = None;
-              har_recorders = Hashtbl.create 1 }
+let create session (channel : Protocol.Tracing.t) : t =
+    { t_channel = channel; t_session = session; include_sources = false; is_live = false; traces_dir = None; stacks_id = None; har_id = None;
+      har_recorders = Hashtbl.create 1 }
 
 let local_utils (t : t) = Url_match.local_utils t.t_session
 let is_zip path = Filename.check_suffix (String.lowercase_ascii path) ".zip"
@@ -42,7 +40,7 @@ let save_chunk (t : t) ?path stacks_id =
         (match (Protocol.Tracing.tracing_stop_chunk ~mode:`Archive t.t_channel).artifact with
         | None -> discard_stacks ()
         | Some artifact ->
-            Connection.protect t.t_channel.conn "deleting a trace"
+            Connection.protect (Channel.conn t.t_channel) "deleting a trace"
                 ~finally:(fun () -> try Artifact.delete artifact with Error.E _ -> ())
                 (fun () -> Artifact.save_as t.t_session artifact path);
             Protocol.Local_utils.zip ~zip_file:path ~entries:[] ?stacks_id ~mode:`Append ~include_sources:t.include_sources (local_utils t))
@@ -52,14 +50,14 @@ let stop_chunk ?path (t : t) =
     t.stacks_id <- None;
     (* The stacks are released also when the trace could not be saved, otherwise later traces keep
        appending to them. *)
-    Connection.guard t.t_channel.conn "discarding the stacks of a trace"
+    Connection.guard (Channel.conn t.t_channel) "discarding the stacks of a trace"
         ~undo:(fun () -> Option.iter (fun stacks_id -> try Protocol.Local_utils.trace_discarded ~stacks_id (local_utils t) with Error.E _ -> ()) stacks_id)
         (fun () -> save_chunk t ?path stacks_id)
 
 (* Tracing is stopped also when the trace could not be saved, which is the failure that counts. *)
 let stop ?path (t : t) =
     let stop () = Protocol.Tracing.tracing_stop t.t_channel in
-    Connection.guard t.t_channel.conn "stopping tracing" ~undo:stop (fun () -> stop_chunk ?path t);
+    Connection.guard (Channel.conn t.t_channel) "stopping tracing" ~undo:stop (fun () -> stop_chunk ?path t);
     stop ()
 
 (* {1 HAR recording} *)
@@ -92,7 +90,7 @@ let export_har (t : t) har_id =
             match (Protocol.Tracing.har_export ~har_id ~mode:`Archive t.t_channel).artifact with
             | None -> ()
             | Some artifact ->
-                Connection.protect t.t_channel.conn "deleting a recording"
+                Connection.protect (Channel.conn t.t_channel) "deleting a recording"
                     ~finally:(fun () -> try Artifact.delete artifact with Error.E _ -> ())
                     (fun () ->
                         if is_zip path then Artifact.save_as t.t_session artifact path

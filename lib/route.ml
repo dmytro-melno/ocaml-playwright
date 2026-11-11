@@ -6,9 +6,9 @@ open Network
 
 type t = route
 
-let create (channel : Channel.t) =
-    let init = Protocol.Route.Initializer.of_json channel.conn channel.initializer_ in
-    channel.impl <- Route { rt_channel = channel; rt_request = Types.request init.request; rt_context = None; handling = None }
+let create (channel : Protocol.Route.t) : t =
+    let init = Protocol.Route.initializer_ channel in
+    { rt_channel = channel; rt_request = Types.request init.request; rt_context = None; handling = None }
 
 let request (route : t) = route.rt_request
 
@@ -113,7 +113,7 @@ module Handler = struct
         (try handler.rh_handler route
          with ex when route.handling <> None && not (Connection.is_cancellation ex) ->
              let backtrace = Printexc.get_raw_backtrace () in
-             route.rt_channel.conn.report "route handler" ex backtrace;
+             (Channel.conn route.rt_channel).report "route handler" ex backtrace;
              route.handling <- None;
              Promise.resolve resolver false);
         Promise.await verdict
@@ -192,39 +192,37 @@ module Web_socket = struct
 
     (* The messages of a socket are passed on in the order in which they came, also when nobody
        handles them. *)
-    let fork (channel : Channel.t) f = Connection.handle channel.conn "WebSocket route" (fun () -> try f () with Error.E _ -> ())
+    let fork (channel : Protocol.Web_socket_route.t) f = Connection.handle (Channel.conn channel) "WebSocket route" (fun () -> try f () with Error.E _ -> ())
 
     let encode = function Text text -> text, false | Binary bytes -> Base64.encode_string bytes, true
     let decode message ~is_base64 = if is_base64 then Binary (Json.Decode.binary (`String message)) else Text message
 
-    let handle_event (channel : Channel.t) (state : ws_route_state) name params =
-        match Protocol.Web_socket_route.event_of_json channel.conn name params with
-        | Some (Message_from_page { message; is_base64 }) ->
+    let handle_event (channel : Protocol.Web_socket_route.t) (state : ws_route_state) : Protocol.Web_socket_route.event -> unit = function
+        | Message_from_page { message; is_base64 } ->
             (match state.on_page_message with
             | Some handler -> fork channel (fun () -> handler (decode message ~is_base64))
             | None -> if state.wr_connected then fork channel (fun () -> Protocol.Web_socket_route.send_to_server ~message ~is_base64 channel))
-        | Some (Message_from_server { message; is_base64 }) ->
+        | Message_from_server { message; is_base64 } ->
             (match state.on_server_message with
             | Some handler -> fork channel (fun () -> handler (decode message ~is_base64))
             | None -> fork channel (fun () -> Protocol.Web_socket_route.send_to_page ~message ~is_base64 channel))
-        | Some (Close_page { code; reason; was_clean }) ->
+        | Close_page { code; reason; was_clean } ->
             (match state.on_page_close with
             | Some handler -> fork channel (fun () -> handler code reason)
             | None -> fork channel (fun () -> Protocol.Web_socket_route.close_server ?code ?reason ~was_clean channel))
-        | Some (Close_server { code; reason; was_clean }) ->
+        | Close_server { code; reason; was_clean } ->
             (match state.on_server_close with
             | Some handler -> fork channel (fun () -> handler code reason)
             | None -> fork channel (fun () -> Protocol.Web_socket_route.close_page ?code ?reason ~was_clean channel))
-        | None -> ()
 
-    let create (channel : Channel.t) =
-        let init = Protocol.Web_socket_route.Initializer.of_json channel.conn channel.initializer_ in
+    let create (channel : Protocol.Web_socket_route.t) : t =
+        let init = Protocol.Web_socket_route.initializer_ channel in
         let state =
             { wr_url = init.url; wr_protocols = init.protocols; wr_connected = false; on_page_message = None; on_page_close = None;
               on_server_message = None; on_server_close = None }
         in
-        channel.impl <- Web_socket_route { wr_channel = channel; wr_side = `Page; wr_state = state };
-        channel.on_event <- handle_event channel state
+        Protocol.Web_socket_route.listen channel (handle_event channel state);
+        { wr_channel = channel; wr_side = `Page; wr_state = state }
 
     let url (t : t) = t.wr_state.wr_url
     let protocols (t : t) = t.wr_state.wr_protocols
@@ -279,8 +277,8 @@ end
 
 module Binding = struct
     (* Runs the OCaml function behind a call that the page made to an exposed binding. *)
-    let call (channel : Channel.t) (binding : binding) =
-        let init = Protocol.Binding_call.Initializer.of_json channel.conn channel.initializer_ in
+    let call (channel : Protocol.Binding_call.t) (binding : binding) =
+        let init = Protocol.Binding_call.initializer_ channel in
         match
             let frame = Types.frame init.frame in
             let page = page_of_frame frame in

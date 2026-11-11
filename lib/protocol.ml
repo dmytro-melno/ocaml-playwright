@@ -9,6 +9,66 @@ let playwright_version = "1.65.0"
 let driver_tarball = "https://registry.npmjs.org/playwright-core/-/playwright-core-1.65.0.tgz"
 let driver_integrity = "sha512-vNSKgH6YqtN7cdT/L334zo0a+YwkrpicyrHJlWWPIm/Q+Nn2SWInil01oT0mbu96U4GgoRtCYQD9CzJQgju+lA=="
 
+(* {1 Interfaces} *)
+
+module Kind = struct
+    type api_request_context = [ `Api_request_context ]
+    type artifact = [ `Artifact ]
+    type stream = [ `Stream ]
+    type writable_stream = [ `Writable_stream ]
+    type browser = [ `Browser ]
+    type browser_context = [ `Browser_context ]
+    type browser_type = [ `Browser_type ]
+    type disposable = [ `Disposable ]
+    type frame = [ `Frame ]
+    type js_handle = [ `Js_handle ]
+    type local_utils = [ `Local_utils ]
+    type request = [ `Request ]
+    type route = [ `Route ]
+    type web_socket_route = [ `Web_socket_route ]
+    type response = [ `Response ]
+    type web_socket = [ `Web_socket ]
+    type page = [ `Page ]
+    type root = [ `Root ]
+    type playwright = [ `Playwright ]
+    type json_pipe = [ `Json_pipe ]
+    type cdp_session = [ `Cdp_session ]
+    type binding_call = [ `Binding_call ]
+    type debugger = [ `Debugger ]
+    type dialog = [ `Dialog ]
+    type tracing = [ `Tracing ]
+    type worker = [ `Worker ]
+    type element_handle = [ js_handle | `Element_handle ]
+
+    let api_request_context : api_request_context Channel.kind = Channel.kind [ "APIRequestContext" ]
+    let artifact : artifact Channel.kind = Channel.kind [ "Artifact" ]
+    let stream : stream Channel.kind = Channel.kind [ "Stream" ]
+    let writable_stream : writable_stream Channel.kind = Channel.kind [ "WritableStream" ]
+    let browser : browser Channel.kind = Channel.kind [ "Browser" ]
+    let browser_context : browser_context Channel.kind = Channel.kind [ "BrowserContext" ]
+    let browser_type : browser_type Channel.kind = Channel.kind [ "BrowserType" ]
+    let disposable : disposable Channel.kind = Channel.kind [ "Disposable" ]
+    let frame : frame Channel.kind = Channel.kind [ "Frame" ]
+    let js_handle : js_handle Channel.kind = Channel.kind [ "JSHandle"; "ElementHandle" ]
+    let element_handle : element_handle Channel.kind = Channel.kind [ "ElementHandle" ]
+    let local_utils : local_utils Channel.kind = Channel.kind [ "LocalUtils" ]
+    let request : request Channel.kind = Channel.kind [ "Request" ]
+    let route : route Channel.kind = Channel.kind [ "Route" ]
+    let web_socket_route : web_socket_route Channel.kind = Channel.kind [ "WebSocketRoute" ]
+    let response : response Channel.kind = Channel.kind [ "Response" ]
+    let web_socket : web_socket Channel.kind = Channel.kind [ "WebSocket" ]
+    let page : page Channel.kind = Channel.kind [ "Page" ]
+    let root : root Channel.kind = Channel.kind [ "Root" ]
+    let playwright : playwright Channel.kind = Channel.kind [ "Playwright" ]
+    let json_pipe : json_pipe Channel.kind = Channel.kind [ "JsonPipe" ]
+    let cdp_session : cdp_session Channel.kind = Channel.kind [ "CDPSession" ]
+    let binding_call : binding_call Channel.kind = Channel.kind [ "BindingCall" ]
+    let debugger : debugger Channel.kind = Channel.kind [ "Debugger" ]
+    let dialog : dialog Channel.kind = Channel.kind [ "Dialog" ]
+    let tracing : tracing Channel.kind = Channel.kind [ "Tracing" ]
+    let worker : worker Channel.kind = Channel.kind [ "Worker" ]
+end
+
 (* {1 Structures} *)
 
 module Name_value = struct
@@ -927,20 +987,20 @@ end
 module Serialized_argument = struct
     type t = {
         value : Json.t;
-        handles : Channel.t list;
+        handles : Channel.any list;
     }
 
     let to_json (v : t) : Json.t =
         Json.obj
             [
                 Json.req "value" Json.any v.value;
-                Json.req "handles" (Json.list Channel.to_json) v.handles;
+                Json.req "handles" (Json.list Channel.any_to_json) v.handles;
             ]
 
     let of_json (c : Channel.conn) (j : Json.t) : t =
         {
             value = D.req "value" D.any j;
-            handles = D.req "handles" (D.list (Channel.of_json c)) j;
+            handles = D.req "handles" (D.list (Channel.any_of_json c)) j;
         }
 end
 
@@ -1031,20 +1091,20 @@ end
 
 module Common_screenshot_options_mask = struct
     type t = {
-        frame : Channel.t;
+        frame : Kind.frame Channel.t;
         selector : string;
     }
 
     let to_json (v : t) : Json.t =
         Json.obj
             [
-                Json.req "frame" Channel.to_json v.frame;
+                Json.req "frame" (Channel.to_json : [> Kind.frame ] Channel.t -> Json.t) v.frame;
                 Json.req "selector" Json.string v.selector;
             ]
 
     let of_json (c : Channel.conn) (j : Json.t) : t =
         {
-            frame = D.req "frame" (Channel.of_json c) j;
+            frame = D.req "frame" (Channel.of_json Kind.frame c) j;
             selector = D.req "selector" D.string j;
         }
 end
@@ -1166,22 +1226,25 @@ end
 (* {1 Channels} *)
 
 module Api_request_context = struct
-    let type_name = "APIRequestContext"
+    type kind = Kind.api_request_context
+    type t = kind Channel.t
+
+    let kind = Kind.api_request_context
 
     module Initializer = struct
         type t = {
-            tracing : Channel.t;
+            tracing : Kind.tracing Channel.t;
         }
 
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.req "tracing" Channel.to_json v.tracing;
+                    Json.req "tracing" (Channel.to_json : [> Kind.tracing ] Channel.t -> Json.t) v.tracing;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                tracing = D.req "tracing" (Channel.of_json c) j;
+                tracing = D.req "tracing" (Channel.of_json Kind.tracing c) j;
             }
     end
 
@@ -1205,7 +1268,9 @@ module Api_request_context = struct
             }
     end
 
-    let fetch ?timeout ~url ?encoded_params ?params ?method_ ?headers ?post_data ?json_data ?form_data ?multipart_data ?fail_on_status_code ?ignore_https_errors ?max_redirects ?max_retries (ch : Channel.t) : Api_response.t =
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
+
+    let fetch ?timeout ~url ?encoded_params ?params ?method_ ?headers ?post_data ?json_data ?form_data ?multipart_data ?fail_on_status_code ?ignore_https_errors ?max_redirects ?max_retries (ch : [> kind ] Channel.t) : Api_response.t =
         let params =
             Json.obj
                 [
@@ -1230,7 +1295,7 @@ module Api_request_context = struct
             ch "fetch" params
             (fun j -> D.req "response" (Api_response.of_json c) j)
 
-    let fetch_response_body ?timeout ~fetch_uid (ch : Channel.t) : string option =
+    let fetch_response_body ?timeout ~fetch_uid (ch : [> kind ] Channel.t) : string option =
         let params =
             Json.obj
                 [
@@ -1239,7 +1304,7 @@ module Api_request_context = struct
         in
         Channel.call ?timeout ch "fetchResponseBody" params (fun j -> D.opt "binary" D.binary j)
 
-    let fetch_log ?timeout ~fetch_uid (ch : Channel.t) : string list =
+    let fetch_log ?timeout ~fetch_uid (ch : [> kind ] Channel.t) : string list =
         let params =
             Json.obj
                 [
@@ -1248,7 +1313,7 @@ module Api_request_context = struct
         in
         Channel.call ?timeout ch "fetchLog" params (fun j -> D.req "log" (D.list D.string) j)
 
-    let add_cookies ?timeout ~cookies (ch : Channel.t) : unit =
+    let add_cookies ?timeout ~cookies (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -1257,7 +1322,7 @@ module Api_request_context = struct
         in
         Channel.call ?timeout ch "addCookies" params ignore
 
-    let clear_cookies ?timeout ?name ?name_regex_source ?name_regex_flags ?domain ?domain_regex_source ?domain_regex_flags ?path ?path_regex_source ?path_regex_flags (ch : Channel.t) : unit =
+    let clear_cookies ?timeout ?name ?name_regex_source ?name_regex_flags ?domain ?domain_regex_source ?domain_regex_flags ?path ?path_regex_source ?path_regex_flags (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -1274,7 +1339,7 @@ module Api_request_context = struct
         in
         Channel.call ?timeout ch "clearCookies" params ignore
 
-    let cookies ?timeout ~urls (ch : Channel.t) : Network_cookie.t list =
+    let cookies ?timeout ~urls (ch : [> kind ] Channel.t) : Network_cookie.t list =
         let params =
             Json.obj
                 [
@@ -1284,7 +1349,7 @@ module Api_request_context = struct
         let c = Channel.conn ch in
         Channel.call ?timeout ch "cookies" params (fun j -> D.req "cookies" (D.list (Network_cookie.of_json c)) j)
 
-    let storage_state ?timeout ?indexed_db ?opfs (ch : Channel.t) : Storage_state_result.t =
+    let storage_state ?timeout ?indexed_db ?opfs (ch : [> kind ] Channel.t) : Storage_state_result.t =
         let params =
             Json.obj
                 [
@@ -1295,7 +1360,7 @@ module Api_request_context = struct
         let c = Channel.conn ch in
         Channel.call ?timeout ch "storageState" params (fun j -> Storage_state_result.of_json c j)
 
-    let dispose_api_response ?timeout ~fetch_uid (ch : Channel.t) : unit =
+    let dispose_api_response ?timeout ~fetch_uid (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -1304,7 +1369,7 @@ module Api_request_context = struct
         in
         Channel.call ?timeout ch "disposeAPIResponse" params ignore
 
-    let dispose ?timeout ?reason (ch : Channel.t) : unit =
+    let dispose ?timeout ?reason (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -1316,7 +1381,10 @@ module Api_request_context = struct
 end
 
 module Artifact = struct
-    let type_name = "Artifact"
+    type kind = Kind.artifact
+    type t = kind Channel.t
+
+    let kind = Kind.artifact
 
     module Initializer = struct
         type t = {
@@ -1335,11 +1403,13 @@ module Artifact = struct
             }
     end
 
-    let path_after_finished ?timeout (ch : Channel.t) : string =
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
+
+    let path_after_finished ?timeout (ch : [> kind ] Channel.t) : string =
         let params = `Assoc [] in
         Channel.call ?timeout ch "pathAfterFinished" params (fun j -> D.req "value" D.string j)
 
-    let save_as ?timeout ~path (ch : Channel.t) : unit =
+    let save_as ?timeout ~path (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -1348,40 +1418,43 @@ module Artifact = struct
         in
         Channel.call ?timeout ch "saveAs" params ignore
 
-    let save_as_stream ?timeout (ch : Channel.t) : Channel.t =
+    let save_as_stream ?timeout (ch : [> kind ] Channel.t) : Kind.stream Channel.t =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout ~abortable:false
             ~orphan:(fun result -> Channel.release "close" result)
             ch "saveAsStream" params
-            (fun j -> D.req "stream" (Channel.of_json c) j)
+            (fun j -> D.req "stream" (Channel.of_json Kind.stream c) j)
 
-    let failure ?timeout (ch : Channel.t) : string option =
+    let failure ?timeout (ch : [> kind ] Channel.t) : string option =
         let params = `Assoc [] in
         Channel.call ?timeout ch "failure" params (fun j -> D.opt "error" D.string j)
 
-    let stream ?timeout (ch : Channel.t) : Channel.t =
+    let stream ?timeout (ch : [> kind ] Channel.t) : Kind.stream Channel.t =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout ~abortable:false
             ~orphan:(fun result -> Channel.release "close" result)
             ch "stream" params
-            (fun j -> D.req "stream" (Channel.of_json c) j)
+            (fun j -> D.req "stream" (Channel.of_json Kind.stream c) j)
 
-    let cancel ?timeout (ch : Channel.t) : unit =
+    let cancel ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "cancel" params ignore
 
-    let delete ?timeout (ch : Channel.t) : unit =
+    let delete ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "delete" params ignore
 
 end
 
 module Stream = struct
-    let type_name = "Stream"
+    type kind = Kind.stream
+    type t = kind Channel.t
 
-    let read ?timeout ?size (ch : Channel.t) : string =
+    let kind = Kind.stream
+
+    let read ?timeout ?size (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
@@ -1390,16 +1463,19 @@ module Stream = struct
         in
         Channel.call ?timeout ch "read" params (fun j -> D.req "binary" D.binary j)
 
-    let close ?timeout (ch : Channel.t) : unit =
+    let close ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "close" params ignore
 
 end
 
 module Writable_stream = struct
-    let type_name = "WritableStream"
+    type kind = Kind.writable_stream
+    type t = kind Channel.t
 
-    let write ?timeout ~binary (ch : Channel.t) : unit =
+    let kind = Kind.writable_stream
+
+    let write ?timeout ~binary (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -1408,14 +1484,17 @@ module Writable_stream = struct
         in
         Channel.call ?timeout ch "write" params ignore
 
-    let close ?timeout (ch : Channel.t) : unit =
+    let close ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "close" params ignore
 
 end
 
 module Browser = struct
-    let type_name = "Browser"
+    type kind = Kind.browser
+    type t = kind Channel.t
+
+    let kind = Kind.browser
 
     module Initializer = struct
         type t = {
@@ -1538,8 +1617,10 @@ module Browser = struct
             }
     end
 
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
+
     type event =
-        | Context of { context : Channel.t }
+        | Context of { context : Kind.browser_context Channel.t }
         | Close
 
     let event_of_json (c : Channel.conn) (name : string) (j : Json.t) : event option =
@@ -1548,12 +1629,16 @@ module Browser = struct
             Some
                 (Context
                       {
-                          context = D.req "context" (Channel.of_json c) j;
+                          context = D.req "context" (Channel.of_json Kind.browser_context c) j;
                       })
         | "close" -> Some Close
         | _ -> None
 
-    let start_server ?timeout ~title ?workspace_dir ?metadata ?host ?port (ch : Channel.t) : string =
+    let listen (ch : [> kind ] Channel.t) (handle : event -> unit) =
+        let c = Channel.conn ch in
+        Channel.listen ch (fun name j -> match event_of_json c name j with Some event -> handle event | None -> ())
+
+    let start_server ?timeout ~title ?workspace_dir ?metadata ?host ?port (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
@@ -1566,11 +1651,11 @@ module Browser = struct
         in
         Channel.call ?timeout ch "startServer" params (fun j -> D.req "endpoint" D.string j)
 
-    let stop_server ?timeout (ch : Channel.t) : unit =
+    let stop_server ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "stopServer" params ignore
 
-    let close ?timeout ?reason (ch : Channel.t) : unit =
+    let close ?timeout ?reason (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -1579,15 +1664,15 @@ module Browser = struct
         in
         Channel.call ?timeout ch "close" params ignore
 
-    let kill_for_tests ?timeout (ch : Channel.t) : unit =
+    let kill_for_tests ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "killForTests" params ignore
 
-    let default_user_agent_for_test ?timeout (ch : Channel.t) : string =
+    let default_user_agent_for_test ?timeout (ch : [> kind ] Channel.t) : string =
         let params = `Assoc [] in
         Channel.call ?timeout ch "defaultUserAgentForTest" params (fun j -> D.req "userAgent" D.string j)
 
-    let new_context ?timeout ?no_default_viewport ?viewport ?screen ?ignore_https_errors ?client_certificates ?java_script_enabled ?bypass_csp ?user_agent ?locale ?timezone_id ?geolocation ?permissions ?extra_http_headers ?offline ?http_credentials ?device_scale_factor ?is_mobile ?has_touch ?color_scheme ?reduced_motion ?forced_colors ?accept_downloads ?contrast ?base_url ?record_video ?strict_selectors ?service_workers ?selector_engines ?test_id_attribute_name ?proxy ?storage_state (ch : Channel.t) : Channel.t =
+    let new_context ?timeout ?no_default_viewport ?viewport ?screen ?ignore_https_errors ?client_certificates ?java_script_enabled ?bypass_csp ?user_agent ?locale ?timezone_id ?geolocation ?permissions ?extra_http_headers ?offline ?http_credentials ?device_scale_factor ?is_mobile ?has_touch ?color_scheme ?reduced_motion ?forced_colors ?accept_downloads ?contrast ?base_url ?record_video ?strict_selectors ?service_workers ?selector_engines ?test_id_attribute_name ?proxy ?storage_state (ch : [> kind ] Channel.t) : Kind.browser_context Channel.t =
         let params =
             Json.obj
                 [
@@ -1628,9 +1713,9 @@ module Browser = struct
         Channel.call ?timeout ~abortable:false
             ~orphan:(fun result -> Channel.release "close" result)
             ch "newContext" params
-            (fun j -> D.req "context" (Channel.of_json c) j)
+            (fun j -> D.req "context" (Channel.of_json Kind.browser_context c) j)
 
-    let new_context_for_reuse ?timeout ?no_default_viewport ?viewport ?screen ?ignore_https_errors ?client_certificates ?java_script_enabled ?bypass_csp ?user_agent ?locale ?timezone_id ?geolocation ?permissions ?extra_http_headers ?offline ?http_credentials ?device_scale_factor ?is_mobile ?has_touch ?color_scheme ?reduced_motion ?forced_colors ?accept_downloads ?contrast ?base_url ?record_video ?strict_selectors ?service_workers ?selector_engines ?test_id_attribute_name ?proxy ?storage_state (ch : Channel.t) : Channel.t =
+    let new_context_for_reuse ?timeout ?no_default_viewport ?viewport ?screen ?ignore_https_errors ?client_certificates ?java_script_enabled ?bypass_csp ?user_agent ?locale ?timezone_id ?geolocation ?permissions ?extra_http_headers ?offline ?http_credentials ?device_scale_factor ?is_mobile ?has_touch ?color_scheme ?reduced_motion ?forced_colors ?accept_downloads ?contrast ?base_url ?record_video ?strict_selectors ?service_workers ?selector_engines ?test_id_attribute_name ?proxy ?storage_state (ch : [> kind ] Channel.t) : Kind.browser_context Channel.t =
         let params =
             Json.obj
                 [
@@ -1668,9 +1753,9 @@ module Browser = struct
                 ]
         in
         let c = Channel.conn ch in
-        Channel.call ?timeout ch "newContextForReuse" params (fun j -> D.req "context" (Channel.of_json c) j)
+        Channel.call ?timeout ch "newContextForReuse" params (fun j -> D.req "context" (Channel.of_json Kind.browser_context c) j)
 
-    let disconnect_from_reused_context ?timeout ~reason (ch : Channel.t) : unit =
+    let disconnect_from_reused_context ?timeout ~reason (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -1679,37 +1764,40 @@ module Browser = struct
         in
         Channel.call ?timeout ch "disconnectFromReusedContext" params ignore
 
-    let new_browser_cdp_session ?timeout (ch : Channel.t) : Channel.t =
+    let new_browser_cdp_session ?timeout (ch : [> kind ] Channel.t) : Kind.cdp_session Channel.t =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout ~abortable:false
             ~orphan:(fun result -> Channel.release "detach" result)
             ch "newBrowserCDPSession" params
-            (fun j -> D.req "session" (Channel.of_json c) j)
+            (fun j -> D.req "session" (Channel.of_json Kind.cdp_session c) j)
 
-    let start_tracing ?timeout ?page ?screenshots ?categories (ch : Channel.t) : unit =
+    let start_tracing ?timeout ?page ?screenshots ?categories (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
-                    Json.opt "page" Channel.to_json page;
+                    Json.opt "page" (Channel.to_json : [> Kind.page ] Channel.t -> Json.t) page;
                     Json.opt "screenshots" Json.bool screenshots;
                     Json.opt "categories" (Json.list Json.string) categories;
                 ]
         in
         Channel.call ?timeout ch "startTracing" params ignore
 
-    let stop_tracing ?timeout (ch : Channel.t) : Channel.t =
+    let stop_tracing ?timeout (ch : [> kind ] Channel.t) : Kind.artifact Channel.t =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout ~abortable:false
             ~orphan:(fun result -> Channel.release "delete" result)
             ch "stopTracing" params
-            (fun j -> D.req "artifact" (Channel.of_json c) j)
+            (fun j -> D.req "artifact" (Channel.of_json Kind.artifact c) j)
 
 end
 
 module Browser_context = struct
-    let type_name = "BrowserContext"
+    type kind = Kind.browser_context
+    type t = kind Channel.t
+
+    let kind = Kind.browser_context
 
     module Initializer_options = struct
         type t = {
@@ -1814,26 +1902,26 @@ module Browser_context = struct
 
     module Initializer = struct
         type t = {
-            debugger : Channel.t;
-            request_context : Channel.t;
-            tracing : Channel.t;
+            debugger : Kind.debugger Channel.t;
+            request_context : Kind.api_request_context Channel.t;
+            tracing : Kind.tracing Channel.t;
             options : Initializer_options.t;
         }
 
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.req "debugger" Channel.to_json v.debugger;
-                    Json.req "requestContext" Channel.to_json v.request_context;
-                    Json.req "tracing" Channel.to_json v.tracing;
+                    Json.req "debugger" (Channel.to_json : [> Kind.debugger ] Channel.t -> Json.t) v.debugger;
+                    Json.req "requestContext" (Channel.to_json : [> Kind.api_request_context ] Channel.t -> Json.t) v.request_context;
+                    Json.req "tracing" (Channel.to_json : [> Kind.tracing ] Channel.t -> Json.t) v.tracing;
                     Json.req "options" Initializer_options.to_json v.options;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                debugger = D.req "debugger" (Channel.of_json c) j;
-                request_context = D.req "requestContext" (Channel.of_json c) j;
-                tracing = D.req "tracing" (Channel.of_json c) j;
+                debugger = D.req "debugger" (Channel.of_json Kind.debugger c) j;
+                request_context = D.req "requestContext" (Channel.of_json Kind.api_request_context c) j;
+                tracing = D.req "tracing" (Channel.of_json Kind.tracing c) j;
                 options = D.req "options" (Initializer_options.of_json c) j;
             }
     end
@@ -1981,21 +2069,21 @@ module Browser_context = struct
 
     module Create_temp_files_result = struct
         type t = {
-            root_dir : Channel.t option;
-            writable_streams : Channel.t list;
+            root_dir : Kind.writable_stream Channel.t option;
+            writable_streams : Kind.writable_stream Channel.t list;
         }
 
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.opt "rootDir" Channel.to_json v.root_dir;
-                    Json.req "writableStreams" (Json.list Channel.to_json) v.writable_streams;
+                    Json.opt "rootDir" (Channel.to_json : [> Kind.writable_stream ] Channel.t -> Json.t) v.root_dir;
+                    Json.req "writableStreams" (Json.list (Channel.to_json : [> Kind.writable_stream ] Channel.t -> Json.t)) v.writable_streams;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                root_dir = D.opt "rootDir" (Channel.of_json c) j;
-                writable_streams = D.req "writableStreams" (D.list (Channel.of_json c)) j;
+                root_dir = D.opt "rootDir" (Channel.of_json Kind.writable_stream c) j;
+                writable_streams = D.req "writableStreams" (D.list (Channel.of_json Kind.writable_stream c)) j;
             }
     end
 
@@ -2022,22 +2110,24 @@ module Browser_context = struct
             }
     end
 
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
+
     type event =
-        | Binding_call of { binding : Channel.t }
-        | Console of { type_ : string; text : string; args : Channel.t list; location : Console_message_location.t; timestamp : float; page : Channel.t option; worker : Channel.t option }
+        | Binding_call of { binding : Kind.binding_call Channel.t }
+        | Console of { type_ : string; text : string; args : Kind.js_handle Channel.t list; location : Console_message_location.t; timestamp : float; page : Kind.page Channel.t option; worker : Kind.worker Channel.t option }
         | Close
-        | Dialog of { dialog : Channel.t }
-        | Dialog_closed of { dialog : Channel.t }
-        | Page of { page : Channel.t }
-        | Page_error of { error : Serialized_error.t; page : Channel.t; location : Page_error_event_location.t }
-        | Route of { route : Channel.t }
-        | Web_socket_route of { web_socket_route : Channel.t }
-        | Service_worker of { worker : Channel.t }
-        | Request of { request : Channel.t; page : Channel.t option }
-        | Request_failed of { request : Channel.t; failure_text : string option; response_end_timing : float; page : Channel.t option }
-        | Request_finished of { request : Channel.t; response : Channel.t option; response_end_timing : float; page : Channel.t option }
-        | Response of { response : Channel.t; page : Channel.t option }
-        | Recorder_event of { event : [ `Action_added | `Action_updated | `Signal_added ]; data : Json.t; page : Channel.t; code : string }
+        | Dialog of { dialog : Kind.dialog Channel.t }
+        | Dialog_closed of { dialog : Kind.dialog Channel.t }
+        | Page of { page : Kind.page Channel.t }
+        | Page_error of { error : Serialized_error.t; page : Kind.page Channel.t; location : Page_error_event_location.t }
+        | Route of { route : Kind.route Channel.t }
+        | Web_socket_route of { web_socket_route : Kind.web_socket_route Channel.t }
+        | Service_worker of { worker : Kind.worker Channel.t }
+        | Request of { request : Kind.request Channel.t; page : Kind.page Channel.t option }
+        | Request_failed of { request : Kind.request Channel.t; failure_text : string option; response_end_timing : float; page : Kind.page Channel.t option }
+        | Request_finished of { request : Kind.request Channel.t; response : Kind.response Channel.t option; response_end_timing : float; page : Kind.page Channel.t option }
+        | Response of { response : Kind.response Channel.t; page : Kind.page Channel.t option }
+        | Recorder_event of { event : [ `Action_added | `Action_updated | `Signal_added ]; data : Json.t; page : Kind.page Channel.t; code : string }
 
     let event_of_json (c : Channel.conn) (name : string) (j : Json.t) : event option =
         match name with
@@ -2045,7 +2135,7 @@ module Browser_context = struct
             Some
                 (Binding_call
                       {
-                          binding = D.req "binding" (Channel.of_json c) j;
+                          binding = D.req "binding" (Channel.of_json Kind.binding_call c) j;
                       })
         | "console" ->
             Some
@@ -2053,88 +2143,88 @@ module Browser_context = struct
                       {
                           type_ = D.req "type" D.string j;
                           text = D.req "text" D.string j;
-                          args = D.req "args" (D.list (Channel.of_json c)) j;
+                          args = D.req "args" (D.list (Channel.of_json Kind.js_handle c)) j;
                           location = D.req "location" (Console_message_location.of_json c) j;
                           timestamp = D.req "timestamp" D.float j;
-                          page = D.opt "page" (Channel.of_json c) j;
-                          worker = D.opt "worker" (Channel.of_json c) j;
+                          page = D.opt "page" (Channel.of_json Kind.page c) j;
+                          worker = D.opt "worker" (Channel.of_json Kind.worker c) j;
                       })
         | "close" -> Some Close
         | "dialog" ->
             Some
                 (Dialog
                       {
-                          dialog = D.req "dialog" (Channel.of_json c) j;
+                          dialog = D.req "dialog" (Channel.of_json Kind.dialog c) j;
                       })
         | "dialogClosed" ->
             Some
                 (Dialog_closed
                       {
-                          dialog = D.req "dialog" (Channel.of_json c) j;
+                          dialog = D.req "dialog" (Channel.of_json Kind.dialog c) j;
                       })
         | "page" ->
             Some
                 (Page
                       {
-                          page = D.req "page" (Channel.of_json c) j;
+                          page = D.req "page" (Channel.of_json Kind.page c) j;
                       })
         | "pageError" ->
             Some
                 (Page_error
                       {
                           error = D.req "error" (Serialized_error.of_json c) j;
-                          page = D.req "page" (Channel.of_json c) j;
+                          page = D.req "page" (Channel.of_json Kind.page c) j;
                           location = D.req "location" (Page_error_event_location.of_json c) j;
                       })
         | "route" ->
             Some
                 (Route
                       {
-                          route = D.req "route" (Channel.of_json c) j;
+                          route = D.req "route" (Channel.of_json Kind.route c) j;
                       })
         | "webSocketRoute" ->
             Some
                 (Web_socket_route
                       {
-                          web_socket_route = D.req "webSocketRoute" (Channel.of_json c) j;
+                          web_socket_route = D.req "webSocketRoute" (Channel.of_json Kind.web_socket_route c) j;
                       })
         | "serviceWorker" ->
             Some
                 (Service_worker
                       {
-                          worker = D.req "worker" (Channel.of_json c) j;
+                          worker = D.req "worker" (Channel.of_json Kind.worker c) j;
                       })
         | "request" ->
             Some
                 (Request
                       {
-                          request = D.req "request" (Channel.of_json c) j;
-                          page = D.opt "page" (Channel.of_json c) j;
+                          request = D.req "request" (Channel.of_json Kind.request c) j;
+                          page = D.opt "page" (Channel.of_json Kind.page c) j;
                       })
         | "requestFailed" ->
             Some
                 (Request_failed
                       {
-                          request = D.req "request" (Channel.of_json c) j;
+                          request = D.req "request" (Channel.of_json Kind.request c) j;
                           failure_text = D.opt "failureText" D.string j;
                           response_end_timing = D.req "responseEndTiming" D.float j;
-                          page = D.opt "page" (Channel.of_json c) j;
+                          page = D.opt "page" (Channel.of_json Kind.page c) j;
                       })
         | "requestFinished" ->
             Some
                 (Request_finished
                       {
-                          request = D.req "request" (Channel.of_json c) j;
-                          response = D.opt "response" (Channel.of_json c) j;
+                          request = D.req "request" (Channel.of_json Kind.request c) j;
+                          response = D.opt "response" (Channel.of_json Kind.response c) j;
                           response_end_timing = D.req "responseEndTiming" D.float j;
-                          page = D.opt "page" (Channel.of_json c) j;
+                          page = D.opt "page" (Channel.of_json Kind.page c) j;
                       })
         | "response" ->
             Some
                 (Response
                       {
-                          response = D.req "response" (Channel.of_json c) j;
-                          page = D.opt "page" (Channel.of_json c) j;
+                          response = D.req "response" (Channel.of_json Kind.response c) j;
+                          page = D.opt "page" (Channel.of_json Kind.page c) j;
                       })
         | "recorderEvent" ->
             Some
@@ -2142,12 +2232,16 @@ module Browser_context = struct
                       {
                           event = D.req "event" (D.enum [ ("actionAdded", `Action_added); ("actionUpdated", `Action_updated); ("signalAdded", `Signal_added) ]) j;
                           data = D.req "data" D.any j;
-                          page = D.req "page" (Channel.of_json c) j;
+                          page = D.req "page" (Channel.of_json Kind.page c) j;
                           code = D.req "code" D.string j;
                       })
         | _ -> None
 
-    let add_cookies ?timeout ~cookies (ch : Channel.t) : unit =
+    let listen (ch : [> kind ] Channel.t) (handle : event -> unit) =
+        let c = Channel.conn ch in
+        Channel.listen ch (fun name j -> match event_of_json c name j with Some event -> handle event | None -> ())
+
+    let add_cookies ?timeout ~cookies (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2156,7 +2250,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "addCookies" params ignore
 
-    let add_init_script ?timeout ~source (ch : Channel.t) : Channel.t =
+    let add_init_script ?timeout ~source (ch : [> kind ] Channel.t) : Kind.disposable Channel.t =
         let params =
             Json.obj
                 [
@@ -2167,9 +2261,9 @@ module Browser_context = struct
         Channel.call ?timeout ~abortable:false
             ~orphan:(fun result -> Channel.release "dispose" result)
             ch "addInitScript" params
-            (fun j -> D.req "disposable" (Channel.of_json c) j)
+            (fun j -> D.req "disposable" (Channel.of_json Kind.disposable c) j)
 
-    let clear_cookies ?timeout ?name ?name_regex_source ?name_regex_flags ?domain ?domain_regex_source ?domain_regex_flags ?path ?path_regex_source ?path_regex_flags (ch : Channel.t) : unit =
+    let clear_cookies ?timeout ?name ?name_regex_source ?name_regex_flags ?domain ?domain_regex_source ?domain_regex_flags ?path ?path_regex_source ?path_regex_flags (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2186,11 +2280,11 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "clearCookies" params ignore
 
-    let clear_permissions ?timeout (ch : Channel.t) : unit =
+    let clear_permissions ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "clearPermissions" params ignore
 
-    let close ?timeout ?reason (ch : Channel.t) : unit =
+    let close ?timeout ?reason (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2199,7 +2293,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "close" params ignore
 
-    let cookies ?timeout ~urls (ch : Channel.t) : Network_cookie.t list =
+    let cookies ?timeout ~urls (ch : [> kind ] Channel.t) : Network_cookie.t list =
         let params =
             Json.obj
                 [
@@ -2209,7 +2303,7 @@ module Browser_context = struct
         let c = Channel.conn ch in
         Channel.call ?timeout ch "cookies" params (fun j -> D.req "cookies" (D.list (Network_cookie.of_json c)) j)
 
-    let expose_binding ?timeout ~name ?no_global (ch : Channel.t) : Channel.t =
+    let expose_binding ?timeout ~name ?no_global (ch : [> kind ] Channel.t) : Kind.disposable Channel.t =
         let params =
             Json.obj
                 [
@@ -2221,9 +2315,9 @@ module Browser_context = struct
         Channel.call ?timeout ~abortable:false
             ~orphan:(fun result -> Channel.release "dispose" result)
             ch "exposeBinding" params
-            (fun j -> D.req "disposable" (Channel.of_json c) j)
+            (fun j -> D.req "disposable" (Channel.of_json Kind.disposable c) j)
 
-    let grant_permissions ?timeout ~permissions ?origin (ch : Channel.t) : unit =
+    let grant_permissions ?timeout ~permissions ?origin (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2233,15 +2327,15 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "grantPermissions" params ignore
 
-    let new_page ?timeout (ch : Channel.t) : Channel.t =
+    let new_page ?timeout (ch : [> kind ] Channel.t) : Kind.page Channel.t =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout ~abortable:false
             ~orphan:(fun result -> Channel.release "close" result)
             ch "newPage" params
-            (fun j -> D.req "page" (Channel.of_json c) j)
+            (fun j -> D.req "page" (Channel.of_json Kind.page c) j)
 
-    let register_selector_engine ?timeout ~selector_engine (ch : Channel.t) : unit =
+    let register_selector_engine ?timeout ~selector_engine (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2250,7 +2344,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "registerSelectorEngine" params ignore
 
-    let set_test_id_attribute_name ?timeout ~test_id_attribute_name (ch : Channel.t) : unit =
+    let set_test_id_attribute_name ?timeout ~test_id_attribute_name (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2259,7 +2353,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "setTestIdAttributeName" params ignore
 
-    let set_extra_http_headers ?timeout ~headers (ch : Channel.t) : unit =
+    let set_extra_http_headers ?timeout ~headers (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2268,7 +2362,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "setExtraHTTPHeaders" params ignore
 
-    let set_geolocation ?timeout ?geolocation (ch : Channel.t) : unit =
+    let set_geolocation ?timeout ?geolocation (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2277,7 +2371,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "setGeolocation" params ignore
 
-    let set_http_credentials ?timeout ?http_credentials (ch : Channel.t) : unit =
+    let set_http_credentials ?timeout ?http_credentials (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2286,7 +2380,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "setHTTPCredentials" params ignore
 
-    let set_network_interception_patterns ?timeout ~patterns (ch : Channel.t) : unit =
+    let set_network_interception_patterns ?timeout ~patterns (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2295,7 +2389,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "setNetworkInterceptionPatterns" params ignore
 
-    let set_web_socket_interception_patterns ?timeout ~patterns (ch : Channel.t) : unit =
+    let set_web_socket_interception_patterns ?timeout ~patterns (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2304,7 +2398,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "setWebSocketInterceptionPatterns" params ignore
 
-    let set_offline ?timeout ~offline (ch : Channel.t) : unit =
+    let set_offline ?timeout ~offline (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2313,7 +2407,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "setOffline" params ignore
 
-    let storage_state ?timeout ?indexed_db ?opfs ?credentials (ch : Channel.t) : Storage_state_result.t =
+    let storage_state ?timeout ?indexed_db ?opfs ?credentials (ch : [> kind ] Channel.t) : Storage_state_result.t =
         let params =
             Json.obj
                 [
@@ -2325,7 +2419,7 @@ module Browser_context = struct
         let c = Channel.conn ch in
         Channel.call ?timeout ch "storageState" params (fun j -> Storage_state_result.of_json c j)
 
-    let set_storage_state ?timeout ?storage_state (ch : Channel.t) : unit =
+    let set_storage_state ?timeout ?storage_state (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2334,11 +2428,11 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "setStorageState" params ignore
 
-    let pause ?timeout (ch : Channel.t) : unit =
+    let pause ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "pause" params ignore
 
-    let show_recorder ?timeout ?language ?mode ?pause_on_next_statement ?test_id_attribute_name ?launch_options ?context_options ?device ?save_storage ?output_file ?handle_sigint ?omit_call_tracking (ch : Channel.t) : unit =
+    let show_recorder ?timeout ?language ?mode ?pause_on_next_statement ?test_id_attribute_name ?launch_options ?context_options ?device ?save_storage ?output_file ?handle_sigint ?omit_call_tracking (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2357,7 +2451,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "showRecorder" params ignore
 
-    let start_recording ?timeout ?language (ch : Channel.t) : unit =
+    let start_recording ?timeout ?language (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2366,29 +2460,29 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "startRecording" params ignore
 
-    let stop_recording ?timeout (ch : Channel.t) : unit =
+    let stop_recording ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "stopRecording" params ignore
 
-    let expose_console_api ?timeout (ch : Channel.t) : unit =
+    let expose_console_api ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "exposeConsoleApi" params ignore
 
-    let new_cdp_session ?timeout ?page ?frame (ch : Channel.t) : Channel.t =
+    let new_cdp_session ?timeout ?page ?frame (ch : [> kind ] Channel.t) : Kind.cdp_session Channel.t =
         let params =
             Json.obj
                 [
-                    Json.opt "page" Channel.to_json page;
-                    Json.opt "frame" Channel.to_json frame;
+                    Json.opt "page" (Channel.to_json : [> Kind.page ] Channel.t -> Json.t) page;
+                    Json.opt "frame" (Channel.to_json : [> Kind.frame ] Channel.t -> Json.t) frame;
                 ]
         in
         let c = Channel.conn ch in
         Channel.call ?timeout ~abortable:false
             ~orphan:(fun result -> Channel.release "detach" result)
             ch "newCDPSession" params
-            (fun j -> D.req "session" (Channel.of_json c) j)
+            (fun j -> D.req "session" (Channel.of_json Kind.cdp_session c) j)
 
-    let create_temp_files ?timeout ?root_dir_name ~items (ch : Channel.t) : Create_temp_files_result.t =
+    let create_temp_files ?timeout ?root_dir_name ~items (ch : [> kind ] Channel.t) : Create_temp_files_result.t =
         let params =
             Json.obj
                 [
@@ -2402,7 +2496,7 @@ module Browser_context = struct
             ch "createTempFiles" params
             (fun j -> Create_temp_files_result.of_json c j)
 
-    let update_subscription ?timeout ~event ~enabled (ch : Channel.t) : unit =
+    let update_subscription ?timeout ~event ~enabled (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2412,7 +2506,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "updateSubscription" params ignore
 
-    let clock_fast_forward ?timeout ?ticks_number ?ticks_string (ch : Channel.t) : unit =
+    let clock_fast_forward ?timeout ?ticks_number ?ticks_string (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2422,7 +2516,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "clockFastForward" params ignore
 
-    let clock_install ?timeout ?time_number ?time_string (ch : Channel.t) : unit =
+    let clock_install ?timeout ?time_number ?time_string (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2432,7 +2526,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "clockInstall" params ignore
 
-    let clock_pause_at ?timeout ?time_number ?time_string (ch : Channel.t) : unit =
+    let clock_pause_at ?timeout ?time_number ?time_string (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2442,11 +2536,11 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "clockPauseAt" params ignore
 
-    let clock_resume ?timeout (ch : Channel.t) : unit =
+    let clock_resume ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "clockResume" params ignore
 
-    let clock_run_for ?timeout ?ticks_number ?ticks_string (ch : Channel.t) : unit =
+    let clock_run_for ?timeout ?ticks_number ?ticks_string (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2456,7 +2550,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "clockRunFor" params ignore
 
-    let clock_set_fixed_time ?timeout ?time_number ?time_string (ch : Channel.t) : unit =
+    let clock_set_fixed_time ?timeout ?time_number ?time_string (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2466,7 +2560,7 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "clockSetFixedTime" params ignore
 
-    let clock_set_system_time ?timeout ?time_number ?time_string (ch : Channel.t) : unit =
+    let clock_set_system_time ?timeout ?time_number ?time_string (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2476,11 +2570,11 @@ module Browser_context = struct
         in
         Channel.call ?timeout ch "clockSetSystemTime" params ignore
 
-    let credentials_install ?timeout (ch : Channel.t) : unit =
+    let credentials_install ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "credentialsInstall" params ignore
 
-    let credentials_create ?timeout ~rp_id ?id ?user_handle ?private_key ?public_key ?sign_count (ch : Channel.t) : Virtual_credential.t =
+    let credentials_create ?timeout ~rp_id ?id ?user_handle ?private_key ?public_key ?sign_count (ch : [> kind ] Channel.t) : Virtual_credential.t =
         let params =
             Json.obj
                 [
@@ -2495,7 +2589,7 @@ module Browser_context = struct
         let c = Channel.conn ch in
         Channel.call ?timeout ch "credentialsCreate" params (fun j -> D.req "credential" (Virtual_credential.of_json c) j)
 
-    let credentials_get ?timeout ?rp_id ?id (ch : Channel.t) : Virtual_credential.t list =
+    let credentials_get ?timeout ?rp_id ?id (ch : [> kind ] Channel.t) : Virtual_credential.t list =
         let params =
             Json.obj
                 [
@@ -2506,7 +2600,7 @@ module Browser_context = struct
         let c = Channel.conn ch in
         Channel.call ?timeout ch "credentialsGet" params (fun j -> D.req "credentials" (D.list (Virtual_credential.of_json c)) j)
 
-    let credentials_delete ?timeout ~id (ch : Channel.t) : unit =
+    let credentials_delete ?timeout ~id (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -2518,7 +2612,10 @@ module Browser_context = struct
 end
 
 module Browser_type = struct
-    let type_name = "BrowserType"
+    type kind = Kind.browser_type
+    type t = kind Channel.t
+
+    let kind = Kind.browser_type
 
     module Initializer = struct
         type t = {
@@ -2542,45 +2639,47 @@ module Browser_type = struct
 
     module Launch_persistent_context_result = struct
         type t = {
-            browser : Channel.t;
-            context : Channel.t;
+            browser : Kind.browser Channel.t;
+            context : Kind.browser_context Channel.t;
         }
 
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.req "browser" Channel.to_json v.browser;
-                    Json.req "context" Channel.to_json v.context;
+                    Json.req "browser" (Channel.to_json : [> Kind.browser ] Channel.t -> Json.t) v.browser;
+                    Json.req "context" (Channel.to_json : [> Kind.browser_context ] Channel.t -> Json.t) v.context;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                browser = D.req "browser" (Channel.of_json c) j;
-                context = D.req "context" (Channel.of_json c) j;
+                browser = D.req "browser" (Channel.of_json Kind.browser c) j;
+                context = D.req "context" (Channel.of_json Kind.browser_context c) j;
             }
     end
 
     module Connect_over_cdp_result = struct
         type t = {
-            browser : Channel.t;
-            default_context : Channel.t option;
+            browser : Kind.browser Channel.t;
+            default_context : Kind.browser_context Channel.t option;
         }
 
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.req "browser" Channel.to_json v.browser;
-                    Json.opt "defaultContext" Channel.to_json v.default_context;
+                    Json.req "browser" (Channel.to_json : [> Kind.browser ] Channel.t -> Json.t) v.browser;
+                    Json.opt "defaultContext" (Channel.to_json : [> Kind.browser_context ] Channel.t -> Json.t) v.default_context;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                browser = D.req "browser" (Channel.of_json c) j;
-                default_context = D.opt "defaultContext" (Channel.of_json c) j;
+                browser = D.req "browser" (Channel.of_json Kind.browser c) j;
+                default_context = D.opt "defaultContext" (Channel.of_json Kind.browser_context c) j;
             }
     end
 
-    let launch ?timeout ?channel ?executable_path ?args ?ignore_all_default_args ?ignore_default_args ?handle_sigint ?handle_sigterm ?handle_sighup ?env ?headless ?proxy ?downloads_path ?traces_dir ?artifacts_dir ?chromium_sandbox ?firefox_user_prefs ?cdp_port ?slow_mo (ch : Channel.t) : Channel.t =
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
+
+    let launch ?timeout ?channel ?executable_path ?args ?ignore_all_default_args ?ignore_default_args ?handle_sigint ?handle_sigterm ?handle_sighup ?env ?headless ?proxy ?downloads_path ?traces_dir ?artifacts_dir ?chromium_sandbox ?firefox_user_prefs ?cdp_port ?slow_mo (ch : [> kind ] Channel.t) : Kind.browser Channel.t =
         let params =
             Json.obj
                 [
@@ -2608,9 +2707,9 @@ module Browser_type = struct
         Channel.call ?timeout ~abortable:false
             ~orphan:(fun result -> Channel.release "close" result)
             ch "launch" params
-            (fun j -> D.req "browser" (Channel.of_json c) j)
+            (fun j -> D.req "browser" (Channel.of_json Kind.browser c) j)
 
-    let launch_persistent_context ?timeout ?channel ?executable_path ?args ?ignore_all_default_args ?ignore_default_args ?handle_sigint ?handle_sigterm ?handle_sighup ?env ?headless ?proxy ?downloads_path ?traces_dir ?artifacts_dir ?chromium_sandbox ?firefox_user_prefs ?cdp_port ?no_default_viewport ?viewport ?screen ?ignore_https_errors ?client_certificates ?java_script_enabled ?bypass_csp ?user_agent ?locale ?timezone_id ?geolocation ?permissions ?extra_http_headers ?offline ?http_credentials ?device_scale_factor ?is_mobile ?has_touch ?color_scheme ?reduced_motion ?forced_colors ?accept_downloads ?contrast ?base_url ?record_video ?strict_selectors ?service_workers ?selector_engines ?test_id_attribute_name ~user_data_dir ?slow_mo (ch : Channel.t) : Launch_persistent_context_result.t =
+    let launch_persistent_context ?timeout ?channel ?executable_path ?args ?ignore_all_default_args ?ignore_default_args ?handle_sigint ?handle_sigterm ?handle_sighup ?env ?headless ?proxy ?downloads_path ?traces_dir ?artifacts_dir ?chromium_sandbox ?firefox_user_prefs ?cdp_port ?no_default_viewport ?viewport ?screen ?ignore_https_errors ?client_certificates ?java_script_enabled ?bypass_csp ?user_agent ?locale ?timezone_id ?geolocation ?permissions ?extra_http_headers ?offline ?http_credentials ?device_scale_factor ?is_mobile ?has_touch ?color_scheme ?reduced_motion ?forced_colors ?accept_downloads ?contrast ?base_url ?record_video ?strict_selectors ?service_workers ?selector_engines ?test_id_attribute_name ~user_data_dir ?slow_mo (ch : [> kind ] Channel.t) : Launch_persistent_context_result.t =
         let params =
             Json.obj
                 [
@@ -2670,7 +2769,7 @@ module Browser_type = struct
             ch "launchPersistentContext" params
             (fun j -> Launch_persistent_context_result.of_json c j)
 
-    let connect_over_cdp ?timeout ?endpoint_url ?headers ?slow_mo ?is_local ?no_defaults ?is_web_view ?artifacts_dir ?transport (ch : Channel.t) : Connect_over_cdp_result.t =
+    let connect_over_cdp ?timeout ?endpoint_url ?headers ?slow_mo ?is_local ?no_defaults ?is_web_view ?artifacts_dir ?transport (ch : [> kind ] Channel.t) : Connect_over_cdp_result.t =
         let params =
             Json.obj
                 [
@@ -2690,7 +2789,7 @@ module Browser_type = struct
             ch "connectOverCDP" params
             (fun j -> Connect_over_cdp_result.of_json c j)
 
-    let connect_to_worker ?timeout ~endpoint (ch : Channel.t) : Channel.t =
+    let connect_to_worker ?timeout ~endpoint (ch : [> kind ] Channel.t) : Kind.worker Channel.t =
         let params =
             Json.obj
                 [
@@ -2698,27 +2797,33 @@ module Browser_type = struct
                 ]
         in
         let c = Channel.conn ch in
-        Channel.call ?timeout ch "connectToWorker" params (fun j -> D.req "worker" (Channel.of_json c) j)
+        Channel.call ?timeout ch "connectToWorker" params (fun j -> D.req "worker" (Channel.of_json Kind.worker c) j)
 
 end
 
 module Disposable = struct
-    let type_name = "Disposable"
+    type kind = Kind.disposable
+    type t = kind Channel.t
 
-    let dispose ?timeout (ch : Channel.t) : unit =
+    let kind = Kind.disposable
+
+    let dispose ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "dispose" params ignore
 
 end
 
 module Frame = struct
-    let type_name = "Frame"
+    type kind = Kind.frame
+    type t = kind Channel.t
+
+    let kind = Kind.frame
 
     module Initializer = struct
         type t = {
             url : string;
             name : string;
-            parent_frame : Channel.t option;
+            parent_frame : Kind.frame Channel.t option;
             load_states : Lifecycle_event.t list;
         }
 
@@ -2727,7 +2832,7 @@ module Frame = struct
                 [
                     Json.req "url" Json.string v.url;
                     Json.req "name" Json.string v.name;
-                    Json.opt "parentFrame" Channel.to_json v.parent_frame;
+                    Json.opt "parentFrame" (Channel.to_json : [> Kind.frame ] Channel.t -> Json.t) v.parent_frame;
                     Json.req "loadStates" (Json.list Lifecycle_event.to_json) v.load_states;
                 ]
 
@@ -2735,7 +2840,7 @@ module Frame = struct
             {
                 url = D.req "url" D.string j;
                 name = D.req "name" D.string j;
-                parent_frame = D.opt "parentFrame" (Channel.of_json c) j;
+                parent_frame = D.opt "parentFrame" (Channel.of_json Kind.frame c) j;
                 load_states = D.req "loadStates" (D.list (Lifecycle_event.of_json c)) j;
             }
     end
@@ -2946,20 +3051,22 @@ module Frame = struct
 
     module Navigated_event_new_document = struct
         type t = {
-            request : Channel.t option;
+            request : Kind.request Channel.t option;
         }
 
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.opt "request" Channel.to_json v.request;
+                    Json.opt "request" (Channel.to_json : [> Kind.request ] Channel.t -> Json.t) v.request;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                request = D.opt "request" (Channel.of_json c) j;
+                request = D.opt "request" (Channel.of_json Kind.request c) j;
             }
     end
+
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
 
     type event =
         | Loadstate of { add : Lifecycle_event.t option; remove : Lifecycle_event.t option }
@@ -2985,7 +3092,11 @@ module Frame = struct
                       })
         | _ -> None
 
-    let eval_on_selector ?timeout ~selector ?strict ~expression ?is_function ~arg (ch : Channel.t) : Json.t =
+    let listen (ch : [> kind ] Channel.t) (handle : event -> unit) =
+        let c = Channel.conn ch in
+        Channel.listen ch (fun name j -> match event_of_json c name j with Some event -> handle event | None -> ())
+
+    let eval_on_selector ?timeout ~selector ?strict ~expression ?is_function ~arg (ch : [> kind ] Channel.t) : Json.t =
         let params =
             Json.obj
                 [
@@ -2998,7 +3109,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "evalOnSelector" params (fun j -> D.req "value" D.any j)
 
-    let eval_on_selector_all ?timeout ~selector ~expression ?is_function ~arg (ch : Channel.t) : Json.t =
+    let eval_on_selector_all ?timeout ~selector ~expression ?is_function ~arg (ch : [> kind ] Channel.t) : Json.t =
         let params =
             Json.obj
                 [
@@ -3010,7 +3121,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "evalOnSelectorAll" params (fun j -> D.req "value" D.any j)
 
-    let add_script_tag ?timeout ?url ?content ?type_ (ch : Channel.t) : Channel.t =
+    let add_script_tag ?timeout ?url ?content ?type_ (ch : [> kind ] Channel.t) : Kind.element_handle Channel.t =
         let params =
             Json.obj
                 [
@@ -3023,9 +3134,9 @@ module Frame = struct
         Channel.call ?timeout
             ~orphan:(fun result -> Channel.release "dispose" result)
             ch "addScriptTag" params
-            (fun j -> D.req "element" (Channel.of_json c) j)
+            (fun j -> D.req "element" (Channel.of_json Kind.element_handle c) j)
 
-    let add_style_tag ?timeout ?url ?content (ch : Channel.t) : Channel.t =
+    let add_style_tag ?timeout ?url ?content (ch : [> kind ] Channel.t) : Kind.element_handle Channel.t =
         let params =
             Json.obj
                 [
@@ -3037,9 +3148,9 @@ module Frame = struct
         Channel.call ?timeout
             ~orphan:(fun result -> Channel.release "dispose" result)
             ch "addStyleTag" params
-            (fun j -> D.req "element" (Channel.of_json c) j)
+            (fun j -> D.req "element" (Channel.of_json Kind.element_handle c) j)
 
-    let aria_snapshot ?timeout ?mode ?selector ?depth ?boxes (ch : Channel.t) : string =
+    let aria_snapshot ?timeout ?mode ?selector ?depth ?boxes (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
@@ -3051,7 +3162,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "ariaSnapshot" params (fun j -> D.req "snapshot" D.string j)
 
-    let aria_snapshot_json ?timeout ?mode ?selector ?depth ?boxes (ch : Channel.t) : Json.t =
+    let aria_snapshot_json ?timeout ?mode ?selector ?depth ?boxes (ch : [> kind ] Channel.t) : Json.t =
         let params =
             Json.obj
                 [
@@ -3063,7 +3174,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "ariaSnapshotJSON" params (fun j -> D.req "snapshot" D.any j)
 
-    let blur ?timeout ~selector ?strict (ch : Channel.t) : unit =
+    let blur ?timeout ~selector ?strict (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3073,7 +3184,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "blur" params ignore
 
-    let check ?timeout ~selector ?strict ?force ?scroll ?position ?trial (ch : Channel.t) : unit =
+    let check ?timeout ~selector ?strict ?force ?scroll ?position ?trial (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3087,7 +3198,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "check" params ignore
 
-    let click ?timeout ~selector ?strict ?force ?scroll ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?trial ?steps (ch : Channel.t) : unit =
+    let click ?timeout ~selector ?strict ?force ?scroll ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?trial ?steps (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3107,7 +3218,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "click" params ignore
 
-    let content ?timeout ?include_shadow (ch : Channel.t) : string =
+    let content ?timeout ?include_shadow (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
@@ -3116,7 +3227,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "content" params (fun j -> D.req "value" D.string j)
 
-    let drag_and_drop ?timeout ~source ~target ?force ?scroll ?trial ?source_position ?target_position ?strict ?steps (ch : Channel.t) : unit =
+    let drag_and_drop ?timeout ~source ~target ?force ?scroll ?trial ?source_position ?target_position ?strict ?steps (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3133,7 +3244,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "dragAndDrop" params ignore
 
-    let drop ?timeout ~selector ?strict ?position ?payloads ?local_paths ?streams ?data (ch : Channel.t) : unit =
+    let drop ?timeout ~selector ?strict ?position ?payloads ?local_paths ?streams ?data (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3142,13 +3253,13 @@ module Frame = struct
                     Json.opt "position" Point.to_json position;
                     Json.opt "payloads" (Json.list Drop_payloads.to_json) payloads;
                     Json.opt "localPaths" (Json.list Json.string) local_paths;
-                    Json.opt "streams" (Json.list Channel.to_json) streams;
+                    Json.opt "streams" (Json.list (Channel.to_json : [> Kind.writable_stream ] Channel.t -> Json.t)) streams;
                     Json.opt "data" (Json.list Drop_data.to_json) data;
                 ]
         in
         Channel.call ?timeout ch "drop" params ignore
 
-    let dblclick ?timeout ~selector ?strict ?force ?scroll ?modifiers ?position ?delay ?button ?trial ?steps (ch : Channel.t) : unit =
+    let dblclick ?timeout ~selector ?strict ?force ?scroll ?modifiers ?position ?delay ?button ?trial ?steps (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3166,7 +3277,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "dblclick" params ignore
 
-    let dispatch_event ?timeout ~selector ?strict ~type_ ~event_init (ch : Channel.t) : unit =
+    let dispatch_event ?timeout ~selector ?strict ~type_ ~event_init (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3178,7 +3289,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "dispatchEvent" params ignore
 
-    let evaluate_expression ?timeout ~expression ?is_function ~arg (ch : Channel.t) : Json.t =
+    let evaluate_expression ?timeout ~expression ?is_function ~arg (ch : [> kind ] Channel.t) : Json.t =
         let params =
             Json.obj
                 [
@@ -3189,7 +3300,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "evaluateExpression" params (fun j -> D.req "value" D.any j)
 
-    let evaluate_expression_handle ?timeout ~expression ?is_function ~arg (ch : Channel.t) : Channel.t =
+    let evaluate_expression_handle ?timeout ~expression ?is_function ~arg (ch : [> kind ] Channel.t) : Kind.js_handle Channel.t =
         let params =
             Json.obj
                 [
@@ -3202,9 +3313,9 @@ module Frame = struct
         Channel.call ?timeout
             ~orphan:(fun result -> Channel.release "dispose" result)
             ch "evaluateExpressionHandle" params
-            (fun j -> D.req "handle" (Channel.of_json c) j)
+            (fun j -> D.req "handle" (Channel.of_json Kind.js_handle c) j)
 
-    let fill ?timeout ~selector ?strict ~value ?force (ch : Channel.t) : unit =
+    let fill ?timeout ~selector ?strict ~value ?force (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3216,7 +3327,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "fill" params ignore
 
-    let focus ?timeout ~selector ?strict (ch : Channel.t) : unit =
+    let focus ?timeout ~selector ?strict (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3226,15 +3337,15 @@ module Frame = struct
         in
         Channel.call ?timeout ch "focus" params ignore
 
-    let frame_element ?timeout (ch : Channel.t) : Channel.t =
+    let frame_element ?timeout (ch : [> kind ] Channel.t) : Kind.element_handle Channel.t =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout
             ~orphan:(fun result -> Channel.release "dispose" result)
             ch "frameElement" params
-            (fun j -> D.req "element" (Channel.of_json c) j)
+            (fun j -> D.req "element" (Channel.of_json Kind.element_handle c) j)
 
-    let resolve_selector ?timeout ~selector ?sdk_language (ch : Channel.t) : Resolve_selector_result.t =
+    let resolve_selector ?timeout ~selector ?sdk_language (ch : [> kind ] Channel.t) : Resolve_selector_result.t =
         let params =
             Json.obj
                 [
@@ -3245,7 +3356,7 @@ module Frame = struct
         let c = Channel.conn ch in
         Channel.call ?timeout ch "resolveSelector" params (fun j -> Resolve_selector_result.of_json c j)
 
-    let highlight ?timeout ~selector ?style (ch : Channel.t) : unit =
+    let highlight ?timeout ~selector ?style (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3255,7 +3366,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "highlight" params ignore
 
-    let hide_highlight ?timeout ~selector (ch : Channel.t) : unit =
+    let hide_highlight ?timeout ~selector (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3264,7 +3375,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "hideHighlight" params ignore
 
-    let get_attribute ?timeout ~selector ?strict ~name (ch : Channel.t) : string option =
+    let get_attribute ?timeout ~selector ?strict ~name (ch : [> kind ] Channel.t) : string option =
         let params =
             Json.obj
                 [
@@ -3275,7 +3386,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "getAttribute" params (fun j -> D.opt "value" D.string j)
 
-    let goto ?timeout ~url ?wait_until ?referer (ch : Channel.t) : Channel.t option =
+    let goto ?timeout ~url ?wait_until ?referer (ch : [> kind ] Channel.t) : Kind.response Channel.t option =
         let params =
             Json.obj
                 [
@@ -3285,9 +3396,9 @@ module Frame = struct
                 ]
         in
         let c = Channel.conn ch in
-        Channel.call ?timeout ch "goto" params (fun j -> D.opt "response" (Channel.of_json c) j)
+        Channel.call ?timeout ch "goto" params (fun j -> D.opt "response" (Channel.of_json Kind.response c) j)
 
-    let hover ?timeout ~selector ?strict ?force ?scroll ?modifiers ?position ?trial (ch : Channel.t) : unit =
+    let hover ?timeout ~selector ?strict ?force ?scroll ?modifiers ?position ?trial (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3302,7 +3413,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "hover" params ignore
 
-    let inner_html ?timeout ~selector ?strict (ch : Channel.t) : string =
+    let inner_html ?timeout ~selector ?strict (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
@@ -3312,7 +3423,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "innerHTML" params (fun j -> D.req "value" D.string j)
 
-    let inner_text ?timeout ~selector ?strict (ch : Channel.t) : string =
+    let inner_text ?timeout ~selector ?strict (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
@@ -3322,7 +3433,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "innerText" params (fun j -> D.req "value" D.string j)
 
-    let input_value ?timeout ~selector ?strict (ch : Channel.t) : string =
+    let input_value ?timeout ~selector ?strict (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
@@ -3332,7 +3443,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "inputValue" params (fun j -> D.req "value" D.string j)
 
-    let is_checked ?timeout ~selector ?strict (ch : Channel.t) : bool =
+    let is_checked ?timeout ~selector ?strict (ch : [> kind ] Channel.t) : bool =
         let params =
             Json.obj
                 [
@@ -3342,7 +3453,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "isChecked" params (fun j -> D.req "value" D.bool j)
 
-    let is_disabled ?timeout ~selector ?strict (ch : Channel.t) : bool =
+    let is_disabled ?timeout ~selector ?strict (ch : [> kind ] Channel.t) : bool =
         let params =
             Json.obj
                 [
@@ -3352,7 +3463,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "isDisabled" params (fun j -> D.req "value" D.bool j)
 
-    let is_enabled ?timeout ~selector ?strict (ch : Channel.t) : bool =
+    let is_enabled ?timeout ~selector ?strict (ch : [> kind ] Channel.t) : bool =
         let params =
             Json.obj
                 [
@@ -3362,7 +3473,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "isEnabled" params (fun j -> D.req "value" D.bool j)
 
-    let is_hidden ?timeout ~selector ?strict (ch : Channel.t) : bool =
+    let is_hidden ?timeout ~selector ?strict (ch : [> kind ] Channel.t) : bool =
         let params =
             Json.obj
                 [
@@ -3372,7 +3483,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "isHidden" params (fun j -> D.req "value" D.bool j)
 
-    let is_visible ?timeout ~selector ?strict (ch : Channel.t) : bool =
+    let is_visible ?timeout ~selector ?strict (ch : [> kind ] Channel.t) : bool =
         let params =
             Json.obj
                 [
@@ -3382,7 +3493,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "isVisible" params (fun j -> D.req "value" D.bool j)
 
-    let is_editable ?timeout ~selector ?strict (ch : Channel.t) : bool =
+    let is_editable ?timeout ~selector ?strict (ch : [> kind ] Channel.t) : bool =
         let params =
             Json.obj
                 [
@@ -3392,7 +3503,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "isEditable" params (fun j -> D.req "value" D.bool j)
 
-    let press ?timeout ~selector ?strict ~key ?delay ?no_wait_after (ch : Channel.t) : unit =
+    let press ?timeout ~selector ?strict ~key ?delay ?no_wait_after (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3405,7 +3516,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "press" params ignore
 
-    let query_selector ?timeout ~selector ?strict (ch : Channel.t) : Channel.t option =
+    let query_selector ?timeout ~selector ?strict (ch : [> kind ] Channel.t) : Kind.element_handle Channel.t option =
         let params =
             Json.obj
                 [
@@ -3417,9 +3528,9 @@ module Frame = struct
         Channel.call ?timeout
             ~orphan:(fun result -> Option.iter (fun it -> Channel.release "dispose" it) result)
             ch "querySelector" params
-            (fun j -> D.opt "element" (Channel.of_json c) j)
+            (fun j -> D.opt "element" (Channel.of_json Kind.element_handle c) j)
 
-    let query_selector_all ?timeout ~selector (ch : Channel.t) : Channel.t list =
+    let query_selector_all ?timeout ~selector (ch : [> kind ] Channel.t) : Kind.element_handle Channel.t list =
         let params =
             Json.obj
                 [
@@ -3430,9 +3541,9 @@ module Frame = struct
         Channel.call ?timeout
             ~orphan:(fun result -> List.iter (fun item -> Channel.release "dispose" item) result)
             ch "querySelectorAll" params
-            (fun j -> D.req "elements" (D.list (Channel.of_json c)) j)
+            (fun j -> D.req "elements" (D.list (Channel.of_json Kind.element_handle c)) j)
 
-    let query_count ?timeout ~selector (ch : Channel.t) : int =
+    let query_count ?timeout ~selector (ch : [> kind ] Channel.t) : int =
         let params =
             Json.obj
                 [
@@ -3441,20 +3552,20 @@ module Frame = struct
         in
         Channel.call ?timeout ch "queryCount" params (fun j -> D.req "value" D.int j)
 
-    let select_option ?timeout ~selector ?strict ?elements ?options ?force (ch : Channel.t) : string list =
+    let select_option ?timeout ~selector ?strict ?elements ?options ?force (ch : [> kind ] Channel.t) : string list =
         let params =
             Json.obj
                 [
                     Json.req "selector" Json.string selector;
                     Json.opt "strict" Json.bool strict;
-                    Json.opt "elements" (Json.list Channel.to_json) elements;
+                    Json.opt "elements" (Json.list (Channel.to_json : [> Kind.element_handle ] Channel.t -> Json.t)) elements;
                     Json.opt "options" (Json.list Select_option_options.to_json) options;
                     Json.opt "force" Json.bool force;
                 ]
         in
         Channel.call ?timeout ch "selectOption" params (fun j -> D.req "values" (D.list D.string) j)
 
-    let set_content ?timeout ~html ?wait_until (ch : Channel.t) : unit =
+    let set_content ?timeout ~html ?wait_until (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3464,7 +3575,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "setContent" params ignore
 
-    let set_input_files ?timeout ~selector ?strict ?payloads ?local_directory ?directory_stream ?local_paths ?streams (ch : Channel.t) : unit =
+    let set_input_files ?timeout ~selector ?strict ?payloads ?local_directory ?directory_stream ?local_paths ?streams (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3472,14 +3583,14 @@ module Frame = struct
                     Json.opt "strict" Json.bool strict;
                     Json.opt "payloads" (Json.list Set_input_files_payloads.to_json) payloads;
                     Json.opt "localDirectory" Json.string local_directory;
-                    Json.opt "directoryStream" Channel.to_json directory_stream;
+                    Json.opt "directoryStream" (Channel.to_json : [> Kind.writable_stream ] Channel.t -> Json.t) directory_stream;
                     Json.opt "localPaths" (Json.list Json.string) local_paths;
-                    Json.opt "streams" (Json.list Channel.to_json) streams;
+                    Json.opt "streams" (Json.list (Channel.to_json : [> Kind.writable_stream ] Channel.t -> Json.t)) streams;
                 ]
         in
         Channel.call ?timeout ch "setInputFiles" params ignore
 
-    let tap ?timeout ~selector ?strict ?force ?scroll ?modifiers ?position ?trial (ch : Channel.t) : unit =
+    let tap ?timeout ~selector ?strict ?force ?scroll ?modifiers ?position ?trial (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3494,7 +3605,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "tap" params ignore
 
-    let text_content ?timeout ~selector ?strict (ch : Channel.t) : string option =
+    let text_content ?timeout ~selector ?strict (ch : [> kind ] Channel.t) : string option =
         let params =
             Json.obj
                 [
@@ -3504,11 +3615,11 @@ module Frame = struct
         in
         Channel.call ?timeout ch "textContent" params (fun j -> D.opt "value" D.string j)
 
-    let title ?timeout (ch : Channel.t) : string =
+    let title ?timeout (ch : [> kind ] Channel.t) : string =
         let params = `Assoc [] in
         Channel.call ?timeout ch "title" params (fun j -> D.req "value" D.string j)
 
-    let type_ ?timeout ~selector ?strict ~text ?delay (ch : Channel.t) : unit =
+    let type_ ?timeout ~selector ?strict ~text ?delay (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3520,7 +3631,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "type" params ignore
 
-    let uncheck ?timeout ~selector ?strict ?force ?scroll ?position ?trial (ch : Channel.t) : unit =
+    let uncheck ?timeout ~selector ?strict ?force ?scroll ?position ?trial (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3534,7 +3645,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "uncheck" params ignore
 
-    let wait_for_timeout ?timeout ~wait_timeout (ch : Channel.t) : unit =
+    let wait_for_timeout ?timeout ~wait_timeout (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3543,7 +3654,7 @@ module Frame = struct
         in
         Channel.call ?timeout ch "waitForTimeout" params ignore
 
-    let wait_for_function ?timeout ~expression ?is_function ~arg ?polling_interval ?selector ?strict (ch : Channel.t) : Channel.t option =
+    let wait_for_function ?timeout ~expression ?is_function ~arg ?polling_interval ?selector ?strict (ch : [> kind ] Channel.t) : Kind.js_handle Channel.t option =
         let params =
             Json.obj
                 [
@@ -3559,9 +3670,9 @@ module Frame = struct
         Channel.call ?timeout
             ~orphan:(fun result -> Option.iter (fun it -> Channel.release "dispose" it) result)
             ch "waitForFunction" params
-            (fun j -> D.opt "handle" (Channel.of_json c) j)
+            (fun j -> D.opt "handle" (Channel.of_json Kind.js_handle c) j)
 
-    let wait_for_selector ?timeout ~selector ?strict ?state ?omit_return_value (ch : Channel.t) : Channel.t option =
+    let wait_for_selector ?timeout ~selector ?strict ?state ?omit_return_value (ch : [> kind ] Channel.t) : Kind.element_handle Channel.t option =
         let params =
             Json.obj
                 [
@@ -3575,9 +3686,9 @@ module Frame = struct
         Channel.call ?timeout
             ~orphan:(fun result -> Option.iter (fun it -> Channel.release "dispose" it) result)
             ch "waitForSelector" params
-            (fun j -> D.opt "element" (Channel.of_json c) j)
+            (fun j -> D.opt "element" (Channel.of_json Kind.element_handle c) j)
 
-    let expect ?timeout ?selector ~expression ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not (ch : Channel.t) : unit =
+    let expect ?timeout ?selector ~expression ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3594,12 +3705,12 @@ module Frame = struct
         in
         Channel.call ?timeout ch "expect" params ignore
 
-    let webmcp_tools ?timeout (ch : Channel.t) : Webmcp_tools_result_tools.t list =
+    let webmcp_tools ?timeout (ch : [> kind ] Channel.t) : Webmcp_tools_result_tools.t list =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout ch "webmcpTools" params (fun j -> D.req "tools" (D.list (Webmcp_tools_result_tools.of_json c)) j)
 
-    let webmcp_call_tool ?timeout ~name ~input (ch : Channel.t) : Json.t =
+    let webmcp_call_tool ?timeout ~name ~input (ch : [> kind ] Channel.t) : Json.t =
         let params =
             Json.obj
                 [
@@ -3612,7 +3723,10 @@ module Frame = struct
 end
 
 module Js_handle = struct
-    let type_name = "JSHandle"
+    type kind = Kind.js_handle
+    type t = kind Channel.t
+
+    let kind = Kind.js_handle
 
     module Initializer = struct
         type t = {
@@ -3634,22 +3748,24 @@ module Js_handle = struct
     module Get_property_list_result_properties = struct
         type t = {
             name : string;
-            value : Channel.t;
+            value : Kind.js_handle Channel.t;
         }
 
         let to_json (v : t) : Json.t =
             Json.obj
                 [
                     Json.req "name" Json.string v.name;
-                    Json.req "value" Channel.to_json v.value;
+                    Json.req "value" (Channel.to_json : [> Kind.js_handle ] Channel.t -> Json.t) v.value;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
                 name = D.req "name" D.string j;
-                value = D.req "value" (Channel.of_json c) j;
+                value = D.req "value" (Channel.of_json Kind.js_handle c) j;
             }
     end
+
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
 
     type event =
         | Preview_updated of { preview : string }
@@ -3664,11 +3780,15 @@ module Js_handle = struct
                       })
         | _ -> None
 
-    let dispose ?timeout (ch : Channel.t) : unit =
+    let listen (ch : [> kind ] Channel.t) (handle : event -> unit) =
+        let c = Channel.conn ch in
+        Channel.listen ch (fun name j -> match event_of_json c name j with Some event -> handle event | None -> ())
+
+    let dispose ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "dispose" params ignore
 
-    let evaluate_expression ?timeout ~expression ?is_function ~arg (ch : Channel.t) : Json.t =
+    let evaluate_expression ?timeout ~expression ?is_function ~arg (ch : [> kind ] Channel.t) : Json.t =
         let params =
             Json.obj
                 [
@@ -3679,7 +3799,7 @@ module Js_handle = struct
         in
         Channel.call ?timeout ch "evaluateExpression" params (fun j -> D.req "value" D.any j)
 
-    let evaluate_expression_handle ?timeout ~expression ?is_function ~arg (ch : Channel.t) : Channel.t =
+    let evaluate_expression_handle ?timeout ~expression ?is_function ~arg (ch : [> kind ] Channel.t) : Kind.js_handle Channel.t =
         let params =
             Json.obj
                 [
@@ -3692,9 +3812,9 @@ module Js_handle = struct
         Channel.call ?timeout
             ~orphan:(fun result -> Channel.release "dispose" result)
             ch "evaluateExpressionHandle" params
-            (fun j -> D.req "handle" (Channel.of_json c) j)
+            (fun j -> D.req "handle" (Channel.of_json Kind.js_handle c) j)
 
-    let get_property_list ?timeout (ch : Channel.t) : Get_property_list_result_properties.t list =
+    let get_property_list ?timeout (ch : [> kind ] Channel.t) : Get_property_list_result_properties.t list =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout
@@ -3702,7 +3822,7 @@ module Js_handle = struct
             ch "getPropertyList" params
             (fun j -> D.req "properties" (D.list (Get_property_list_result_properties.of_json c)) j)
 
-    let get_property ?timeout ~name (ch : Channel.t) : Channel.t =
+    let get_property ?timeout ~name (ch : [> kind ] Channel.t) : Kind.js_handle Channel.t =
         let params =
             Json.obj
                 [
@@ -3713,53 +3833,19 @@ module Js_handle = struct
         Channel.call ?timeout
             ~orphan:(fun result -> Channel.release "dispose" result)
             ch "getProperty" params
-            (fun j -> D.req "handle" (Channel.of_json c) j)
+            (fun j -> D.req "handle" (Channel.of_json Kind.js_handle c) j)
 
-    let json_value ?timeout (ch : Channel.t) : Json.t =
+    let json_value ?timeout (ch : [> kind ] Channel.t) : Json.t =
         let params = `Assoc [] in
         Channel.call ?timeout ch "jsonValue" params (fun j -> D.req "value" D.any j)
 
 end
 
 module Element_handle = struct
-    let type_name = "ElementHandle"
+    type kind = Kind.element_handle
+    type t = kind Channel.t
 
-    module Initializer = struct
-        type t = {
-            preview : string;
-        }
-
-        let to_json (v : t) : Json.t =
-            Json.obj
-                [
-                    Json.req "preview" Json.string v.preview;
-                ]
-
-        let of_json (c : Channel.conn) (j : Json.t) : t =
-            {
-                preview = D.req "preview" D.string j;
-            }
-    end
-
-    module Get_property_list_result_properties = struct
-        type t = {
-            name : string;
-            value : Channel.t;
-        }
-
-        let to_json (v : t) : Json.t =
-            Json.obj
-                [
-                    Json.req "name" Json.string v.name;
-                    Json.req "value" Channel.to_json v.value;
-                ]
-
-        let of_json (c : Channel.conn) (j : Json.t) : t =
-            {
-                name = D.req "name" D.string j;
-                value = D.req "value" (Channel.of_json c) j;
-            }
-    end
+    let kind = Kind.element_handle
 
     module Select_option_options = struct
         type t = {
@@ -3810,75 +3896,7 @@ module Element_handle = struct
             }
     end
 
-    type event =
-        | Preview_updated of { preview : string }
-
-    let event_of_json (c : Channel.conn) (name : string) (j : Json.t) : event option =
-        match name with
-        | "previewUpdated" ->
-            Some
-                (Preview_updated
-                      {
-                          preview = D.req "preview" D.string j;
-                      })
-        | _ -> None
-
-    let dispose ?timeout (ch : Channel.t) : unit =
-        let params = `Assoc [] in
-        Channel.call ?timeout ch "dispose" params ignore
-
-    let evaluate_expression ?timeout ~expression ?is_function ~arg (ch : Channel.t) : Json.t =
-        let params =
-            Json.obj
-                [
-                    Json.req "expression" Json.string expression;
-                    Json.opt "isFunction" Json.bool is_function;
-                    Json.req "arg" Serialized_argument.to_json arg;
-                ]
-        in
-        Channel.call ?timeout ch "evaluateExpression" params (fun j -> D.req "value" D.any j)
-
-    let evaluate_expression_handle ?timeout ~expression ?is_function ~arg (ch : Channel.t) : Channel.t =
-        let params =
-            Json.obj
-                [
-                    Json.req "expression" Json.string expression;
-                    Json.opt "isFunction" Json.bool is_function;
-                    Json.req "arg" Serialized_argument.to_json arg;
-                ]
-        in
-        let c = Channel.conn ch in
-        Channel.call ?timeout
-            ~orphan:(fun result -> Channel.release "dispose" result)
-            ch "evaluateExpressionHandle" params
-            (fun j -> D.req "handle" (Channel.of_json c) j)
-
-    let get_property_list ?timeout (ch : Channel.t) : Get_property_list_result_properties.t list =
-        let params = `Assoc [] in
-        let c = Channel.conn ch in
-        Channel.call ?timeout
-            ~orphan:(fun result -> List.iter (fun item -> Channel.release "dispose" (item : Get_property_list_result_properties.t).value) result)
-            ch "getPropertyList" params
-            (fun j -> D.req "properties" (D.list (Get_property_list_result_properties.of_json c)) j)
-
-    let get_property ?timeout ~name (ch : Channel.t) : Channel.t =
-        let params =
-            Json.obj
-                [
-                    Json.req "name" Json.string name;
-                ]
-        in
-        let c = Channel.conn ch in
-        Channel.call ?timeout
-            ~orphan:(fun result -> Channel.release "dispose" result)
-            ch "getProperty" params
-            (fun j -> D.req "handle" (Channel.of_json c) j)
-
-    let json_value ?timeout (ch : Channel.t) : Json.t =
-        let params = `Assoc [] in
-        Channel.call ?timeout ch "jsonValue" params (fun j -> D.req "value" D.any j)
-
-    let eval_on_selector ?timeout ~selector ?strict ~expression ?is_function ~arg (ch : Channel.t) : Json.t =
+    let eval_on_selector ?timeout ~selector ?strict ~expression ?is_function ~arg (ch : [> kind ] Channel.t) : Json.t =
         let params =
             Json.obj
                 [
@@ -3891,7 +3909,7 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "evalOnSelector" params (fun j -> D.req "value" D.any j)
 
-    let eval_on_selector_all ?timeout ~selector ~expression ?is_function ~arg (ch : Channel.t) : Json.t =
+    let eval_on_selector_all ?timeout ~selector ~expression ?is_function ~arg (ch : [> kind ] Channel.t) : Json.t =
         let params =
             Json.obj
                 [
@@ -3903,12 +3921,12 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "evalOnSelectorAll" params (fun j -> D.req "value" D.any j)
 
-    let bounding_box ?timeout (ch : Channel.t) : Rect.t option =
+    let bounding_box ?timeout (ch : [> kind ] Channel.t) : Rect.t option =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout ch "boundingBox" params (fun j -> D.opt "value" (Rect.of_json c) j)
 
-    let check ?timeout ?force ?scroll ?position ?trial (ch : Channel.t) : unit =
+    let check ?timeout ?force ?scroll ?position ?trial (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3920,7 +3938,7 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "check" params ignore
 
-    let click ?timeout ?force ?scroll ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?trial ?steps (ch : Channel.t) : unit =
+    let click ?timeout ?force ?scroll ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?trial ?steps (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3938,12 +3956,12 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "click" params ignore
 
-    let content_frame ?timeout (ch : Channel.t) : Channel.t option =
+    let content_frame ?timeout (ch : [> kind ] Channel.t) : Kind.frame Channel.t option =
         let params = `Assoc [] in
         let c = Channel.conn ch in
-        Channel.call ?timeout ch "contentFrame" params (fun j -> D.opt "frame" (Channel.of_json c) j)
+        Channel.call ?timeout ch "contentFrame" params (fun j -> D.opt "frame" (Channel.of_json Kind.frame c) j)
 
-    let dblclick ?timeout ?force ?scroll ?modifiers ?position ?delay ?button ?trial ?steps (ch : Channel.t) : unit =
+    let dblclick ?timeout ?force ?scroll ?modifiers ?position ?delay ?button ?trial ?steps (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3959,7 +3977,7 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "dblclick" params ignore
 
-    let dispatch_event ?timeout ~type_ ~event_init (ch : Channel.t) : unit =
+    let dispatch_event ?timeout ~type_ ~event_init (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3969,7 +3987,7 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "dispatchEvent" params ignore
 
-    let fill ?timeout ~value ?force (ch : Channel.t) : unit =
+    let fill ?timeout ~value ?force (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -3979,11 +3997,11 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "fill" params ignore
 
-    let focus ?timeout (ch : Channel.t) : unit =
+    let focus ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "focus" params ignore
 
-    let get_attribute ?timeout ~name (ch : Channel.t) : string option =
+    let get_attribute ?timeout ~name (ch : [> kind ] Channel.t) : string option =
         let params =
             Json.obj
                 [
@@ -3992,7 +4010,7 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "getAttribute" params (fun j -> D.opt "value" D.string j)
 
-    let hover ?timeout ?force ?scroll ?modifiers ?position ?trial (ch : Channel.t) : unit =
+    let hover ?timeout ?force ?scroll ?modifiers ?position ?trial (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4005,48 +4023,48 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "hover" params ignore
 
-    let inner_html ?timeout (ch : Channel.t) : string =
+    let inner_html ?timeout (ch : [> kind ] Channel.t) : string =
         let params = `Assoc [] in
         Channel.call ?timeout ch "innerHTML" params (fun j -> D.req "value" D.string j)
 
-    let inner_text ?timeout (ch : Channel.t) : string =
+    let inner_text ?timeout (ch : [> kind ] Channel.t) : string =
         let params = `Assoc [] in
         Channel.call ?timeout ch "innerText" params (fun j -> D.req "value" D.string j)
 
-    let input_value ?timeout (ch : Channel.t) : string =
+    let input_value ?timeout (ch : [> kind ] Channel.t) : string =
         let params = `Assoc [] in
         Channel.call ?timeout ch "inputValue" params (fun j -> D.req "value" D.string j)
 
-    let is_checked ?timeout (ch : Channel.t) : bool =
+    let is_checked ?timeout (ch : [> kind ] Channel.t) : bool =
         let params = `Assoc [] in
         Channel.call ?timeout ch "isChecked" params (fun j -> D.req "value" D.bool j)
 
-    let is_disabled ?timeout (ch : Channel.t) : bool =
+    let is_disabled ?timeout (ch : [> kind ] Channel.t) : bool =
         let params = `Assoc [] in
         Channel.call ?timeout ch "isDisabled" params (fun j -> D.req "value" D.bool j)
 
-    let is_editable ?timeout (ch : Channel.t) : bool =
+    let is_editable ?timeout (ch : [> kind ] Channel.t) : bool =
         let params = `Assoc [] in
         Channel.call ?timeout ch "isEditable" params (fun j -> D.req "value" D.bool j)
 
-    let is_enabled ?timeout (ch : Channel.t) : bool =
+    let is_enabled ?timeout (ch : [> kind ] Channel.t) : bool =
         let params = `Assoc [] in
         Channel.call ?timeout ch "isEnabled" params (fun j -> D.req "value" D.bool j)
 
-    let is_hidden ?timeout (ch : Channel.t) : bool =
+    let is_hidden ?timeout (ch : [> kind ] Channel.t) : bool =
         let params = `Assoc [] in
         Channel.call ?timeout ch "isHidden" params (fun j -> D.req "value" D.bool j)
 
-    let is_visible ?timeout (ch : Channel.t) : bool =
+    let is_visible ?timeout (ch : [> kind ] Channel.t) : bool =
         let params = `Assoc [] in
         Channel.call ?timeout ch "isVisible" params (fun j -> D.req "value" D.bool j)
 
-    let owner_frame ?timeout (ch : Channel.t) : Channel.t option =
+    let owner_frame ?timeout (ch : [> kind ] Channel.t) : Kind.frame Channel.t option =
         let params = `Assoc [] in
         let c = Channel.conn ch in
-        Channel.call ?timeout ch "ownerFrame" params (fun j -> D.opt "frame" (Channel.of_json c) j)
+        Channel.call ?timeout ch "ownerFrame" params (fun j -> D.opt "frame" (Channel.of_json Kind.frame c) j)
 
-    let press ?timeout ~key ?delay ?no_wait_after (ch : Channel.t) : unit =
+    let press ?timeout ~key ?delay ?no_wait_after (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4057,7 +4075,7 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "press" params ignore
 
-    let query_selector ?timeout ~selector ?strict (ch : Channel.t) : Channel.t option =
+    let query_selector ?timeout ~selector ?strict (ch : [> kind ] Channel.t) : Kind.element_handle Channel.t option =
         let params =
             Json.obj
                 [
@@ -4069,9 +4087,9 @@ module Element_handle = struct
         Channel.call ?timeout
             ~orphan:(fun result -> Option.iter (fun it -> Channel.release "dispose" it) result)
             ch "querySelector" params
-            (fun j -> D.opt "element" (Channel.of_json c) j)
+            (fun j -> D.opt "element" (Channel.of_json Kind.element_handle c) j)
 
-    let query_selector_all ?timeout ~selector (ch : Channel.t) : Channel.t list =
+    let query_selector_all ?timeout ~selector (ch : [> kind ] Channel.t) : Kind.element_handle Channel.t list =
         let params =
             Json.obj
                 [
@@ -4082,9 +4100,9 @@ module Element_handle = struct
         Channel.call ?timeout
             ~orphan:(fun result -> List.iter (fun item -> Channel.release "dispose" item) result)
             ch "querySelectorAll" params
-            (fun j -> D.req "elements" (D.list (Channel.of_json c)) j)
+            (fun j -> D.req "elements" (D.list (Channel.of_json Kind.element_handle c)) j)
 
-    let screenshot ?timeout ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (ch : Channel.t) : string =
+    let screenshot ?timeout ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
@@ -4101,22 +4119,22 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "screenshot" params (fun j -> D.req "binary" D.binary j)
 
-    let scroll_into_view_if_needed ?timeout (ch : Channel.t) : unit =
+    let scroll_into_view_if_needed ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "scrollIntoViewIfNeeded" params ignore
 
-    let select_option ?timeout ?elements ?options ?force (ch : Channel.t) : string list =
+    let select_option ?timeout ?elements ?options ?force (ch : [> kind ] Channel.t) : string list =
         let params =
             Json.obj
                 [
-                    Json.opt "elements" (Json.list Channel.to_json) elements;
+                    Json.opt "elements" (Json.list (Channel.to_json : [> Kind.element_handle ] Channel.t -> Json.t)) elements;
                     Json.opt "options" (Json.list Select_option_options.to_json) options;
                     Json.opt "force" Json.bool force;
                 ]
         in
         Channel.call ?timeout ch "selectOption" params (fun j -> D.req "values" (D.list D.string) j)
 
-    let select_text ?timeout ?force (ch : Channel.t) : unit =
+    let select_text ?timeout ?force (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4125,20 +4143,20 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "selectText" params ignore
 
-    let set_input_files ?timeout ?payloads ?local_directory ?directory_stream ?local_paths ?streams (ch : Channel.t) : unit =
+    let set_input_files ?timeout ?payloads ?local_directory ?directory_stream ?local_paths ?streams (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
                     Json.opt "payloads" (Json.list Set_input_files_payloads.to_json) payloads;
                     Json.opt "localDirectory" Json.string local_directory;
-                    Json.opt "directoryStream" Channel.to_json directory_stream;
+                    Json.opt "directoryStream" (Channel.to_json : [> Kind.writable_stream ] Channel.t -> Json.t) directory_stream;
                     Json.opt "localPaths" (Json.list Json.string) local_paths;
-                    Json.opt "streams" (Json.list Channel.to_json) streams;
+                    Json.opt "streams" (Json.list (Channel.to_json : [> Kind.writable_stream ] Channel.t -> Json.t)) streams;
                 ]
         in
         Channel.call ?timeout ch "setInputFiles" params ignore
 
-    let tap ?timeout ?force ?scroll ?modifiers ?position ?trial (ch : Channel.t) : unit =
+    let tap ?timeout ?force ?scroll ?modifiers ?position ?trial (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4151,11 +4169,11 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "tap" params ignore
 
-    let text_content ?timeout (ch : Channel.t) : string option =
+    let text_content ?timeout (ch : [> kind ] Channel.t) : string option =
         let params = `Assoc [] in
         Channel.call ?timeout ch "textContent" params (fun j -> D.opt "value" D.string j)
 
-    let type_ ?timeout ~text ?delay (ch : Channel.t) : unit =
+    let type_ ?timeout ~text ?delay (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4165,7 +4183,7 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "type" params ignore
 
-    let uncheck ?timeout ?force ?scroll ?position ?trial (ch : Channel.t) : unit =
+    let uncheck ?timeout ?force ?scroll ?position ?trial (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4177,7 +4195,7 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "uncheck" params ignore
 
-    let wait_for_element_state ?timeout ~state (ch : Channel.t) : unit =
+    let wait_for_element_state ?timeout ~state (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4186,7 +4204,7 @@ module Element_handle = struct
         in
         Channel.call ?timeout ch "waitForElementState" params ignore
 
-    let wait_for_selector ?timeout ~selector ?strict ?state (ch : Channel.t) : Channel.t option =
+    let wait_for_selector ?timeout ~selector ?strict ?state (ch : [> kind ] Channel.t) : Kind.element_handle Channel.t option =
         let params =
             Json.obj
                 [
@@ -4199,12 +4217,15 @@ module Element_handle = struct
         Channel.call ?timeout
             ~orphan:(fun result -> Option.iter (fun it -> Channel.release "dispose" it) result)
             ch "waitForSelector" params
-            (fun j -> D.opt "element" (Channel.of_json c) j)
+            (fun j -> D.opt "element" (Channel.of_json Kind.element_handle c) j)
 
 end
 
 module Local_utils = struct
-    let type_name = "LocalUtils"
+    type kind = Kind.local_utils
+    type t = kind Channel.t
+
+    let kind = Kind.local_utils
 
     module Initializer_device_descriptors_descriptor_viewport = struct
         type t = {
@@ -4372,25 +4393,27 @@ module Local_utils = struct
 
     module Connect_result = struct
         type t = {
-            pipe : Channel.t;
+            pipe : Kind.json_pipe Channel.t;
             headers : Name_value.t list;
         }
 
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.req "pipe" Channel.to_json v.pipe;
+                    Json.req "pipe" (Channel.to_json : [> Kind.json_pipe ] Channel.t -> Json.t) v.pipe;
                     Json.req "headers" (Json.list Name_value.to_json) v.headers;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                pipe = D.req "pipe" (Channel.of_json c) j;
+                pipe = D.req "pipe" (Channel.of_json Kind.json_pipe c) j;
                 headers = D.req "headers" (D.list (Name_value.of_json c)) j;
             }
     end
 
-    let zip ?timeout ~zip_file ~entries ?stacks_id ~mode ~include_sources ?additional_sources (ch : Channel.t) : unit =
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
+
+    let zip ?timeout ~zip_file ~entries ?stacks_id ~mode ~include_sources ?additional_sources (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4404,7 +4427,7 @@ module Local_utils = struct
         in
         Channel.call ?timeout ch "zip" params ignore
 
-    let har_open ?timeout ~file (ch : Channel.t) : Har_open_result.t =
+    let har_open ?timeout ~file (ch : [> kind ] Channel.t) : Har_open_result.t =
         let params =
             Json.obj
                 [
@@ -4414,7 +4437,7 @@ module Local_utils = struct
         let c = Channel.conn ch in
         Channel.call ?timeout ch "harOpen" params (fun j -> Har_open_result.of_json c j)
 
-    let har_lookup ?timeout ~har_id ~url ~method_ ~headers ?post_data ~is_navigation_request (ch : Channel.t) : Har_lookup_result.t =
+    let har_lookup ?timeout ~har_id ~url ~method_ ~headers ?post_data ~is_navigation_request (ch : [> kind ] Channel.t) : Har_lookup_result.t =
         let params =
             Json.obj
                 [
@@ -4429,7 +4452,7 @@ module Local_utils = struct
         let c = Channel.conn ch in
         Channel.call ?timeout ch "harLookup" params (fun j -> Har_lookup_result.of_json c j)
 
-    let har_close ?timeout ~har_id (ch : Channel.t) : unit =
+    let har_close ?timeout ~har_id (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4438,7 +4461,7 @@ module Local_utils = struct
         in
         Channel.call ?timeout ch "harClose" params ignore
 
-    let har_unzip ?timeout ~zip_file ~har_file ?resources_dir (ch : Channel.t) : unit =
+    let har_unzip ?timeout ~zip_file ~har_file ?resources_dir (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4449,7 +4472,7 @@ module Local_utils = struct
         in
         Channel.call ?timeout ch "harUnzip" params ignore
 
-    let connect ?timeout ~endpoint ?headers ?expose_network ?slow_mo ?socks_proxy_redirect_port_for_test (ch : Channel.t) : Connect_result.t =
+    let connect ?timeout ~endpoint ?headers ?expose_network ?slow_mo ?socks_proxy_redirect_port_for_test (ch : [> kind ] Channel.t) : Connect_result.t =
         let params =
             Json.obj
                 [
@@ -4466,7 +4489,7 @@ module Local_utils = struct
             ch "connect" params
             (fun j -> Connect_result.of_json c j)
 
-    let tracing_started ?timeout ?traces_dir ~trace_name ?live (ch : Channel.t) : string =
+    let tracing_started ?timeout ?traces_dir ~trace_name ?live (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
@@ -4477,7 +4500,7 @@ module Local_utils = struct
         in
         Channel.call ?timeout ch "tracingStarted" params (fun j -> D.req "stacksId" D.string j)
 
-    let add_stack_to_tracing_no_reply ?timeout ~call_data (ch : Channel.t) : unit =
+    let add_stack_to_tracing_no_reply ?timeout ~call_data (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4486,7 +4509,7 @@ module Local_utils = struct
         in
         Channel.call ?timeout ch "addStackToTracingNoReply" params ignore
 
-    let trace_discarded ?timeout ~stacks_id (ch : Channel.t) : unit =
+    let trace_discarded ?timeout ~stacks_id (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4495,7 +4518,7 @@ module Local_utils = struct
         in
         Channel.call ?timeout ch "traceDiscarded" params ignore
 
-    let glob_to_regex ?timeout ~glob ?base_url ?web_socket_url (ch : Channel.t) : string =
+    let glob_to_regex ?timeout ~glob ?base_url ?web_socket_url (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
@@ -4506,7 +4529,7 @@ module Local_utils = struct
         in
         Channel.call ?timeout ch "globToRegex" params (fun j -> D.req "regex" D.string j)
 
-    let as_locator_description ?timeout ~selector ~sdk_language (ch : Channel.t) : string =
+    let as_locator_description ?timeout ~selector ~sdk_language (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
@@ -4519,55 +4542,60 @@ module Local_utils = struct
 end
 
 module Request = struct
-    let type_name = "Request"
+    type kind = Kind.request
+    type t = kind Channel.t
+
+    let kind = Kind.request
 
     module Initializer = struct
         type t = {
-            frame : Channel.t option;
-            service_worker : Channel.t option;
+            frame : Kind.frame Channel.t option;
+            service_worker : Kind.worker Channel.t option;
             url : string;
             resource_type : string;
             method_ : string;
             post_data : string option;
             headers : Name_value.t list;
             is_navigation_request : bool;
-            redirected_from : Channel.t option;
+            redirected_from : Kind.request Channel.t option;
         }
 
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.opt "frame" Channel.to_json v.frame;
-                    Json.opt "serviceWorker" Channel.to_json v.service_worker;
+                    Json.opt "frame" (Channel.to_json : [> Kind.frame ] Channel.t -> Json.t) v.frame;
+                    Json.opt "serviceWorker" (Channel.to_json : [> Kind.worker ] Channel.t -> Json.t) v.service_worker;
                     Json.req "url" Json.string v.url;
                     Json.req "resourceType" Json.string v.resource_type;
                     Json.req "method" Json.string v.method_;
                     Json.opt "postData" Json.binary v.post_data;
                     Json.req "headers" (Json.list Name_value.to_json) v.headers;
                     Json.req "isNavigationRequest" Json.bool v.is_navigation_request;
-                    Json.opt "redirectedFrom" Channel.to_json v.redirected_from;
+                    Json.opt "redirectedFrom" (Channel.to_json : [> Kind.request ] Channel.t -> Json.t) v.redirected_from;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                frame = D.opt "frame" (Channel.of_json c) j;
-                service_worker = D.opt "serviceWorker" (Channel.of_json c) j;
+                frame = D.opt "frame" (Channel.of_json Kind.frame c) j;
+                service_worker = D.opt "serviceWorker" (Channel.of_json Kind.worker c) j;
                 url = D.req "url" D.string j;
                 resource_type = D.req "resourceType" D.string j;
                 method_ = D.req "method" D.string j;
                 post_data = D.opt "postData" D.binary j;
                 headers = D.req "headers" (D.list (Name_value.of_json c)) j;
                 is_navigation_request = D.req "isNavigationRequest" D.bool j;
-                redirected_from = D.opt "redirectedFrom" (Channel.of_json c) j;
+                redirected_from = D.opt "redirectedFrom" (Channel.of_json Kind.request c) j;
             }
     end
 
-    let response ?timeout (ch : Channel.t) : Channel.t option =
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
+
+    let response ?timeout (ch : [> kind ] Channel.t) : Kind.response Channel.t option =
         let params = `Assoc [] in
         let c = Channel.conn ch in
-        Channel.call ?timeout ch "response" params (fun j -> D.opt "response" (Channel.of_json c) j)
+        Channel.call ?timeout ch "response" params (fun j -> D.opt "response" (Channel.of_json Kind.response c) j)
 
-    let raw_request_headers ?timeout (ch : Channel.t) : Name_value.t list =
+    let raw_request_headers ?timeout (ch : [> kind ] Channel.t) : Name_value.t list =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout ch "rawRequestHeaders" params (fun j -> D.req "headers" (D.list (Name_value.of_json c)) j)
@@ -4575,26 +4603,31 @@ module Request = struct
 end
 
 module Route = struct
-    let type_name = "Route"
+    type kind = Kind.route
+    type t = kind Channel.t
+
+    let kind = Kind.route
 
     module Initializer = struct
         type t = {
-            request : Channel.t;
+            request : Kind.request Channel.t;
         }
 
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.req "request" Channel.to_json v.request;
+                    Json.req "request" (Channel.to_json : [> Kind.request ] Channel.t -> Json.t) v.request;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                request = D.req "request" (Channel.of_json c) j;
+                request = D.req "request" (Channel.of_json Kind.request c) j;
             }
     end
 
-    let redirect_navigation_request ?timeout ~url (ch : Channel.t) : unit =
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
+
+    let redirect_navigation_request ?timeout ~url (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4603,7 +4636,7 @@ module Route = struct
         in
         Channel.call ?timeout ch "redirectNavigationRequest" params ignore
 
-    let abort ?timeout ?error_code (ch : Channel.t) : unit =
+    let abort ?timeout ?error_code (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4612,7 +4645,7 @@ module Route = struct
         in
         Channel.call ?timeout ch "abort" params ignore
 
-    let continue ?timeout ?url ?method_ ?headers ?post_data ~is_fallback (ch : Channel.t) : unit =
+    let continue ?timeout ?url ?method_ ?headers ?post_data ~is_fallback (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4625,7 +4658,7 @@ module Route = struct
         in
         Channel.call ?timeout ch "continue" params ignore
 
-    let fulfill ?timeout ?status ?headers ?body ?is_base64 ?fetch_response_uid (ch : Channel.t) : unit =
+    let fulfill ?timeout ?status ?headers ?body ?is_base64 ?fetch_response_uid (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4641,7 +4674,10 @@ module Route = struct
 end
 
 module Web_socket_route = struct
-    let type_name = "WebSocketRoute"
+    type kind = Kind.web_socket_route
+    type t = kind Channel.t
+
+    let kind = Kind.web_socket_route
 
     module Initializer = struct
         type t = {
@@ -4662,6 +4698,8 @@ module Web_socket_route = struct
                 protocols = D.req "protocols" (D.list D.string) j;
             }
     end
+
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
 
     type event =
         | Message_from_page of { message : string; is_base64 : bool }
@@ -4703,15 +4741,19 @@ module Web_socket_route = struct
                       })
         | _ -> None
 
-    let connect ?timeout (ch : Channel.t) : unit =
+    let listen (ch : [> kind ] Channel.t) (handle : event -> unit) =
+        let c = Channel.conn ch in
+        Channel.listen ch (fun name j -> match event_of_json c name j with Some event -> handle event | None -> ())
+
+    let connect ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "connect" params ignore
 
-    let ensure_opened ?timeout (ch : Channel.t) : unit =
+    let ensure_opened ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "ensureOpened" params ignore
 
-    let send_to_page ?timeout ~message ~is_base64 (ch : Channel.t) : unit =
+    let send_to_page ?timeout ~message ~is_base64 (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4721,7 +4763,7 @@ module Web_socket_route = struct
         in
         Channel.call ?timeout ch "sendToPage" params ignore
 
-    let send_to_server ?timeout ~message ~is_base64 (ch : Channel.t) : unit =
+    let send_to_server ?timeout ~message ~is_base64 (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4731,7 +4773,7 @@ module Web_socket_route = struct
         in
         Channel.call ?timeout ch "sendToServer" params ignore
 
-    let close_page ?timeout ?code ?reason ~was_clean (ch : Channel.t) : unit =
+    let close_page ?timeout ?code ?reason ~was_clean (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4742,7 +4784,7 @@ module Web_socket_route = struct
         in
         Channel.call ?timeout ch "closePage" params ignore
 
-    let close_server ?timeout ?code ?reason ~was_clean (ch : Channel.t) : unit =
+    let close_server ?timeout ?code ?reason ~was_clean (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -4756,11 +4798,14 @@ module Web_socket_route = struct
 end
 
 module Response = struct
-    let type_name = "Response"
+    type kind = Kind.response
+    type t = kind Channel.t
+
+    let kind = Kind.response
 
     module Initializer = struct
         type t = {
-            request : Channel.t;
+            request : Kind.request Channel.t;
             url : string;
             status : int;
             status_text : string;
@@ -4772,7 +4817,7 @@ module Response = struct
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.req "request" Channel.to_json v.request;
+                    Json.req "request" (Channel.to_json : [> Kind.request ] Channel.t -> Json.t) v.request;
                     Json.req "url" Json.string v.url;
                     Json.req "status" Json.int v.status;
                     Json.req "statusText" Json.string v.status_text;
@@ -4783,7 +4828,7 @@ module Response = struct
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                request = D.req "request" (Channel.of_json c) j;
+                request = D.req "request" (Channel.of_json Kind.request c) j;
                 url = D.req "url" D.string j;
                 status = D.req "status" D.int j;
                 status_text = D.req "statusText" D.string j;
@@ -4793,30 +4838,32 @@ module Response = struct
             }
     end
 
-    let body ?timeout (ch : Channel.t) : string =
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
+
+    let body ?timeout (ch : [> kind ] Channel.t) : string =
         let params = `Assoc [] in
         Channel.call ?timeout ch "body" params (fun j -> D.req "binary" D.binary j)
 
-    let security_details ?timeout (ch : Channel.t) : Security_details.t option =
+    let security_details ?timeout (ch : [> kind ] Channel.t) : Security_details.t option =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout ch "securityDetails" params (fun j -> D.opt "value" (Security_details.of_json c) j)
 
-    let server_addr ?timeout (ch : Channel.t) : Remote_addr.t option =
+    let server_addr ?timeout (ch : [> kind ] Channel.t) : Remote_addr.t option =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout ch "serverAddr" params (fun j -> D.opt "value" (Remote_addr.of_json c) j)
 
-    let raw_response_headers ?timeout (ch : Channel.t) : Name_value.t list =
+    let raw_response_headers ?timeout (ch : [> kind ] Channel.t) : Name_value.t list =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout ch "rawResponseHeaders" params (fun j -> D.req "headers" (D.list (Name_value.of_json c)) j)
 
-    let http_version ?timeout (ch : Channel.t) : string =
+    let http_version ?timeout (ch : [> kind ] Channel.t) : string =
         let params = `Assoc [] in
         Channel.call ?timeout ch "httpVersion" params (fun j -> D.req "value" D.string j)
 
-    let sizes ?timeout (ch : Channel.t) : Request_sizes.t =
+    let sizes ?timeout (ch : [> kind ] Channel.t) : Request_sizes.t =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout ch "sizes" params (fun j -> D.req "sizes" (Request_sizes.of_json c) j)
@@ -4824,7 +4871,10 @@ module Response = struct
 end
 
 module Web_socket = struct
-    let type_name = "WebSocket"
+    type kind = Kind.web_socket
+    type t = kind Channel.t
+
+    let kind = Kind.web_socket
 
     module Initializer = struct
         type t = {
@@ -4842,6 +4892,8 @@ module Web_socket = struct
                 url = D.req "url" D.string j;
             }
     end
+
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
 
     type event =
         | Open
@@ -4876,10 +4928,17 @@ module Web_socket = struct
         | "close" -> Some Close
         | _ -> None
 
+    let listen (ch : [> kind ] Channel.t) (handle : event -> unit) =
+        let c = Channel.conn ch in
+        Channel.listen ch (fun name j -> match event_of_json c name j with Some event -> handle event | None -> ())
+
 end
 
 module Page = struct
-    let type_name = "Page"
+    type kind = Kind.page
+    type t = kind Channel.t
+
+    let kind = Kind.page
 
     module Initializer_viewport_size = struct
         type t = {
@@ -4903,30 +4962,30 @@ module Page = struct
 
     module Initializer = struct
         type t = {
-            main_frame : Channel.t;
+            main_frame : Kind.frame Channel.t;
             viewport_size : Initializer_viewport_size.t option;
             is_closed : bool;
-            opener : Channel.t option;
-            video : Channel.t option;
+            opener : Kind.page Channel.t option;
+            video : Kind.artifact Channel.t option;
         }
 
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.req "mainFrame" Channel.to_json v.main_frame;
+                    Json.req "mainFrame" (Channel.to_json : [> Kind.frame ] Channel.t -> Json.t) v.main_frame;
                     Json.opt "viewportSize" Initializer_viewport_size.to_json v.viewport_size;
                     Json.req "isClosed" Json.bool v.is_closed;
-                    Json.opt "opener" Channel.to_json v.opener;
-                    Json.opt "video" Channel.to_json v.video;
+                    Json.opt "opener" (Channel.to_json : [> Kind.page ] Channel.t -> Json.t) v.opener;
+                    Json.opt "video" (Channel.to_json : [> Kind.artifact ] Channel.t -> Json.t) v.video;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                main_frame = D.req "mainFrame" (Channel.of_json c) j;
+                main_frame = D.req "mainFrame" (Channel.of_json Kind.frame c) j;
                 viewport_size = D.opt "viewportSize" (Initializer_viewport_size.of_json c) j;
                 is_closed = D.req "isClosed" D.bool j;
-                opener = D.opt "opener" (Channel.of_json c) j;
-                video = D.opt "video" (Channel.of_json c) j;
+                opener = D.opt "opener" (Channel.of_json Kind.page c) j;
+                video = D.opt "video" (Channel.of_json Kind.artifact c) j;
             }
     end
 
@@ -4934,7 +4993,7 @@ module Page = struct
         type t = {
             type_ : string;
             text : string;
-            args : Channel.t list;
+            args : Kind.js_handle Channel.t list;
             location : Console_message_location.t;
             timestamp : float;
         }
@@ -4944,7 +5003,7 @@ module Page = struct
                 [
                     Json.req "type" Json.string v.type_;
                     Json.req "text" Json.string v.text;
-                    Json.req "args" (Json.list Channel.to_json) v.args;
+                    Json.req "args" (Json.list (Channel.to_json : [> Kind.js_handle ] Channel.t -> Json.t)) v.args;
                     Json.req "location" Console_message_location.to_json v.location;
                     Json.req "timestamp" Json.float v.timestamp;
                 ]
@@ -4953,7 +5012,7 @@ module Page = struct
             {
                 type_ = D.req "type" D.string j;
                 text = D.req "text" D.string j;
-                args = D.req "args" (D.list (Channel.of_json c)) j;
+                args = D.req "args" (D.list (Channel.of_json Kind.js_handle c)) j;
                 location = D.req "location" (Console_message_location.of_json c) j;
                 timestamp = D.req "timestamp" D.float j;
             }
@@ -4961,20 +5020,20 @@ module Page = struct
 
     module Expect_screenshot_locator = struct
         type t = {
-            frame : Channel.t;
+            frame : Kind.frame Channel.t;
             selector : string;
         }
 
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.req "frame" Channel.to_json v.frame;
+                    Json.req "frame" (Channel.to_json : [> Kind.frame ] Channel.t -> Json.t) v.frame;
                     Json.req "selector" Json.string v.selector;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                frame = D.req "frame" (Channel.of_json c) j;
+                frame = D.req "frame" (Channel.of_json Kind.frame c) j;
                 selector = D.req "selector" D.string j;
             }
     end
@@ -5264,21 +5323,23 @@ module Page = struct
             }
     end
 
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
+
     type event =
-        | Binding_call of { binding : Channel.t }
+        | Binding_call of { binding : Kind.binding_call Channel.t }
         | Close
         | Crash
-        | Download of { url : string; suggested_filename : string; artifact : Channel.t }
+        | Download of { url : string; suggested_filename : string; artifact : Kind.artifact Channel.t }
         | Viewport_size_changed of { viewport_size : Viewport_size_changed_event_viewport_size.t option }
-        | File_chooser of { element : Channel.t; is_multiple : bool }
-        | Frame_attached of { frame : Channel.t }
-        | Frame_detached of { frame : Channel.t }
+        | File_chooser of { element : Kind.element_handle Channel.t; is_multiple : bool }
+        | Frame_attached of { frame : Kind.frame Channel.t }
+        | Frame_detached of { frame : Kind.frame Channel.t }
         | Locator_handler_triggered of { uid : int }
-        | Route of { route : Channel.t }
+        | Route of { route : Kind.route Channel.t }
         | Screencast_frame of { frame_id : int; data : string; timestamp : float; viewport_width : int; viewport_height : int }
-        | Web_socket_route of { web_socket_route : Channel.t }
-        | Web_socket of { web_socket : Channel.t }
-        | Worker of { worker : Channel.t }
+        | Web_socket_route of { web_socket_route : Kind.web_socket_route Channel.t }
+        | Web_socket of { web_socket : Kind.web_socket Channel.t }
+        | Worker of { worker : Kind.worker Channel.t }
 
     let event_of_json (c : Channel.conn) (name : string) (j : Json.t) : event option =
         match name with
@@ -5286,7 +5347,7 @@ module Page = struct
             Some
                 (Binding_call
                       {
-                          binding = D.req "binding" (Channel.of_json c) j;
+                          binding = D.req "binding" (Channel.of_json Kind.binding_call c) j;
                       })
         | "close" -> Some Close
         | "crash" -> Some Crash
@@ -5296,7 +5357,7 @@ module Page = struct
                       {
                           url = D.req "url" D.string j;
                           suggested_filename = D.req "suggestedFilename" D.string j;
-                          artifact = D.req "artifact" (Channel.of_json c) j;
+                          artifact = D.req "artifact" (Channel.of_json Kind.artifact c) j;
                       })
         | "viewportSizeChanged" ->
             Some
@@ -5308,20 +5369,20 @@ module Page = struct
             Some
                 (File_chooser
                       {
-                          element = D.req "element" (Channel.of_json c) j;
+                          element = D.req "element" (Channel.of_json Kind.element_handle c) j;
                           is_multiple = D.req "isMultiple" D.bool j;
                       })
         | "frameAttached" ->
             Some
                 (Frame_attached
                       {
-                          frame = D.req "frame" (Channel.of_json c) j;
+                          frame = D.req "frame" (Channel.of_json Kind.frame c) j;
                       })
         | "frameDetached" ->
             Some
                 (Frame_detached
                       {
-                          frame = D.req "frame" (Channel.of_json c) j;
+                          frame = D.req "frame" (Channel.of_json Kind.frame c) j;
                       })
         | "locatorHandlerTriggered" ->
             Some
@@ -5333,7 +5394,7 @@ module Page = struct
             Some
                 (Route
                       {
-                          route = D.req "route" (Channel.of_json c) j;
+                          route = D.req "route" (Channel.of_json Kind.route c) j;
                       })
         | "screencastFrame" ->
             Some
@@ -5349,23 +5410,27 @@ module Page = struct
             Some
                 (Web_socket_route
                       {
-                          web_socket_route = D.req "webSocketRoute" (Channel.of_json c) j;
+                          web_socket_route = D.req "webSocketRoute" (Channel.of_json Kind.web_socket_route c) j;
                       })
         | "webSocket" ->
             Some
                 (Web_socket
                       {
-                          web_socket = D.req "webSocket" (Channel.of_json c) j;
+                          web_socket = D.req "webSocket" (Channel.of_json Kind.web_socket c) j;
                       })
         | "worker" ->
             Some
                 (Worker
                       {
-                          worker = D.req "worker" (Channel.of_json c) j;
+                          worker = D.req "worker" (Channel.of_json Kind.worker c) j;
                       })
         | _ -> None
 
-    let add_init_script ?timeout ~source (ch : Channel.t) : Channel.t =
+    let listen (ch : [> kind ] Channel.t) (handle : event -> unit) =
+        let c = Channel.conn ch in
+        Channel.listen ch (fun name j -> match event_of_json c name j with Some event -> handle event | None -> ())
+
+    let add_init_script ?timeout ~source (ch : [> kind ] Channel.t) : Kind.disposable Channel.t =
         let params =
             Json.obj
                 [
@@ -5376,9 +5441,9 @@ module Page = struct
         Channel.call ?timeout ~abortable:false
             ~orphan:(fun result -> Channel.release "dispose" result)
             ch "addInitScript" params
-            (fun j -> D.req "disposable" (Channel.of_json c) j)
+            (fun j -> D.req "disposable" (Channel.of_json Kind.disposable c) j)
 
-    let close ?timeout ?reason (ch : Channel.t) : unit =
+    let close ?timeout ?reason (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5387,15 +5452,15 @@ module Page = struct
         in
         Channel.call ?timeout ch "close" params ignore
 
-    let run_before_unload ?timeout (ch : Channel.t) : unit =
+    let run_before_unload ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "runBeforeUnload" params ignore
 
-    let clear_console_messages ?timeout (ch : Channel.t) : unit =
+    let clear_console_messages ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "clearConsoleMessages" params ignore
 
-    let console_messages ?timeout ?filter (ch : Channel.t) : Console_messages_result_messages.t list =
+    let console_messages ?timeout ?filter (ch : [> kind ] Channel.t) : Console_messages_result_messages.t list =
         let params =
             Json.obj
                 [
@@ -5408,7 +5473,7 @@ module Page = struct
             ch "consoleMessages" params
             (fun j -> D.req "messages" (D.list (Console_messages_result_messages.of_json c)) j)
 
-    let emulate_media ?timeout ?media ?color_scheme ?reduced_motion ?forced_colors ?contrast (ch : Channel.t) : unit =
+    let emulate_media ?timeout ?media ?color_scheme ?reduced_motion ?forced_colors ?contrast (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5421,7 +5486,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "emulateMedia" params ignore
 
-    let expose_binding ?timeout ~name ?no_global (ch : Channel.t) : Channel.t =
+    let expose_binding ?timeout ~name ?no_global (ch : [> kind ] Channel.t) : Kind.disposable Channel.t =
         let params =
             Json.obj
                 [
@@ -5433,9 +5498,9 @@ module Page = struct
         Channel.call ?timeout ~abortable:false
             ~orphan:(fun result -> Channel.release "dispose" result)
             ch "exposeBinding" params
-            (fun j -> D.req "disposable" (Channel.of_json c) j)
+            (fun j -> D.req "disposable" (Channel.of_json Kind.disposable c) j)
 
-    let go_back ?timeout ?wait_until (ch : Channel.t) : Channel.t option =
+    let go_back ?timeout ?wait_until (ch : [> kind ] Channel.t) : Kind.response Channel.t option =
         let params =
             Json.obj
                 [
@@ -5443,9 +5508,9 @@ module Page = struct
                 ]
         in
         let c = Channel.conn ch in
-        Channel.call ?timeout ch "goBack" params (fun j -> D.opt "response" (Channel.of_json c) j)
+        Channel.call ?timeout ch "goBack" params (fun j -> D.opt "response" (Channel.of_json Kind.response c) j)
 
-    let go_forward ?timeout ?wait_until (ch : Channel.t) : Channel.t option =
+    let go_forward ?timeout ?wait_until (ch : [> kind ] Channel.t) : Kind.response Channel.t option =
         let params =
             Json.obj
                 [
@@ -5453,13 +5518,13 @@ module Page = struct
                 ]
         in
         let c = Channel.conn ch in
-        Channel.call ?timeout ch "goForward" params (fun j -> D.opt "response" (Channel.of_json c) j)
+        Channel.call ?timeout ch "goForward" params (fun j -> D.opt "response" (Channel.of_json Kind.response c) j)
 
-    let request_gc ?timeout (ch : Channel.t) : unit =
+    let request_gc ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "requestGC" params ignore
 
-    let register_locator_handler ?timeout ~selector ?no_wait_after (ch : Channel.t) : int =
+    let register_locator_handler ?timeout ~selector ?no_wait_after (ch : [> kind ] Channel.t) : int =
         let params =
             Json.obj
                 [
@@ -5469,7 +5534,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "registerLocatorHandler" params (fun j -> D.req "uid" D.int j)
 
-    let resolve_locator_handler_no_reply ?timeout ~uid ?remove (ch : Channel.t) : unit =
+    let resolve_locator_handler_no_reply ?timeout ~uid ?remove (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5479,7 +5544,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "resolveLocatorHandlerNoReply" params ignore
 
-    let unregister_locator_handler ?timeout ~uid (ch : Channel.t) : unit =
+    let unregister_locator_handler ?timeout ~uid (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5488,7 +5553,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "unregisterLocatorHandler" params ignore
 
-    let reload ?timeout ?wait_until (ch : Channel.t) : Channel.t option =
+    let reload ?timeout ?wait_until (ch : [> kind ] Channel.t) : Kind.response Channel.t option =
         let params =
             Json.obj
                 [
@@ -5496,9 +5561,9 @@ module Page = struct
                 ]
         in
         let c = Channel.conn ch in
-        Channel.call ?timeout ch "reload" params (fun j -> D.opt "response" (Channel.of_json c) j)
+        Channel.call ?timeout ch "reload" params (fun j -> D.opt "response" (Channel.of_json Kind.response c) j)
 
-    let expect_screenshot ?timeout ?expected ~is_not ?locator ?comparator ?max_diff_pixels ?max_diff_pixel_ratio ?threshold ?full_page ?clip ?type_ ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (ch : Channel.t) : string option =
+    let expect_screenshot ?timeout ?expected ~is_not ?locator ?comparator ?max_diff_pixels ?max_diff_pixel_ratio ?threshold ?full_page ?clip ?type_ ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (ch : [> kind ] Channel.t) : string option =
         let params =
             Json.obj
                 [
@@ -5523,7 +5588,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "expectScreenshot" params (fun j -> D.opt "actual" D.binary j)
 
-    let screenshot ?timeout ?type_ ?quality ?full_page ?clip ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (ch : Channel.t) : string =
+    let screenshot ?timeout ?type_ ?quality ?full_page ?clip ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
@@ -5542,7 +5607,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "screenshot" params (fun j -> D.req "binary" D.binary j)
 
-    let set_extra_http_headers ?timeout ~headers (ch : Channel.t) : unit =
+    let set_extra_http_headers ?timeout ~headers (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5551,7 +5616,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "setExtraHTTPHeaders" params ignore
 
-    let set_network_interception_patterns ?timeout ~patterns (ch : Channel.t) : unit =
+    let set_network_interception_patterns ?timeout ~patterns (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5560,7 +5625,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "setNetworkInterceptionPatterns" params ignore
 
-    let set_web_socket_interception_patterns ?timeout ~patterns (ch : Channel.t) : unit =
+    let set_web_socket_interception_patterns ?timeout ~patterns (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5569,7 +5634,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "setWebSocketInterceptionPatterns" params ignore
 
-    let set_viewport_size ?timeout ~viewport_size (ch : Channel.t) : unit =
+    let set_viewport_size ?timeout ~viewport_size (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5578,7 +5643,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "setViewportSize" params ignore
 
-    let keyboard_down ?timeout ~key (ch : Channel.t) : unit =
+    let keyboard_down ?timeout ~key (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5587,7 +5652,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "keyboardDown" params ignore
 
-    let keyboard_up ?timeout ~key (ch : Channel.t) : unit =
+    let keyboard_up ?timeout ~key (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5596,7 +5661,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "keyboardUp" params ignore
 
-    let keyboard_insert_text ?timeout ~text (ch : Channel.t) : unit =
+    let keyboard_insert_text ?timeout ~text (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5605,7 +5670,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "keyboardInsertText" params ignore
 
-    let keyboard_type ?timeout ~text ?delay (ch : Channel.t) : unit =
+    let keyboard_type ?timeout ~text ?delay (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5615,7 +5680,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "keyboardType" params ignore
 
-    let keyboard_press ?timeout ~key ?delay (ch : Channel.t) : unit =
+    let keyboard_press ?timeout ~key ?delay (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5625,7 +5690,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "keyboardPress" params ignore
 
-    let mouse_move ?timeout ~x ~y ?steps (ch : Channel.t) : unit =
+    let mouse_move ?timeout ~x ~y ?steps (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5636,7 +5701,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "mouseMove" params ignore
 
-    let mouse_down ?timeout ?button ?click_count (ch : Channel.t) : unit =
+    let mouse_down ?timeout ?button ?click_count (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5646,7 +5711,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "mouseDown" params ignore
 
-    let mouse_up ?timeout ?button ?click_count (ch : Channel.t) : unit =
+    let mouse_up ?timeout ?button ?click_count (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5656,7 +5721,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "mouseUp" params ignore
 
-    let mouse_click ?timeout ~x ~y ?delay ?button ?click_count (ch : Channel.t) : unit =
+    let mouse_click ?timeout ~x ~y ?delay ?button ?click_count (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5669,7 +5734,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "mouseClick" params ignore
 
-    let mouse_wheel ?timeout ~delta_x ~delta_y (ch : Channel.t) : unit =
+    let mouse_wheel ?timeout ~delta_x ~delta_y (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5679,7 +5744,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "mouseWheel" params ignore
 
-    let touchscreen_tap ?timeout ~x ~y (ch : Channel.t) : unit =
+    let touchscreen_tap ?timeout ~x ~y (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5689,11 +5754,11 @@ module Page = struct
         in
         Channel.call ?timeout ch "touchscreenTap" params ignore
 
-    let clear_page_errors ?timeout (ch : Channel.t) : unit =
+    let clear_page_errors ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "clearPageErrors" params ignore
 
-    let page_errors ?timeout ?filter (ch : Channel.t) : Serialized_error.t list =
+    let page_errors ?timeout ?filter (ch : [> kind ] Channel.t) : Serialized_error.t list =
         let params =
             Json.obj
                 [
@@ -5703,7 +5768,7 @@ module Page = struct
         let c = Channel.conn ch in
         Channel.call ?timeout ch "pageErrors" params (fun j -> D.req "errors" (D.list (Serialized_error.of_json c)) j)
 
-    let pdf ?timeout ?scale ?display_header_footer ?header_template ?footer_template ?print_background ?landscape ?page_ranges ?format ?width ?height ?prefer_css_page_size ?margin ?tagged ?outline (ch : Channel.t) : string =
+    let pdf ?timeout ?scale ?display_header_footer ?header_template ?footer_template ?print_background ?landscape ?page_ranges ?format ?width ?height ?prefer_css_page_size ?margin ?tagged ?outline (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
@@ -5725,12 +5790,12 @@ module Page = struct
         in
         Channel.call ?timeout ch "pdf" params (fun j -> D.req "pdf" D.binary j)
 
-    let requests ?timeout (ch : Channel.t) : Channel.t list =
+    let requests ?timeout (ch : [> kind ] Channel.t) : Kind.request Channel.t list =
         let params = `Assoc [] in
         let c = Channel.conn ch in
-        Channel.call ?timeout ch "requests" params (fun j -> D.req "requests" (D.list (Channel.of_json c)) j)
+        Channel.call ?timeout ch "requests" params (fun j -> D.req "requests" (D.list (Channel.of_json Kind.request c)) j)
 
-    let start_js_coverage ?timeout ?reset_on_navigation ?report_anonymous_scripts (ch : Channel.t) : unit =
+    let start_js_coverage ?timeout ?reset_on_navigation ?report_anonymous_scripts (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5740,12 +5805,12 @@ module Page = struct
         in
         Channel.call ?timeout ch "startJSCoverage" params ignore
 
-    let stop_js_coverage ?timeout (ch : Channel.t) : Stop_js_coverage_result_entries.t list =
+    let stop_js_coverage ?timeout (ch : [> kind ] Channel.t) : Stop_js_coverage_result_entries.t list =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout ch "stopJSCoverage" params (fun j -> D.req "entries" (D.list (Stop_js_coverage_result_entries.of_json c)) j)
 
-    let start_css_coverage ?timeout ?reset_on_navigation (ch : Channel.t) : unit =
+    let start_css_coverage ?timeout ?reset_on_navigation (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5754,28 +5819,28 @@ module Page = struct
         in
         Channel.call ?timeout ch "startCSSCoverage" params ignore
 
-    let stop_css_coverage ?timeout (ch : Channel.t) : Stop_css_coverage_result_entries.t list =
+    let stop_css_coverage ?timeout (ch : [> kind ] Channel.t) : Stop_css_coverage_result_entries.t list =
         let params = `Assoc [] in
         let c = Channel.conn ch in
         Channel.call ?timeout ch "stopCSSCoverage" params (fun j -> D.req "entries" (D.list (Stop_css_coverage_result_entries.of_json c)) j)
 
-    let bring_to_front ?timeout (ch : Channel.t) : unit =
+    let bring_to_front ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "bringToFront" params ignore
 
-    let pick_locator ?timeout (ch : Channel.t) : string =
+    let pick_locator ?timeout (ch : [> kind ] Channel.t) : string =
         let params = `Assoc [] in
         Channel.call ?timeout ch "pickLocator" params (fun j -> D.req "selector" D.string j)
 
-    let cancel_pick_locator ?timeout (ch : Channel.t) : unit =
+    let cancel_pick_locator ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "cancelPickLocator" params ignore
 
-    let hide_highlight ?timeout (ch : Channel.t) : unit =
+    let hide_highlight ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "hideHighlight" params ignore
 
-    let screencast_show_overlay ?timeout ~html ?duration (ch : Channel.t) : string =
+    let screencast_show_overlay ?timeout ~html ?duration (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
@@ -5785,7 +5850,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "screencastShowOverlay" params (fun j -> D.req "id" D.string j)
 
-    let screencast_remove_overlay ?timeout ~id (ch : Channel.t) : unit =
+    let screencast_remove_overlay ?timeout ~id (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5794,7 +5859,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "screencastRemoveOverlay" params ignore
 
-    let screencast_chapter ?timeout ~title ?description ?duration (ch : Channel.t) : unit =
+    let screencast_chapter ?timeout ~title ?description ?duration (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5805,7 +5870,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "screencastChapter" params ignore
 
-    let screencast_set_overlay_visible ?timeout ~visible (ch : Channel.t) : unit =
+    let screencast_set_overlay_visible ?timeout ~visible (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5814,7 +5879,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "screencastSetOverlayVisible" params ignore
 
-    let screencast_show_actions ?timeout ?duration ?position ?font_size ?cursor ?style (ch : Channel.t) : unit =
+    let screencast_show_actions ?timeout ?duration ?position ?font_size ?cursor ?style (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5827,11 +5892,11 @@ module Page = struct
         in
         Channel.call ?timeout ch "screencastShowActions" params ignore
 
-    let screencast_hide_actions ?timeout (ch : Channel.t) : unit =
+    let screencast_hide_actions ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "screencastHideActions" params ignore
 
-    let screencast_start ?timeout ?size ?quality ?fps ?send_frames ?record (ch : Channel.t) : Channel.t option =
+    let screencast_start ?timeout ?size ?quality ?fps ?send_frames ?record (ch : [> kind ] Channel.t) : Kind.artifact Channel.t option =
         let params =
             Json.obj
                 [
@@ -5843,9 +5908,9 @@ module Page = struct
                 ]
         in
         let c = Channel.conn ch in
-        Channel.call ?timeout ch "screencastStart" params (fun j -> D.opt "artifact" (Channel.of_json c) j)
+        Channel.call ?timeout ch "screencastStart" params (fun j -> D.opt "artifact" (Channel.of_json Kind.artifact c) j)
 
-    let screencast_frame_ack ?timeout ~frame_id (ch : Channel.t) : unit =
+    let screencast_frame_ack ?timeout ~frame_id (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5854,11 +5919,11 @@ module Page = struct
         in
         Channel.call ?timeout ch "screencastFrameAck" params ignore
 
-    let screencast_stop ?timeout (ch : Channel.t) : unit =
+    let screencast_stop ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "screencastStop" params ignore
 
-    let update_subscription ?timeout ~event ~enabled (ch : Channel.t) : unit =
+    let update_subscription ?timeout ~event ~enabled (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5868,7 +5933,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "updateSubscription" params ignore
 
-    let set_dock_tile ?timeout ~image (ch : Channel.t) : unit =
+    let set_dock_tile ?timeout ~image (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5877,7 +5942,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "setDockTile" params ignore
 
-    let web_storage_items ?timeout ~kind (ch : Channel.t) : Name_value.t list =
+    let web_storage_items ?timeout ~kind (ch : [> kind ] Channel.t) : Name_value.t list =
         let params =
             Json.obj
                 [
@@ -5887,7 +5952,7 @@ module Page = struct
         let c = Channel.conn ch in
         Channel.call ?timeout ch "webStorageItems" params (fun j -> D.req "items" (D.list (Name_value.of_json c)) j)
 
-    let web_storage_get_item ?timeout ~kind ~name (ch : Channel.t) : string option =
+    let web_storage_get_item ?timeout ~kind ~name (ch : [> kind ] Channel.t) : string option =
         let params =
             Json.obj
                 [
@@ -5897,7 +5962,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "webStorageGetItem" params (fun j -> D.opt "value" D.string j)
 
-    let web_storage_set_item ?timeout ~kind ~name ~value (ch : Channel.t) : unit =
+    let web_storage_set_item ?timeout ~kind ~name ~value (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5908,7 +5973,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "webStorageSetItem" params ignore
 
-    let web_storage_remove_item ?timeout ~kind ~name (ch : Channel.t) : unit =
+    let web_storage_remove_item ?timeout ~kind ~name (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5918,7 +5983,7 @@ module Page = struct
         in
         Channel.call ?timeout ch "webStorageRemoveItem" params ignore
 
-    let web_storage_clear ?timeout ~kind (ch : Channel.t) : unit =
+    let web_storage_clear ?timeout ~kind (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -5930,9 +5995,12 @@ module Page = struct
 end
 
 module Root = struct
-    let type_name = "Root"
+    type kind = Kind.root
+    type t = kind Channel.t
 
-    let initialize ?timeout ~sdk_language ?supports_lone_surrogates (ch : Channel.t) : Channel.t =
+    let kind = Kind.root
+
+    let initialize ?timeout ~sdk_language ?supports_lone_surrogates (ch : [> kind ] Channel.t) : Kind.playwright Channel.t =
         let params =
             Json.obj
                 [
@@ -5941,51 +6009,54 @@ module Root = struct
                 ]
         in
         let c = Channel.conn ch in
-        Channel.call ?timeout ch "initialize" params (fun j -> D.req "playwright" (Channel.of_json c) j)
+        Channel.call ?timeout ch "initialize" params (fun j -> D.req "playwright" (Channel.of_json Kind.playwright c) j)
 
 end
 
 module Playwright = struct
-    let type_name = "Playwright"
+    type kind = Kind.playwright
+    type t = kind Channel.t
+
+    let kind = Kind.playwright
 
     module Initializer = struct
         type t = {
-            chromium : Channel.t;
-            firefox : Channel.t;
-            webkit : Channel.t;
-            android : Channel.t;
-            electron : Channel.t;
-            utils : Channel.t option;
-            pre_launched_browser : Channel.t option;
-            pre_connected_android_device : Channel.t option;
-            socks_support : Channel.t option;
+            chromium : Kind.browser_type Channel.t;
+            firefox : Kind.browser_type Channel.t;
+            webkit : Kind.browser_type Channel.t;
+            android : Channel.any;
+            electron : Channel.any;
+            utils : Kind.local_utils Channel.t option;
+            pre_launched_browser : Kind.browser Channel.t option;
+            pre_connected_android_device : Channel.any option;
+            socks_support : Channel.any option;
         }
 
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.req "chromium" Channel.to_json v.chromium;
-                    Json.req "firefox" Channel.to_json v.firefox;
-                    Json.req "webkit" Channel.to_json v.webkit;
-                    Json.req "android" Channel.to_json v.android;
-                    Json.req "electron" Channel.to_json v.electron;
-                    Json.opt "utils" Channel.to_json v.utils;
-                    Json.opt "preLaunchedBrowser" Channel.to_json v.pre_launched_browser;
-                    Json.opt "preConnectedAndroidDevice" Channel.to_json v.pre_connected_android_device;
-                    Json.opt "socksSupport" Channel.to_json v.socks_support;
+                    Json.req "chromium" (Channel.to_json : [> Kind.browser_type ] Channel.t -> Json.t) v.chromium;
+                    Json.req "firefox" (Channel.to_json : [> Kind.browser_type ] Channel.t -> Json.t) v.firefox;
+                    Json.req "webkit" (Channel.to_json : [> Kind.browser_type ] Channel.t -> Json.t) v.webkit;
+                    Json.req "android" Channel.any_to_json v.android;
+                    Json.req "electron" Channel.any_to_json v.electron;
+                    Json.opt "utils" (Channel.to_json : [> Kind.local_utils ] Channel.t -> Json.t) v.utils;
+                    Json.opt "preLaunchedBrowser" (Channel.to_json : [> Kind.browser ] Channel.t -> Json.t) v.pre_launched_browser;
+                    Json.opt "preConnectedAndroidDevice" Channel.any_to_json v.pre_connected_android_device;
+                    Json.opt "socksSupport" Channel.any_to_json v.socks_support;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                chromium = D.req "chromium" (Channel.of_json c) j;
-                firefox = D.req "firefox" (Channel.of_json c) j;
-                webkit = D.req "webkit" (Channel.of_json c) j;
-                android = D.req "android" (Channel.of_json c) j;
-                electron = D.req "electron" (Channel.of_json c) j;
-                utils = D.opt "utils" (Channel.of_json c) j;
-                pre_launched_browser = D.opt "preLaunchedBrowser" (Channel.of_json c) j;
-                pre_connected_android_device = D.opt "preConnectedAndroidDevice" (Channel.of_json c) j;
-                socks_support = D.opt "socksSupport" (Channel.of_json c) j;
+                chromium = D.req "chromium" (Channel.of_json Kind.browser_type c) j;
+                firefox = D.req "firefox" (Channel.of_json Kind.browser_type c) j;
+                webkit = D.req "webkit" (Channel.of_json Kind.browser_type c) j;
+                android = D.req "android" (Channel.any_of_json c) j;
+                electron = D.req "electron" (Channel.any_of_json c) j;
+                utils = D.opt "utils" (Channel.of_json Kind.local_utils c) j;
+                pre_launched_browser = D.opt "preLaunchedBrowser" (Channel.of_json Kind.browser c) j;
+                pre_connected_android_device = D.opt "preConnectedAndroidDevice" (Channel.any_of_json c) j;
+                socks_support = D.opt "socksSupport" (Channel.any_of_json c) j;
             }
     end
 
@@ -6064,7 +6135,9 @@ module Playwright = struct
             }
     end
 
-    let new_request ?timeout ?base_url ?user_agent ?ignore_https_errors ?extra_http_headers ?fail_on_status_code ?client_certificates ?max_redirects ?http_credentials ?proxy ?storage_state ?traces_dir (ch : Channel.t) : Channel.t =
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
+
+    let new_request ?timeout ?base_url ?user_agent ?ignore_https_errors ?extra_http_headers ?fail_on_status_code ?client_certificates ?max_redirects ?http_credentials ?proxy ?storage_state ?traces_dir (ch : [> kind ] Channel.t) : Kind.api_request_context Channel.t =
         let params =
             Json.obj
                 [
@@ -6085,12 +6158,15 @@ module Playwright = struct
         Channel.call ?timeout ~abortable:false
             ~orphan:(fun result -> Channel.release "dispose" result)
             ch "newRequest" params
-            (fun j -> D.req "request" (Channel.of_json c) j)
+            (fun j -> D.req "request" (Channel.of_json Kind.api_request_context c) j)
 
 end
 
 module Json_pipe = struct
-    let type_name = "JsonPipe"
+    type kind = Kind.json_pipe
+    type t = kind Channel.t
+
+    let kind = Kind.json_pipe
 
     type event =
         | Message of { message : Json.t }
@@ -6112,7 +6188,11 @@ module Json_pipe = struct
                       })
         | _ -> None
 
-    let send ?timeout ~message (ch : Channel.t) : unit =
+    let listen (ch : [> kind ] Channel.t) (handle : event -> unit) =
+        let c = Channel.conn ch in
+        Channel.listen ch (fun name j -> match event_of_json c name j with Some event -> handle event | None -> ())
+
+    let send ?timeout ~message (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -6121,14 +6201,17 @@ module Json_pipe = struct
         in
         Channel.call ?timeout ch "send" params ignore
 
-    let close ?timeout (ch : Channel.t) : unit =
+    let close ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "close" params ignore
 
 end
 
 module Cdp_session = struct
-    let type_name = "CDPSession"
+    type kind = Kind.cdp_session
+    type t = kind Channel.t
+
+    let kind = Kind.cdp_session
 
     type event =
         | Event of { method_ : string; params : Json.t option }
@@ -6146,7 +6229,11 @@ module Cdp_session = struct
         | "close" -> Some Close
         | _ -> None
 
-    let send ?timeout ~method_ ?params (ch : Channel.t) : Json.t =
+    let listen (ch : [> kind ] Channel.t) (handle : event -> unit) =
+        let c = Channel.conn ch in
+        Channel.listen ch (fun name j -> match event_of_json c name j with Some event -> handle event | None -> ())
+
+    let send ?timeout ~method_ ?params (ch : [> kind ] Channel.t) : Json.t =
         let params =
             Json.obj
                 [
@@ -6156,18 +6243,21 @@ module Cdp_session = struct
         in
         Channel.call ?timeout ch "send" params (fun j -> D.req "result" D.any j)
 
-    let detach ?timeout (ch : Channel.t) : unit =
+    let detach ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "detach" params ignore
 
 end
 
 module Binding_call = struct
-    let type_name = "BindingCall"
+    type kind = Kind.binding_call
+    type t = kind Channel.t
+
+    let kind = Kind.binding_call
 
     module Initializer = struct
         type t = {
-            frame : Channel.t;
+            frame : Kind.frame Channel.t;
             name : string;
             args : Json.t list;
         }
@@ -6175,20 +6265,22 @@ module Binding_call = struct
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.req "frame" Channel.to_json v.frame;
+                    Json.req "frame" (Channel.to_json : [> Kind.frame ] Channel.t -> Json.t) v.frame;
                     Json.req "name" Json.string v.name;
                     Json.req "args" (Json.list Json.any) v.args;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                frame = D.req "frame" (Channel.of_json c) j;
+                frame = D.req "frame" (Channel.of_json Kind.frame c) j;
                 name = D.req "name" D.string j;
                 args = D.req "args" (D.list D.any) j;
             }
     end
 
-    let reject ?timeout ~error (ch : Channel.t) : unit =
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
+
+    let reject ?timeout ~error (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -6197,7 +6289,7 @@ module Binding_call = struct
         in
         Channel.call ?timeout ch "reject" params ignore
 
-    let resolve ?timeout ~result (ch : Channel.t) : unit =
+    let resolve ?timeout ~result (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -6209,7 +6301,10 @@ module Binding_call = struct
 end
 
 module Debugger = struct
-    let type_name = "Debugger"
+    type kind = Kind.debugger
+    type t = kind Channel.t
+
+    let kind = Kind.debugger
 
     module Run_to_location = struct
         type t = {
@@ -6358,19 +6453,23 @@ module Debugger = struct
                       })
         | _ -> None
 
-    let request_pause ?timeout (ch : Channel.t) : unit =
+    let listen (ch : [> kind ] Channel.t) (handle : event -> unit) =
+        let c = Channel.conn ch in
+        Channel.listen ch (fun name j -> match event_of_json c name j with Some event -> handle event | None -> ())
+
+    let request_pause ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "requestPause" params ignore
 
-    let resume ?timeout (ch : Channel.t) : unit =
+    let resume ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "resume" params ignore
 
-    let next ?timeout (ch : Channel.t) : unit =
+    let next ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "next" params ignore
 
-    let run_to ?timeout ~location (ch : Channel.t) : unit =
+    let run_to ?timeout ~location (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -6379,18 +6478,21 @@ module Debugger = struct
         in
         Channel.call ?timeout ch "runTo" params ignore
 
-    let enable ?timeout (ch : Channel.t) : unit =
+    let enable ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "enable" params ignore
 
 end
 
 module Dialog = struct
-    let type_name = "Dialog"
+    type kind = Kind.dialog
+    type t = kind Channel.t
+
+    let kind = Kind.dialog
 
     module Initializer = struct
         type t = {
-            page : Channel.t option;
+            page : Kind.page Channel.t option;
             type_ : string;
             message : string;
             default_value : string;
@@ -6399,7 +6501,7 @@ module Dialog = struct
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.opt "page" Channel.to_json v.page;
+                    Json.opt "page" (Channel.to_json : [> Kind.page ] Channel.t -> Json.t) v.page;
                     Json.req "type" Json.string v.type_;
                     Json.req "message" Json.string v.message;
                     Json.req "defaultValue" Json.string v.default_value;
@@ -6407,14 +6509,16 @@ module Dialog = struct
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                page = D.opt "page" (Channel.of_json c) j;
+                page = D.opt "page" (Channel.of_json Kind.page c) j;
                 type_ = D.req "type" D.string j;
                 message = D.req "message" D.string j;
                 default_value = D.req "defaultValue" D.string j;
             }
     end
 
-    let accept ?timeout ?prompt_text (ch : Channel.t) : unit =
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
+
+    let accept ?timeout ?prompt_text (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -6423,14 +6527,17 @@ module Dialog = struct
         in
         Channel.call ?timeout ch "accept" params ignore
 
-    let dismiss ?timeout (ch : Channel.t) : unit =
+    let dismiss ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "dismiss" params ignore
 
 end
 
 module Tracing = struct
-    let type_name = "Tracing"
+    type kind = Kind.tracing
+    type t = kind Channel.t
+
+    let kind = Kind.tracing
 
     module Tracing_group_location = struct
         type t = {
@@ -6457,45 +6564,45 @@ module Tracing = struct
 
     module Tracing_stop_chunk_result = struct
         type t = {
-            artifact : Channel.t option;
+            artifact : Kind.artifact Channel.t option;
             entries : Name_value.t list option;
         }
 
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.opt "artifact" Channel.to_json v.artifact;
+                    Json.opt "artifact" (Channel.to_json : [> Kind.artifact ] Channel.t -> Json.t) v.artifact;
                     Json.opt "entries" (Json.list Name_value.to_json) v.entries;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                artifact = D.opt "artifact" (Channel.of_json c) j;
+                artifact = D.opt "artifact" (Channel.of_json Kind.artifact c) j;
                 entries = D.opt "entries" (D.list (Name_value.of_json c)) j;
             }
     end
 
     module Har_export_result = struct
         type t = {
-            artifact : Channel.t option;
+            artifact : Kind.artifact Channel.t option;
             entries : Name_value.t list option;
         }
 
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.opt "artifact" Channel.to_json v.artifact;
+                    Json.opt "artifact" (Channel.to_json : [> Kind.artifact ] Channel.t -> Json.t) v.artifact;
                     Json.opt "entries" (Json.list Name_value.to_json) v.entries;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
             {
-                artifact = D.opt "artifact" (Channel.of_json c) j;
+                artifact = D.opt "artifact" (Channel.of_json Kind.artifact c) j;
                 entries = D.opt "entries" (D.list (Name_value.of_json c)) j;
             }
     end
 
-    let tracing_start ?timeout ?name ?snapshot_dom ?snapshot_aria ?snapshot_screen ?screencast ?coverage ?live (ch : Channel.t) : unit =
+    let tracing_start ?timeout ?name ?snapshot_dom ?snapshot_aria ?snapshot_screen ?screencast ?coverage ?live (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -6510,7 +6617,7 @@ module Tracing = struct
         in
         Channel.call ?timeout ch "tracingStart" params ignore
 
-    let tracing_start_chunk ?timeout ?name ?title (ch : Channel.t) : string =
+    let tracing_start_chunk ?timeout ?name ?title (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
@@ -6520,7 +6627,7 @@ module Tracing = struct
         in
         Channel.call ?timeout ch "tracingStartChunk" params (fun j -> D.req "traceName" D.string j)
 
-    let tracing_group ?timeout ~name ?location (ch : Channel.t) : unit =
+    let tracing_group ?timeout ~name ?location (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -6530,11 +6637,11 @@ module Tracing = struct
         in
         Channel.call ?timeout ch "tracingGroup" params ignore
 
-    let tracing_group_end ?timeout (ch : Channel.t) : unit =
+    let tracing_group_end ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "tracingGroupEnd" params ignore
 
-    let tracing_stop_chunk ?timeout ~mode (ch : Channel.t) : Tracing_stop_chunk_result.t =
+    let tracing_stop_chunk ?timeout ~mode (ch : [> kind ] Channel.t) : Tracing_stop_chunk_result.t =
         let params =
             Json.obj
                 [
@@ -6547,21 +6654,21 @@ module Tracing = struct
             ch "tracingStopChunk" params
             (fun j -> Tracing_stop_chunk_result.of_json c j)
 
-    let tracing_stop ?timeout (ch : Channel.t) : unit =
+    let tracing_stop ?timeout (ch : [> kind ] Channel.t) : unit =
         let params = `Assoc [] in
         Channel.call ?timeout ch "tracingStop" params ignore
 
-    let har_start ?timeout ?page ~options (ch : Channel.t) : string =
+    let har_start ?timeout ?page ~options (ch : [> kind ] Channel.t) : string =
         let params =
             Json.obj
                 [
-                    Json.opt "page" Channel.to_json page;
+                    Json.opt "page" (Channel.to_json : [> Kind.page ] Channel.t -> Json.t) page;
                     Json.req "options" Record_har_options.to_json options;
                 ]
         in
         Channel.call ?timeout ch "harStart" params (fun j -> D.req "harId" D.string j)
 
-    let har_export ?timeout ?har_id ~mode (ch : Channel.t) : Har_export_result.t =
+    let har_export ?timeout ?har_id ~mode (ch : [> kind ] Channel.t) : Har_export_result.t =
         let params =
             Json.obj
                 [
@@ -6578,7 +6685,10 @@ module Tracing = struct
 end
 
 module Worker = struct
-    let type_name = "Worker"
+    type kind = Kind.worker
+    type t = kind Channel.t
+
+    let kind = Kind.worker
 
     module Initializer = struct
         type t = {
@@ -6597,8 +6707,10 @@ module Worker = struct
             }
     end
 
+    let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)
+
     type event =
-        | Console of { type_ : string; text : string; args : Channel.t list; location : Console_message_location.t; timestamp : float }
+        | Console of { type_ : string; text : string; args : Kind.js_handle Channel.t list; location : Console_message_location.t; timestamp : float }
         | Close
 
     let event_of_json (c : Channel.conn) (name : string) (j : Json.t) : event option =
@@ -6609,14 +6721,18 @@ module Worker = struct
                       {
                           type_ = D.req "type" D.string j;
                           text = D.req "text" D.string j;
-                          args = D.req "args" (D.list (Channel.of_json c)) j;
+                          args = D.req "args" (D.list (Channel.of_json Kind.js_handle c)) j;
                           location = D.req "location" (Console_message_location.of_json c) j;
                           timestamp = D.req "timestamp" D.float j;
                       })
         | "close" -> Some Close
         | _ -> None
 
-    let disconnect ?timeout ?reason (ch : Channel.t) : unit =
+    let listen (ch : [> kind ] Channel.t) (handle : event -> unit) =
+        let c = Channel.conn ch in
+        Channel.listen ch (fun name j -> match event_of_json c name j with Some event -> handle event | None -> ())
+
+    let disconnect ?timeout ?reason (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -6625,7 +6741,7 @@ module Worker = struct
         in
         Channel.call ?timeout ch "disconnect" params ignore
 
-    let evaluate_expression ?timeout ~expression ?is_function ~arg (ch : Channel.t) : Json.t =
+    let evaluate_expression ?timeout ~expression ?is_function ~arg (ch : [> kind ] Channel.t) : Json.t =
         let params =
             Json.obj
                 [
@@ -6636,7 +6752,7 @@ module Worker = struct
         in
         Channel.call ?timeout ch "evaluateExpression" params (fun j -> D.req "value" D.any j)
 
-    let evaluate_expression_handle ?timeout ~expression ?is_function ~arg (ch : Channel.t) : Channel.t =
+    let evaluate_expression_handle ?timeout ~expression ?is_function ~arg (ch : [> kind ] Channel.t) : Kind.js_handle Channel.t =
         let params =
             Json.obj
                 [
@@ -6649,9 +6765,9 @@ module Worker = struct
         Channel.call ?timeout
             ~orphan:(fun result -> Channel.release "dispose" result)
             ch "evaluateExpressionHandle" params
-            (fun j -> D.req "handle" (Channel.of_json c) j)
+            (fun j -> D.req "handle" (Channel.of_json Kind.js_handle c) j)
 
-    let update_subscription ?timeout ~event ~enabled (ch : Channel.t) : unit =
+    let update_subscription ?timeout ~event ~enabled (ch : [> kind ] Channel.t) : unit =
         let params =
             Json.obj
                 [
@@ -6663,3 +6779,68 @@ module Worker = struct
 
 end
 
+(* {1 Objects} *)
+
+module Object = struct
+    type t =
+        | Api_request_context of Api_request_context.t
+        | Artifact of Artifact.t
+        | Stream of Stream.t
+        | Writable_stream of Writable_stream.t
+        | Browser of Browser.t
+        | Browser_context of Browser_context.t
+        | Browser_type of Browser_type.t
+        | Disposable of Disposable.t
+        | Frame of Frame.t
+        | Js_handle of Js_handle.t
+        | Element_handle of Element_handle.t
+        | Local_utils of Local_utils.t
+        | Request of Request.t
+        | Route of Route.t
+        | Web_socket_route of Web_socket_route.t
+        | Response of Response.t
+        | Web_socket of Web_socket.t
+        | Page of Page.t
+        | Root of Root.t
+        | Playwright of Playwright.t
+        | Json_pipe of Json_pipe.t
+        | Cdp_session of Cdp_session.t
+        | Binding_call of Binding_call.t
+        | Debugger of Debugger.t
+        | Dialog of Dialog.t
+        | Tracing of Tracing.t
+        | Worker of Worker.t
+        | Other of Channel.any
+
+    let of_channel (channel : Channel.any) : t =
+        let as_ kind = Option.get (Channel.of_any kind channel) in
+        match channel.type_ with
+        | "APIRequestContext" -> Api_request_context (as_ Kind.api_request_context)
+        | "Artifact" -> Artifact (as_ Kind.artifact)
+        | "Stream" -> Stream (as_ Kind.stream)
+        | "WritableStream" -> Writable_stream (as_ Kind.writable_stream)
+        | "Browser" -> Browser (as_ Kind.browser)
+        | "BrowserContext" -> Browser_context (as_ Kind.browser_context)
+        | "BrowserType" -> Browser_type (as_ Kind.browser_type)
+        | "Disposable" -> Disposable (as_ Kind.disposable)
+        | "Frame" -> Frame (as_ Kind.frame)
+        | "JSHandle" -> Js_handle (as_ Kind.js_handle)
+        | "ElementHandle" -> Element_handle (as_ Kind.element_handle)
+        | "LocalUtils" -> Local_utils (as_ Kind.local_utils)
+        | "Request" -> Request (as_ Kind.request)
+        | "Route" -> Route (as_ Kind.route)
+        | "WebSocketRoute" -> Web_socket_route (as_ Kind.web_socket_route)
+        | "Response" -> Response (as_ Kind.response)
+        | "WebSocket" -> Web_socket (as_ Kind.web_socket)
+        | "Page" -> Page (as_ Kind.page)
+        | "Root" -> Root (as_ Kind.root)
+        | "Playwright" -> Playwright (as_ Kind.playwright)
+        | "JsonPipe" -> Json_pipe (as_ Kind.json_pipe)
+        | "CDPSession" -> Cdp_session (as_ Kind.cdp_session)
+        | "BindingCall" -> Binding_call (as_ Kind.binding_call)
+        | "Debugger" -> Debugger (as_ Kind.debugger)
+        | "Dialog" -> Dialog (as_ Kind.dialog)
+        | "Tracing" -> Tracing (as_ Kind.tracing)
+        | "Worker" -> Worker (as_ Kind.worker)
+        | _ -> Other channel
+end

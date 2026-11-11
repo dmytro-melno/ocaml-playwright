@@ -50,7 +50,7 @@ let rec encode handles (value : t) : Json.t =
         `Assoc [ "ta", `Assoc [ "b", Json.binary bytes; "k", `String (List.assoc kind typed_array_kinds) ] ]
     | Handle handle ->
         let index = List.length !handles in
-        handles := handle.h_channel :: !handles;
+        handles := Channel.any handle.h_channel :: !handles;
         `Assoc [ "h", `Int index ]
 
 let to_argument (value : t) : Protocol.Serialized_argument.t =

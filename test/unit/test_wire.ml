@@ -147,6 +147,12 @@ let create peer ?(parent = "") ~type_ ~guid init =
 
 let channel peer guid = match Connection.find peer.conn guid with Some channel -> channel | None -> Alcotest.failf "no object %S" guid
 
+(* The object as one of an interface of the protocol, as in [typed Protocol.Frame.kind]. *)
+let typed kind peer guid =
+    match Channel.of_any kind (channel peer guid) with
+    | Some channel -> channel
+    | None -> Alcotest.failf "object %S is a %s" guid (channel peer guid).type_
+
 (* Starts a call in a fiber of its own and returns what the client sent for it. *)
 let start_call peer channel method_ =
     let reply = Fiber.fork_promise ~sw:peer.sw (fun () -> Connection.call channel method_ (`Assoc []) Fun.id) in
@@ -216,7 +222,7 @@ let test_object_tree () =
     peer.conn.factory <-
         (fun channel ->
             created := channel.guid :: !created;
-            if channel.type_ = "Page" then channel.impl <- Test_object (Yojson.Safe.to_string channel.initializer_));
+            if channel.type_ = "Page" then Test_object (Yojson.Safe.to_string channel.initializer_) else Connection.No_impl);
     create peer ~type_:"Browser" ~guid:"browser@1" (`Assoc [ "name", `String "chromium" ]);
     create peer ~parent:"browser@1" ~type_:"BrowserContext" ~guid:"context@1" (`Assoc []);
     create peer ~parent:"context@1" ~type_:"Page" ~guid:"page@1" (`Assoc [ "title", `String "t" ]);
@@ -231,8 +237,8 @@ let test_object_tree () =
     | _ -> Alcotest.fail "the client object is kept with its channel");
     Alcotest.check json "which is not kept once a client object has been built from it" `Null page.initializer_;
     let frame = channel peer "frame@1" in
-    Alcotest.(check (option string)) "ancestor by type" (Some "context@1")
-        (Option.map (fun (c : Connection.channel) -> c.guid) (Connection.parent_of_type frame "BrowserContext"));
+    Alcotest.(check (option string)) "the nearest owner of an interface" (Some "context@1")
+        (Option.map Channel.guid (Channel.ancestor Protocol.Browser_context.kind (typed Protocol.Frame.kind peer "frame@1")));
     (* Events reach the handler of their object. *)
     let events = ref [] in
     frame.on_event <- (fun name params -> events := (name, params) :: !events);
@@ -251,6 +257,50 @@ let test_object_tree () =
     check_contains "collected" ~sub:"collected" error.message;
     Alcotest.(check int) "nothing reported" 0 (List.length !(peer.reported));
     Alcotest.(check bool) "still open" false (Connection.is_closed peer.conn)
+
+(* An object is of one interface of the protocol, and of those that this one extends.  Nothing but
+   what the driver said of an object makes it one of an interface. *)
+let test_interfaces () =
+    with_peer @@ fun peer ->
+    create peer ~type_:"Frame" ~guid:"frame@1" (`Assoc []);
+    create peer ~parent:"frame@1" ~type_:"ElementHandle" ~guid:"element@1" (`Assoc [ "preview", `String "button" ]);
+    create peer ~parent:"frame@1" ~type_:"JSHandle" ~guid:"handle@1" (`Assoc [ "preview", `String "7" ]);
+    create peer ~type_:"Electron" ~guid:"electron@1" (`Assoc []);
+    let ref_ guid = `Assoc [ "guid", `String guid ] in
+    let interface guid =
+        match Protocol.Object.of_channel (channel peer guid) with
+        | Frame _ -> "Frame"
+        | Element_handle _ -> "ElementHandle"
+        | Js_handle _ -> "JSHandle"
+        | Other _ -> "one that the client does not know"
+        | _ -> "another"
+    in
+    Alcotest.(check (list string)) "objects by interface" [ "Frame"; "ElementHandle"; "JSHandle"; "one that the client does not know" ]
+        (List.map interface [ "frame@1"; "element@1"; "handle@1"; "electron@1" ]);
+    (* References in messages. *)
+    let handle guid = Channel.of_json Protocol.Js_handle.kind peer.conn (ref_ guid) in
+    Alcotest.(check string) "an element is a handle" "element@1" (Channel.guid (handle "element@1"));
+    Alcotest.(check bool) "that can be told from the others" true (Channel.narrow Protocol.Element_handle.kind (handle "element@1") <> None);
+    Alcotest.(check bool) "which are not elements" true (Channel.narrow Protocol.Element_handle.kind (handle "handle@1") = None);
+    let element = typed Protocol.Element_handle.kind peer "element@1" in
+    Alcotest.(check string) "and is taken for one" "element@1" (Channel.guid (element :> Protocol.Js_handle.t));
+    let error = failure "a handle where a frame is due" (fun () -> Channel.of_json Protocol.Frame.kind peer.conn (ref_ "handle@1")) in
+    check_contains "tells what the object is" ~sub:{|object "handle@1" is of type JSHandle, not Frame|} error.message;
+    let error = failure "a reference to nothing" (fun () -> Channel.of_json Protocol.Frame.kind peer.conn (ref_ "nobody@1")) in
+    check_contains "tells which" ~sub:{|"nobody@1"|} error.message;
+    Alcotest.(check (option string)) "owner of an interface" (Some "frame@1")
+        (Option.map Channel.guid (Channel.parent Protocol.Frame.kind element));
+    Alcotest.(check (option string)) "owner of another interface" None (Option.map Channel.guid (Channel.parent Protocol.Page.kind element));
+    (* A reply that refers to an object of another interface than the protocol says: the two sides
+       do not agree on the protocol. *)
+    let frame = typed Protocol.Frame.kind peer "frame@1" in
+    let reply = Fiber.fork_promise ~sw:peer.sw (fun () -> Protocol.Frame.query_selector ~selector:"button" frame) in
+    let request = Eio.Stream.take peer.sent in
+    peer.deliver (`Assoc [ "id", `String (string_member "id" request); "result", `Assoc [ "element", ref_ "handle@1" ] ]);
+    let error = closed_error "a reply with an object of another interface" reply in
+    check_contains "the caller is told why" ~sub:{|object "handle@1" is of type JSHandle, not ElementHandle|} error.message;
+    Alcotest.(check int) "and so is the application" 1 (List.length !(peer.reported));
+    Promise.await (Connection.stopped peer.conn)
 
 let test_cancellation_aborts () =
     with_peer @@ fun peer ->
@@ -307,7 +357,10 @@ let test_protocol_failures () =
         page.on_event <- (fun _ params -> ignore (Json.Decode.(req "url" string) params : string));
         peer.deliver (`Assoc [ "guid", `String "page@1"; "method", `String "navigated"; "params", `Assoc [] ]));
     ends_connection "object that cannot be built" (fun peer _ _ ->
-        peer.conn.factory <- (fun channel -> ignore (Json.Decode.(req "name" string) channel.initializer_ : string));
+        peer.conn.factory <-
+            (fun channel ->
+                ignore (Json.Decode.(req "name" string) channel.initializer_ : string);
+                Connection.No_impl);
         create peer ~type_:"Browser" ~guid:"browser@1" (`Assoc []))
 
 (* A transport that fails is the end of the connection as well. *)
@@ -331,7 +384,10 @@ let test_transport_failure () =
 let test_objects_are_told () =
     with_peer @@ fun peer ->
     let lost = ref [] in
-    peer.conn.factory <- (fun channel -> channel.on_lost <- (fun error -> lost := (channel.guid, error.message) :: !lost));
+    peer.conn.factory <-
+        (fun channel ->
+            channel.on_lost <- (fun error -> lost := (channel.guid, error.message) :: !lost);
+            Connection.No_impl);
     create peer ~type_:"Browser" ~guid:"browser@1" (`Assoc []);
     create peer ~parent:"browser@1" ~type_:"BrowserContext" ~guid:"context@1" (`Assoc []);
     create peer ~parent:"context@1" ~type_:"Page" ~guid:"page@1" (`Assoc []);
@@ -448,6 +504,7 @@ let tests =
       [ Alcotest.test_case "call and reply" `Quick test_call_and_reply;
         Alcotest.test_case "error replies" `Quick test_error_replies;
         Alcotest.test_case "object tree" `Quick test_object_tree;
+        Alcotest.test_case "interfaces" `Quick test_interfaces;
         Alcotest.test_case "cancellation aborts the call" `Quick test_cancellation_aborts;
         Alcotest.test_case "closing" `Quick test_closing;
         Alcotest.test_case "protocol failures" `Quick test_protocol_failures;

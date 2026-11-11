@@ -48,15 +48,15 @@ module Request = struct
 
     let no_overrides = { o_url = None; o_method = None; o_headers = None; o_post_data = None }
 
-    let create (channel : Channel.t) =
-        let init = Protocol.Request.Initializer.of_json channel.conn channel.initializer_ in
+    let create (channel : Protocol.Request.t) : t =
+        let init = Protocol.Request.initializer_ channel in
         let redirected_from = Option.map Types.request init.redirected_from in
         let request =
             { r_channel = channel; r_init = init; redirected_from; redirected_to = None; failure = None; r_response = None;
               timing = unknown_timing; raw_headers = None; overrides = no_overrides }
         in
         Option.iter (fun (previous : t) -> previous.redirected_to <- Some request) redirected_from;
-        channel.impl <- Request request
+        request
 
     let url (r : t) = Option.value r.overrides.o_url ~default:r.r_init.url
     let resource_type (r : t) = r.r_init.resource_type
@@ -147,19 +147,19 @@ end
 module Response = struct
     type t = response
 
-    let create (channel : Channel.t) =
-        let init = Protocol.Response.Initializer.of_json channel.conn channel.initializer_ in
+    let create (channel : Protocol.Response.t) : t =
+        let init = Protocol.Response.initializer_ channel in
         let request = Types.request init.request in
         let rs_finished, rs_finished_resolver = Promise.create () in
         let response = { rs_channel = channel; rs_init = init; rs_request = request; rs_raw_headers = None; rs_finished; rs_finished_resolver } in
         request.r_response <- Some response;
-        channel.on_lost <- (fun error -> if not (Promise.is_resolved rs_finished) then Promise.resolve rs_finished_resolver (Error error));
+        Channel.on_lost channel (fun error -> if not (Promise.is_resolved rs_finished) then Promise.resolve rs_finished_resolver (Error error));
         let t = init.timing in
         request.timing <-
             { request.timing with start_time = t.start_time; domain_lookup_start = t.domain_lookup_start; domain_lookup_end = t.domain_lookup_end;
               connect_start = t.connect_start; secure_connection_start = t.secure_connection_start; connect_end = t.connect_end;
               request_start = t.request_start; response_start = t.response_start };
-        channel.impl <- Response response
+        response
 
     let url (r : t) = r.rs_init.url
     let status (r : t) = r.rs_init.status
@@ -205,7 +205,7 @@ end
 module Web_socket = struct
     type t = web_socket
 
-    let emit (socket : t) emitter value = ignore (Emitter.emit socket.ws_channel.conn emitter value)
+    let emit (socket : t) emitter value = ignore (Emitter.emit (Channel.conn socket.ws_channel) emitter value)
 
     let payload ~opcode data =
         match opcode with
@@ -219,24 +219,23 @@ module Web_socket = struct
             emit socket socket.wse_close socket
         end
 
-    let handle_event (socket : t) name params =
-        match Protocol.Web_socket.event_of_json socket.ws_channel.conn name params with
-        | Some (Frame_sent { opcode; data }) -> Option.iter (emit socket socket.wse_frame_sent) (payload ~opcode data)
-        | Some (Frame_received { opcode; data }) -> Option.iter (emit socket socket.wse_frame_received) (payload ~opcode data)
-        | Some (Socket_error { error }) -> emit socket socket.wse_socket_error error
-        | Some Close -> did_close socket
-        | Some Open | None -> ()
+    let handle_event (socket : t) : Protocol.Web_socket.event -> unit = function
+        | Frame_sent { opcode; data } -> Option.iter (emit socket socket.wse_frame_sent) (payload ~opcode data)
+        | Frame_received { opcode; data } -> Option.iter (emit socket socket.wse_frame_received) (payload ~opcode data)
+        | Socket_error { error } -> emit socket socket.wse_socket_error error
+        | Close -> did_close socket
+        | Open -> ()
 
-    let create (channel : Channel.t) =
-        let init = Protocol.Web_socket.Initializer.of_json channel.conn channel.initializer_ in
-        let ws_page = match channel.parent with Some { impl = Page page; _ } -> Some page | _ -> None in
+    let create (channel : Protocol.Web_socket.t) : t =
+        let init = Protocol.Web_socket.initializer_ channel in
+        let ws_page = Option.map Types.page (Channel.parent Protocol.Page.kind channel) in
         let socket =
             { ws_channel = channel; ws_url = init.url; ws_page; ws_closed = false; wse_close = Emitter.create ();
               wse_frame_sent = Emitter.create (); wse_frame_received = Emitter.create (); wse_socket_error = Emitter.create () }
         in
-        channel.impl <- Web_socket socket;
-        channel.on_event <- handle_event socket;
-        channel.on_lost <- (fun _ -> did_close socket)
+        Protocol.Web_socket.listen channel (handle_event socket);
+        Channel.on_lost channel (fun _ -> did_close socket);
+        socket
 
     let url (socket : t) = socket.ws_url
     let is_closed (socket : t) = socket.ws_closed
@@ -275,7 +274,7 @@ module Web_socket = struct
             | _ -> Waiter.reject_on waiter socket.wse_close (fun _ -> Some (Error.make "Socket closed")));
             Option.iter (fun (page : page) -> Waiter.reject_on waiter page.pe_close (fun _ -> Some (Error.target_closed ?message:page.p_close_reason ()))) socket.ws_page
         in
-        Events.expect socket.ws_channel.conn ~timeout:(Timeouts.action ?timeout timeouts) ~name:(event_name event) ?predicate ~rejections
+        Events.expect (Channel.conn socket.ws_channel) ~timeout:(Timeouts.action ?timeout timeouts) ~name:(event_name event) ?predicate ~rejections
             (emitter socket event) action
 
     let wait_for_event ?timeout ?predicate event socket = expect_event ?timeout ?predicate event ignore socket

@@ -2,9 +2,9 @@ open Types
 
 type t = browser_type
 
-let create session (channel : Channel.t) =
-    let init = Protocol.Browser_type.Initializer.of_json channel.conn channel.initializer_ in
-    channel.impl <- Browser_type { bt_channel = channel; bt_session = session; bt_name = init.name; executable_path = init.executable_path }
+let create session (channel : Protocol.Browser_type.t) : t =
+    let init = Protocol.Browser_type.initializer_ channel in
+    { bt_channel = channel; bt_session = session; bt_name = init.name; executable_path = init.executable_path }
 
 let name (t : t) = t.bt_name
 let executable_path (t : t) = t.executable_path

@@ -2,7 +2,7 @@
    a remote connection, see {!Remote}. *)
 
 type t = {
-    channel : Channel.t;
+    channel : Protocol.Json_pipe.t;
     inbox : Json.t option Eio.Stream.t;  (* [None] marks the end *)
     mutable ended : bool;
     mutable close_reason : string option;
@@ -22,31 +22,28 @@ let finish pipe ~reason =
 
 (* Messages are collected from the moment the pipe exists, so that none is lost before the
    remote connection starts reading. *)
-let create (channel : Channel.t) =
+let create (channel : Protocol.Json_pipe.t) : t =
     let pipe = { channel; inbox = Eio.Stream.create max_int; ended = false; close_reason = None; on_lost = ignore } in
-    channel.impl <- Json_pipe pipe;
-    channel.on_event <-
-        (fun name params ->
-            match Protocol.Json_pipe.event_of_json channel.conn name params with
-            | Some (Message { message }) -> if not pipe.ended then Eio.Stream.add pipe.inbox (Some message)
-            | Some (Closed { reason }) -> finish pipe ~reason
-            | None -> ());
-    channel.on_lost <-
-        (fun error ->
-            finish pipe ~reason:(Some error.message);
-            pipe.on_lost error)
+    Protocol.Json_pipe.listen channel (function
+        | Message { message } -> if not pipe.ended then Eio.Stream.add pipe.inbox (Some message)
+        | Closed { reason } -> finish pipe ~reason);
+    Channel.on_lost channel (fun error ->
+        finish pipe ~reason:(Some error.message);
+        pipe.on_lost error);
+    pipe
 
-let of_channel (channel : Channel.t) =
-    match channel.impl with
+(* Every pipe has its client side: see {!Types}. *)
+let of_channel (channel : Protocol.Json_pipe.t) =
+    match (Channel.any channel).impl with
     | Json_pipe pipe -> pipe
-    | _ -> Error.raise_ "Protocol error: object %S is a %s, not a JsonPipe" channel.guid channel.type_
+    | _ -> Error.raise_ "Internal error: object %S has no client side" (Channel.guid channel)
 
 (* It is the end of the pipe at once.  The driver is asked to close its end, whether or not it
    hears and whether or not the caller waits for that. *)
 let close pipe =
     if not pipe.ended then begin
         finish pipe ~reason:None;
-        Connection.cleanup pipe.channel.conn "closing a pipe" (fun () -> try Protocol.Json_pipe.close pipe.channel with Error.E _ -> ())
+        Connection.cleanup (Channel.conn pipe.channel) "closing a pipe" (fun () -> try Protocol.Json_pipe.close pipe.channel with Error.E _ -> ())
     end
 
 (* The pipe as a transport, which ends when the pipe does. *)

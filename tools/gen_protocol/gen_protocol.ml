@@ -67,6 +67,7 @@ type event = { e_wire : string; payload : field list }
 
 type interface = {
     i_wire : string;
+    base : string option;  (* the interface that this one extends *)
     mutable defs : (string * def) list;  (* local modules, in dependency order (reversed while building) *)
     mutable initializer_ : field list;
     mutable commands : command list;
@@ -260,22 +261,18 @@ and mixin env name =
         Hashtbl.replace env.mixins name fields;
         fields
 
-let rec interface env name : interface =
+(* An interface that extends another one has the commands and events of that one as well.  They
+      are not repeated: a channel of the extending interface is accepted by the functions of the
+      extended one. *)
+let interface env name : interface =
     let spec = List.assoc name env.raw in
-    let iface = { i_wire = name; defs = []; initializer_ = []; commands = []; events = [] } in
+    let iface = { i_wire = name; base = find_string "extends" spec; defs = []; initializer_ = []; commands = []; events = [] } in
     let register path def =
         if List.mem_assoc path iface.defs then failf "%s: duplicate local definition %s" name path;
         iface.defs <- (path, def) :: iface.defs;
         path
     in
     let fields path props = parse_fields env ~register ~path props in
-    (match find_string "extends" spec with
-    | Some base ->
-        let b = interface env base in
-        iface.defs <- b.defs;
-        iface.commands <- b.commands;
-        iface.events <- b.events
-    | None -> ());
     iface.initializer_ <- fields "Initializer" (find_map name "initializer" spec);
     if iface.initializer_ <> [] then ignore (register "Initializer" (Record iface.initializer_));
     List.iter
@@ -306,13 +303,18 @@ let rec interface env name : interface =
 let buf = Buffer.create (1 lsl 20)
 let pr fmt = Printf.bprintf buf fmt
 
+(* Channels of the interfaces that are not generated, and those that the specification does not
+      give an interface to, are of whatever interface. *)
+let typed interface = interface <> "" && not (List.mem interface excluded_interfaces)
+let kind_name interface = "Kind." ^ ident interface
+
 let rec type_expr = function
     | Prim (String | Binary) -> "string"
     | Prim Int -> "int"
     | Prim Float -> "float"
     | Prim Bool -> "bool"
     | Prim Json -> "Json.t"
-    | Channel _ -> "Channel.t"
+    | Channel i -> if typed i then kind_name i ^ " Channel.t" else "Channel.any"
     | Def m -> m ^ ".t"
     | Array t -> type_expr t ^ " list"
     | Enum lits -> "[ " ^ String.concat " | " (List.map (fun l -> "`" ^ variant_name l) lits) ^ " ]"
@@ -326,7 +328,7 @@ let rec encoder = function
     | Prim Bool -> "Json.bool"
     | Prim Binary -> "Json.binary"
     | Prim Json -> "Json.any"
-    | Channel _ -> "Channel.to_json"
+    | Channel i -> if typed i then Printf.sprintf "(Channel.to_json : [> %s ] Channel.t -> Json.t)" (kind_name i) else "Channel.any_to_json"
     | Def m -> m ^ ".to_json"
     | Array t -> Printf.sprintf "(Json.list %s)" (encoder t)
     | Enum lits ->
@@ -340,7 +342,7 @@ let rec decoder = function
     | Prim Bool -> "D.bool"
     | Prim Binary -> "D.binary"
     | Prim Json -> "D.any"
-    | Channel _ -> "(Channel.of_json c)"
+    | Channel i -> if typed i then Printf.sprintf "(Channel.of_json %s c)" (kind_name i) else "(Channel.any_of_json c)"
     | Def m -> Printf.sprintf "(%s.of_json c)" m
     | Array t -> Printf.sprintf "(D.list %s)" (decoder t)
     | Enum lits ->
@@ -407,7 +409,10 @@ let emit_events iface =
                     List.iter (fun f -> pr "             %s = %s;\n" (ident f.wire) (decode_field f)) fields;
                     pr "           })\n")
             iface.events;
-        pr "    | _ -> None\n\n"
+        pr "    | _ -> None\n\n";
+        pr "  let listen (ch : [> kind ] Channel.t) (handle : event -> unit) =\n";
+        pr "    let c = Channel.conn ch in\n";
+        pr "    Channel.listen ch (fun name j -> match event_of_json c name j with Some event -> handle event | None -> ())\n\n"
     end
 
 (* The function that releases the result of [c] when nobody is left to receive it, and whether
@@ -462,7 +467,7 @@ let emit_command ~lookup c =
             let m = module_name c.c_wire ^ "_result" in
             (m ^ ".t", Some (Printf.sprintf "%s.of_json c j" m))
     in
-    pr "  let %s ?timeout %s(ch : Channel.t) : %s =\n" (ident c.c_wire)
+    pr "  let %s ?timeout %s(ch : [> kind ] Channel.t) : %s =\n" (ident c.c_wire)
         (String.concat "" (List.map (fun a -> a ^ " ") args))
         result_type;
     (match c.params with
@@ -480,10 +485,55 @@ let emit_command ~lookup c =
         | Some (orphan, abortable) ->
             pr "    Channel.call ?timeout%s\n      ~orphan:%s\n      ch %S params\n      (fun j -> %s)\n\n" (if abortable then "" else " ~abortable:false") orphan c.c_wire decode)
 
+(* The interface and those that extend it, directly or not. *)
+let rec family interfaces iface =
+    iface.i_wire :: List.concat_map (family interfaces) (List.filter (fun i -> i.base = Some iface.i_wire) interfaces)
+
+(* What tells the channels of each interface apart: a type with a tag for the interface and for
+      each of those that it extends, and the names that an object of the interface can have. *)
+let emit_kinds interfaces =
+    let rec depth i = match i.base with None -> 0 | Some base -> 1 + depth (List.find (fun b -> b.i_wire = base) interfaces) in
+    pr "module Kind = struct\n";
+    List.iter
+        (fun i ->
+            let tag = "`" ^ module_name i.i_wire in
+            match i.base with
+            | None -> pr "  type %s = [ %s ]\n" (ident i.i_wire) tag
+            | Some base -> pr "  type %s = [ %s | %s ]\n" (ident i.i_wire) (ident base) tag)
+        (List.stable_sort (fun a b -> compare (depth a) (depth b)) interfaces);
+    pr "\n";
+    List.iter
+        (fun i ->
+            pr "  let %s : %s Channel.kind = Channel.kind [ %s ]\n" (ident i.i_wire) (ident i.i_wire)
+                (String.concat "; " (List.map (Printf.sprintf "%S") (family interfaces i))))
+        interfaces;
+    pr "end\n\n"
+
+(* Local definitions must not hide what the generated code refers to. *)
+let reserved_modules = [ "Json"; "Channel"; "D"; "Kind"; "Object" ]
+
+(* Every object that the driver announces, by its interface: the one place where objects of
+      whatever interface become objects of a known one, apart from the references in messages. *)
+let emit_objects interfaces =
+    pr "module Object = struct\n  type t =\n";
+    List.iter (fun i -> pr "    | %s of %s.t\n" (module_name i.i_wire) (module_name i.i_wire)) interfaces;
+    pr "    | Other of Channel.any\n\n";
+    pr "  let of_channel (channel : Channel.any) : t =\n";
+    pr "    let as_ kind = Option.get (Channel.of_any kind channel) in\n";
+    pr "    match channel.type_ with\n";
+    List.iter (fun i -> pr "    | %S -> %s (as_ %s)\n" i.i_wire (module_name i.i_wire) (kind_name i.i_wire)) interfaces;
+    pr "    | _ -> Other channel\n";
+    pr "end\n"
+
 let emit_interface ~globals iface =
+    List.iter (fun (name, _) -> if List.mem name reserved_modules then failf "%s: the definition %s hides a module of the generated code" iface.i_wire name) iface.defs;
     pr "module %s = struct\n" (module_name iface.i_wire);
-    pr "  let type_name = %S\n\n" iface.i_wire;
+    pr "  type kind = %s\n" (kind_name iface.i_wire);
+    pr "  type t = kind Channel.t\n\n";
+    pr "  let kind = %s\n\n" (kind_name iface.i_wire);
     List.iter (emit_def "  ") (List.rev iface.defs);
+    if iface.initializer_ <> [] then
+        pr "  let initializer_ (ch : [> kind ] Channel.t) : Initializer.t = Initializer.of_json (Channel.conn ch) (Channel.initializer_ ch)\n\n";
     emit_events iface;
     let lookup name = match List.assoc_opt name iface.defs with Some def -> Some def | None -> Hashtbl.find_opt globals name in
     List.iter (emit_command ~lookup) iface.commands;
@@ -526,17 +576,27 @@ let () =
             raw
     in
     check_unique "module"
-        (List.map (fun i -> module_name i.i_wire) interfaces @ env.global_order @ [ "Json"; "Channel"; "D" ]);
+        (List.map (fun i -> module_name i.i_wire) interfaces @ env.global_order @ reserved_modules);
+    List.iter
+        (fun i ->
+            match i.base with
+            | Some base when not (List.exists (fun b -> b.i_wire = base) interfaces) -> failf "%s extends %s, which is not generated" i.i_wire base
+            | _ -> ())
+        interfaces;
     pr "(* Generated by tools/gen_protocol from the Playwright %s protocol specification.\n   Do not edit: change protocol/ or the generator and run [dune build @gen --auto-promote]. *)\n\n" version;
     pr "[@@@ocaml.warning \"-27-32\"]\n\n";
     pr "module D = Json.Decode\n\n";
     pr "let playwright_version = %S\n" version;
     pr "let driver_tarball = %S\n" (driver |> member "tarball" |> to_string);
     pr "let driver_integrity = %S\n\n" (driver |> member "integrity" |> to_string);
+    pr "(* {1 Interfaces} *)\n\n";
+    emit_kinds interfaces;
     pr "(* {1 Structures} *)\n\n";
     List.iter (fun name -> emit_def "" (name, Hashtbl.find env.globals name)) (List.rev env.global_order);
     pr "(* {1 Channels} *)\n\n";
     List.iter (emit_interface ~globals:env.globals) interfaces;
+    pr "(* {1 Objects} *)\n\n";
+    emit_objects interfaces;
     (* The emitters above indent by two spaces; the project style is four. *)
     let widen line =
         let n = ref 0 in

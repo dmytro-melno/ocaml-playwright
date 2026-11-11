@@ -6,10 +6,10 @@ let emit (session : session) emitter value = ignore (Emitter.emit session.conn e
 
 (* {1 Lifecycle} *)
 
-let handle_event (frame : t) name params =
+let handle_event (frame : t) : Protocol.Frame.event -> unit =
     let session = frame.f_session in
-    match Protocol.Frame.event_of_json session.conn name params with
-    | Some (Loadstate { add; remove }) ->
+    function
+    | Loadstate { add; remove } ->
         Option.iter
             (fun state ->
                 if not (List.mem state frame.load_states) then frame.load_states <- state :: frame.load_states;
@@ -20,24 +20,23 @@ let handle_event (frame : t) name params =
         | None, Some page, Some `Load -> emit session page.pe_load page
         | None, Some page, Some `Domcontentloaded -> emit session page.pe_dom_content_loaded page
         | _ -> ())
-    | Some (Navigated { url; name; new_document; error }) ->
+    | Navigated { url; name; new_document; error } ->
         frame.f_url <- url;
         frame.f_name <- name;
         let request = Option.bind new_document (fun (document : Protocol.Frame.Navigated_event_new_document.t) -> Option.map Types.request document.request) in
         emit session frame.fe_navigated { n_url = url; n_error = error; n_request = request };
         (match error, frame.page with None, Some page -> emit session page.pe_frame_navigated frame | _ -> ())
-    | None -> ()
 
-let create session (channel : Channel.t) =
-    let init = Protocol.Frame.Initializer.of_json channel.conn channel.initializer_ in
+let create session (channel : Protocol.Frame.t) : t =
+    let init = Protocol.Frame.initializer_ channel in
     let parent_frame = Option.map Types.frame init.parent_frame in
     let frame =
         { f_channel = channel; f_session = session; page = None; parent_frame; child_frames = []; f_url = init.url; f_name = init.name;
           detached = false; load_states = init.load_states; fe_load_state = Emitter.create (); fe_navigated = Emitter.create () }
     in
     Option.iter (fun (parent : t) -> parent.child_frames <- parent.child_frames @ [ frame ]) parent_frame;
-    channel.impl <- Frame frame;
-    channel.on_event <- handle_event frame
+    Protocol.Frame.listen channel (handle_event frame);
+    frame
 
 (* {1 Helpers shared with locators and pages} *)
 
@@ -78,8 +77,8 @@ type converted_files = {
     payloads : Protocol.Frame.Set_input_files_payloads.t list option;
     local_paths : string list option;
     local_directory : string option;
-    streams : Channel.t list option;
-    directory_stream : Channel.t option;
+    streams : Protocol.Writable_stream.t list option;
+    directory_stream : Protocol.Writable_stream.t option;
 }
 
 let no_files = { payloads = None; local_paths = None; local_directory = None; streams = None; directory_stream = None }
@@ -105,7 +104,7 @@ let upload (context : browser_context) ?directory files =
     in
     let result = Protocol.Browser_context.create_temp_files ?root_dir_name:(Option.map Filename.basename directory) ~items context.c_channel in
     let abandon () = List.iter (fun stream -> try Protocol.Writable_stream.close stream with Error.E _ -> ()) result.writable_streams in
-    Connection.guard context.c_channel.conn "closing the streams of an upload" ~undo:abandon @@ fun () ->
+    Connection.guard (Channel.conn context.c_channel) "closing the streams of an upload" ~undo:abandon @@ fun () ->
     List.iter2
         (fun (_, path) stream ->
             In_channel.with_open_bin path (fun ic ->

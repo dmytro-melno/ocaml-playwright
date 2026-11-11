@@ -2,8 +2,8 @@
 
 open Types
 
-let devices (channel : Channel.t) : device list =
-    let init = Protocol.Local_utils.Initializer.of_json channel.conn channel.initializer_ in
+let devices (channel : Protocol.Local_utils.t) : device list =
+    let init = Protocol.Local_utils.initializer_ channel in
     List.map
         (fun (device : Protocol.Local_utils.Initializer_device_descriptors.t) ->
             let d = device.descriptor in
@@ -14,39 +14,37 @@ let devices (channel : Channel.t) : device list =
               default_browser_type = d.default_browser_type })
         init.device_descriptors
 
-let constructors : (string * (session -> Channel.t -> unit)) list =
-    [ Protocol.Browser_type.type_name, Browser_type.create;
-      Protocol.Browser.type_name, Browser.create;
-      Protocol.Browser_context.type_name, Browser_context.create;
-      Protocol.Page.type_name, (fun _ -> Page.create);
-      Protocol.Frame.type_name, Frame.create;
-      Protocol.Js_handle.type_name, Js_handle.create;
-      Protocol.Element_handle.type_name, Js_handle.create;
-      Protocol.Request.type_name, (fun _ -> Network.Request.create);
-      Protocol.Response.type_name, (fun _ -> Network.Response.create);
-      Protocol.Route.type_name, (fun _ -> Route.create);
-      Protocol.Web_socket.type_name, (fun _ -> Network.Web_socket.create);
-      Protocol.Web_socket_route.type_name, (fun _ -> Route.Web_socket.create);
-      Protocol.Worker.type_name, Worker.create;
-      Protocol.Dialog.type_name, (fun _ -> Dialog.create);
-      Protocol.Tracing.type_name, Tracing.create;
-      Protocol.Api_request_context.type_name, Api_request.Context.create;
-      Protocol.Cdp_session.type_name, (fun _ -> Cdp_session.create);
-      Protocol.Json_pipe.type_name, (fun _ -> Json_pipe.create);
-      ( Protocol.Local_utils.type_name,
-        fun session channel ->
-            (* Local files are worked on by the local driver, also on behalf of a remote session. *)
-            if session.local_utils = None then begin
-                session.local_utils <- Some channel;
-                session.devices <- devices channel
-            end ) ]
-
-(* Objects of the remaining types (artifacts, streams, binding calls, ...) carry no client-side
-   state and are used through their channels. *)
-let create (session : session) (channel : Channel.t) =
-    match List.assoc_opt channel.type_ constructors with
-    | Some construct -> construct session channel
-    | None -> ()
+(* The match is on every interface of the protocol, so that a new one cannot go unnoticed.
+   What {!Types} relies on is here: an object of an interface that has a client side gets it. *)
+let create (session : session) (channel : Channel.any) : Connection.impl =
+    match Protocol.Object.of_channel channel with
+    | Browser_type channel -> Browser_type (Browser_type.create session channel)
+    | Browser channel -> Browser (Browser.create session channel)
+    | Browser_context channel -> Browser_context (Browser_context.create session channel)
+    | Page channel -> Page (Page.create channel)
+    | Frame channel -> Frame (Frame.create session channel)
+    | Js_handle channel -> Js_handle (Js_handle.create session channel)
+    | Element_handle channel -> Js_handle (Js_handle.create session (channel :> Protocol.Js_handle.t))
+    | Request channel -> Request (Network.Request.create channel)
+    | Response channel -> Response (Network.Response.create channel)
+    | Route channel -> Route (Route.create channel)
+    | Web_socket channel -> Web_socket (Network.Web_socket.create channel)
+    | Web_socket_route channel -> Web_socket_route (Route.Web_socket.create channel)
+    | Worker channel -> Worker (Worker.create session channel)
+    | Dialog channel -> Dialog (Dialog.create channel)
+    | Tracing channel -> Tracing (Tracing.create session channel)
+    | Api_request_context channel -> Api_request_context (Api_request.Context.create session channel)
+    | Cdp_session channel -> Cdp_session (Cdp_session.create channel)
+    | Json_pipe channel -> Json_pipe.Json_pipe (Json_pipe.create channel)
+    | Local_utils channel ->
+        (* Local files are worked on by the local driver, also on behalf of a remote session. *)
+        if session.local_utils = None then begin
+            session.local_utils <- Some channel;
+            session.devices <- devices channel
+        end;
+        Connection.No_impl
+    (* These carry no state on the client side and are used through their channels. *)
+    | Root _ | Playwright _ | Artifact _ | Stream _ | Writable_stream _ | Binding_call _ | Disposable _ | Debugger _ | Other _ -> Connection.No_impl
 
 (* [parent] is the session of the local driver, for the session of a connection to a Playwright
    server that was made through it. *)
@@ -61,3 +59,10 @@ let new_session ?parent conn : session =
     in
     conn.factory <- create session;
     session
+
+(* The first exchange over a connection.  It gives the object that all the others are reached
+   from. *)
+let initialize conn : Protocol.Playwright.t =
+    match Protocol.Object.of_channel (Connection.root conn) with
+    | Root root -> Protocol.Root.initialize ~sdk_language:`Python root
+    | _ -> Error.raise_ "Internal error: the connection has no root object"

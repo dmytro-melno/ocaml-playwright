@@ -8,12 +8,10 @@ type multipart_value = [ `Text of string | `File of file_payload ]
 module Context = struct
     type t = api_request_context
 
-    let create session (channel : Channel.t) =
-        let init = Protocol.Api_request_context.Initializer.of_json channel.conn channel.initializer_ in
-        channel.impl <-
-            Api_request_context
-                { a_channel = channel; a_session = session; a_tracing = Types.tracing init.tracing; a_timeouts = Timeouts.create ();
-                  a_close_reason = None; a_close_state = Closing.create () }
+    let create session (channel : Protocol.Api_request_context.t) : t =
+        let init = Protocol.Api_request_context.initializer_ channel in
+        { a_channel = channel; a_session = session; a_tracing = Types.tracing init.tracing; a_timeouts = Timeouts.create (); a_close_reason = None;
+          a_close_state = Closing.create () }
 
     let has_json_content_type headers =
         List.exists

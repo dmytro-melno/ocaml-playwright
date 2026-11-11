@@ -14,7 +14,7 @@ type lifecycle_event = Protocol.Lifecycle_event.t
 type session = {
     conn : Connection.t;
     is_remote : bool;  (* the browser runs behind a Playwright server: files must be streamed to and from it *)
-    mutable local_utils : Channel.t option;  (* always the utilities of the local driver *)
+    mutable local_utils : Protocol.Local_utils.t option;  (* always the utilities of the local driver *)
     selectors : selectors;
     url_matchers : (string, string -> bool) Hashtbl.t;  (* compiled globs, by base URL and glob *)
     mutable devices : device list;
@@ -59,20 +59,21 @@ and js =
 and typed_array_kind = [ `I8 | `Ui8 | `Ui8c | `I16 | `Ui16 | `I32 | `Ui32 | `F32 | `F64 | `Bi64 | `Bui64 ]
 
 and js_handle = {
-    h_channel : Channel.t;
+    h_channel : Protocol.Js_handle.t;
+    h_element : Protocol.Element_handle.t option;  (* the same object, if it is an element *)
     h_session : session;
     mutable preview : string;
 }
 
 and browser_type = {
-    bt_channel : Channel.t;
+    bt_channel : Protocol.Browser_type.t;
     bt_session : session;
     bt_name : string;
     executable_path : string;
 }
 
 and browser = {
-    b_channel : Channel.t;
+    b_channel : Protocol.Browser.t;
     b_session : session;
     mutable browser_type : browser_type option;
     b_name : string;
@@ -89,7 +90,7 @@ and browser = {
 }
 
 and browser_context = {
-    c_channel : Channel.t;
+    c_channel : Protocol.Browser_context.t;
     c_session : session;
     mutable browser : browser option;
     mutable pages : page list;
@@ -120,7 +121,7 @@ and browser_context = {
 }
 
 and page = {
-    p_channel : Channel.t;
+    p_channel : Protocol.Page.t;
     context : browser_context;
     main_frame : frame;
     mutable frames : frame list;
@@ -135,7 +136,7 @@ and page = {
     p_timeouts : Timeouts.t;
     opener : page option;
     mutable owned_context : browser_context option;
-    video_artifact : Channel.t option;
+    video_artifact : Protocol.Artifact.t option;
     locator_handlers : (int, locator_handler) Hashtbl.t;
     (* Resolved with the reason once the page is closed or has crashed. *)
     p_gone : Error.t Promise.t;
@@ -162,7 +163,7 @@ and page = {
 }
 
 and frame = {
-    f_channel : Channel.t;
+    f_channel : Protocol.Frame.t;
     f_session : session;
     mutable page : page option;  (* set as soon as the page that owns the frame is announced *)
     parent_frame : frame option;
@@ -198,7 +199,7 @@ and locator_handler = {
 }
 
 and request = {
-    r_channel : Channel.t;
+    r_channel : Protocol.Request.t;
     r_init : Protocol.Request.Initializer.t;
     redirected_from : request option;
     mutable redirected_to : request option;
@@ -229,7 +230,7 @@ and request_overrides = {
 }
 
 and response = {
-    rs_channel : Channel.t;
+    rs_channel : Protocol.Response.t;
     rs_init : Protocol.Response.Initializer.t;
     rs_request : request;
     mutable rs_raw_headers : (string * string) list option;
@@ -239,7 +240,7 @@ and response = {
 }
 
 and route = {
-    rt_channel : Channel.t;
+    rt_channel : Protocol.Route.t;
     rt_request : request;
     mutable rt_context : browser_context option;
     (* Present while a handler is expected to decide; resolved with whether it did, as opposed to
@@ -266,7 +267,7 @@ and ws_route_handler = {
 }
 
 and web_socket = {
-    ws_channel : Channel.t;
+    ws_channel : Protocol.Web_socket.t;
     ws_url : string;
     ws_page : page option;
     mutable ws_closed : bool;
@@ -282,7 +283,7 @@ and ws_payload =
 
 (* One side of an intercepted WebSocket: the page's or, once connected, the server's. *)
 and web_socket_route = {
-    wr_channel : Channel.t;
+    wr_channel : Protocol.Web_socket_route.t;
     wr_side : [ `Page | `Server ];
     wr_state : ws_route_state;
 }
@@ -298,7 +299,7 @@ and ws_route_state = {
 }
 
 and worker = {
-    w_channel : Channel.t;
+    w_channel : Protocol.Worker.t;
     w_session : session;
     w_url : string;
     mutable w_page : page option;
@@ -310,7 +311,7 @@ and worker = {
 }
 
 and dialog = {
-    d_channel : Channel.t;
+    d_channel : Protocol.Dialog.t;
     d_page : page option;
     d_type : string;
     d_message : string;
@@ -337,7 +338,7 @@ and download = {
     dl_page : page;
     dl_url : string;
     suggested_filename : string;
-    dl_artifact : Channel.t;
+    dl_artifact : Protocol.Artifact.t;
 }
 
 and file_chooser = {
@@ -355,7 +356,7 @@ and binding_source = {
 and binding = binding_source -> js list -> js
 
 and tracing = {
-    t_channel : Channel.t;
+    t_channel : Protocol.Tracing.t;
     t_session : session;
     mutable include_sources : bool;
     mutable is_live : bool;
@@ -366,7 +367,7 @@ and tracing = {
 }
 
 and api_request_context = {
-    a_channel : Channel.t;
+    a_channel : Protocol.Api_request_context.t;
     a_session : session;
     a_tracing : tracing;
     mutable a_timeouts : Timeouts.t;
@@ -380,7 +381,7 @@ and api_response = {
 }
 
 and cdp_session = {
-    cdp_channel : Channel.t;
+    cdp_channel : Protocol.Cdp_session.t;
     mutable cdp_detached : bool;
     cdpe_event : (string * Json.t) Emitter.t;
     cdpe_close : cdp_session Emitter.t;
@@ -389,14 +390,16 @@ and cdp_session = {
 
 type playwright = {
     session : session;
-    pw_channel : Channel.t;
+    pw_channel : Protocol.Playwright.t;
     chromium : browser_type;
     firefox : browser_type;
     webkit : browser_type;
     stopped : unit Promise.t;  (* resolved once the connection has ended and the driver is gone *)
 }
 
-(* The client object behind each channel. *)
+(* The client object behind each channel.  [Objects] makes it as the driver announces the object,
+   before anything can refer to it: a channel of one of these interfaces always leads to its
+   client object. *)
 type Connection.impl +=
     | Browser_type of browser_type
     | Browser of browser
@@ -415,31 +418,39 @@ type Connection.impl +=
     | Api_request_context of api_request_context
     | Cdp_session of cdp_session
 
-let mismatch (channel : Channel.t) expected =
-    Error.raise_ "Protocol error: object %S is a %s, not a %s" channel.guid channel.type_ expected
+let client channel = (Channel.any channel).impl
 
-let browser_type (c : Channel.t) = match c.impl with Browser_type x -> x | _ -> mismatch c "BrowserType"
-let browser (c : Channel.t) = match c.impl with Browser x -> x | _ -> mismatch c "Browser"
-let browser_context (c : Channel.t) = match c.impl with Browser_context x -> x | _ -> mismatch c "BrowserContext"
-let page (c : Channel.t) = match c.impl with Page x -> x | _ -> mismatch c "Page"
-let frame (c : Channel.t) = match c.impl with Frame x -> x | _ -> mismatch c "Frame"
-let js_handle (c : Channel.t) = match c.impl with Js_handle x -> x | _ -> mismatch c "JSHandle"
-let request (c : Channel.t) = match c.impl with Request x -> x | _ -> mismatch c "Request"
-let response (c : Channel.t) = match c.impl with Response x -> x | _ -> mismatch c "Response"
-let route (c : Channel.t) = match c.impl with Route x -> x | _ -> mismatch c "Route"
-let web_socket (c : Channel.t) = match c.impl with Web_socket x -> x | _ -> mismatch c "WebSocket"
-let web_socket_route (c : Channel.t) = match c.impl with Web_socket_route x -> x | _ -> mismatch c "WebSocketRoute"
-let worker (c : Channel.t) = match c.impl with Worker x -> x | _ -> mismatch c "Worker"
-let dialog (c : Channel.t) = match c.impl with Dialog x -> x | _ -> mismatch c "Dialog"
-let tracing (c : Channel.t) = match c.impl with Tracing x -> x | _ -> mismatch c "Tracing"
-let api_request_context (c : Channel.t) = match c.impl with Api_request_context x -> x | _ -> mismatch c "APIRequestContext"
-let cdp_session (c : Channel.t) = match c.impl with Cdp_session x -> x | _ -> mismatch c "CDPSession"
+(* Not reached, for the reason given above. *)
+let unbound channel =
+    let channel = Channel.any channel in
+    Error.raise_ "Internal error: object %S, a %s, has no client side" channel.guid channel.type_
 
-let is_element (handle : js_handle) = handle.h_channel.type_ = "ElementHandle"
+let browser_type (c : Protocol.Browser_type.t) = match client c with Browser_type x -> x | _ -> unbound c
+let browser (c : Protocol.Browser.t) = match client c with Browser x -> x | _ -> unbound c
+let browser_context (c : Protocol.Browser_context.t) = match client c with Browser_context x -> x | _ -> unbound c
+let page (c : Protocol.Page.t) = match client c with Page x -> x | _ -> unbound c
+let frame (c : Protocol.Frame.t) = match client c with Frame x -> x | _ -> unbound c
+let js_handle (c : [> Protocol.Js_handle.kind ] Channel.t) = match client c with Js_handle x -> x | _ -> unbound c
+let request (c : Protocol.Request.t) = match client c with Request x -> x | _ -> unbound c
+let response (c : Protocol.Response.t) = match client c with Response x -> x | _ -> unbound c
+let route (c : Protocol.Route.t) = match client c with Route x -> x | _ -> unbound c
+let web_socket (c : Protocol.Web_socket.t) = match client c with Web_socket x -> x | _ -> unbound c
+let web_socket_route (c : Protocol.Web_socket_route.t) = match client c with Web_socket_route x -> x | _ -> unbound c
+let worker (c : Protocol.Worker.t) = match client c with Worker x -> x | _ -> unbound c
+let dialog (c : Protocol.Dialog.t) = match client c with Dialog x -> x | _ -> unbound c
+let tracing (c : Protocol.Tracing.t) = match client c with Tracing x -> x | _ -> unbound c
+let api_request_context (c : Protocol.Api_request_context.t) = match client c with Api_request_context x -> x | _ -> unbound c
+let cdp_session (c : Protocol.Cdp_session.t) = match client c with Cdp_session x -> x | _ -> unbound c
 
-let element (c : Channel.t) =
-    let handle = js_handle c in
-    if is_element handle then handle else mismatch c "ElementHandle"
+(* A handle to an element is a handle like any other, to an object of an interface that has more
+   commands. *)
+let element (c : Protocol.Element_handle.t) = js_handle c
+let is_element (handle : js_handle) = Option.is_some handle.h_element
+
+let element_channel (handle : js_handle) =
+    match handle.h_element with
+    | Some channel -> channel
+    | None -> Error.raise_ "Internal error: object %S is not an element" (Channel.guid handle.h_channel)
 
 let page_of_frame (frame : frame) =
     match frame.page with
