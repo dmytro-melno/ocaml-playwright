@@ -28,7 +28,7 @@ This version works with **Playwright 1.65**.
 ## Requirements
 
 - OCaml 5.2 or later and dune 3.10 or later.
-- **Node.js 18 or later**, as `node` on the `PATH`. Playwright's driver is a Node.js program;
+- **Node.js 20 or later**, as `node` on the `PATH`. Playwright's driver is a Node.js program;
   the library downloads it on first use, checks it against a pinned checksum and keeps it
   in the user's cache directory.
 - A browser: either one that Playwright installs (see below) or one that is on the machine
@@ -127,7 +127,7 @@ Eio.Fiber.List.map title [ "https://ocaml.org"; "https://playwright.dev" ]
   [Playwright documentation](https://playwright.dev/docs/intro) is a good companion.
 - [Examples](examples): small complete programs. Run one with
   `dune exec examples/quickstart.exe`.
-- [Migrating from 0.x](doc/migration.md), the versions before this rewrite.
+- [Migrating from 0.1](doc/migration.md), the versions before this rewrite.
 - [Changes](CHANGES.md).
 - For work on the library itself: [architecture](doc/dev/architecture.md),
   [updating to a new Playwright version](doc/dev/protocol.md), [testing](doc/dev/testing.md)

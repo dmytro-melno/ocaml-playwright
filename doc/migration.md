@@ -1,6 +1,6 @@
-# Migrating from 0.x
+# Migrating from 0.1
 
-Version 1.0 is a rewrite. The earlier versions, which targeted Playwright 1.59, exposed the
+Version 0.2 is a rewrite. The earlier versions, which targeted Playwright 1.59, exposed the
 functions that were generated from Playwright's protocol, with some helpers on top. The
 library now offers the Playwright API itself, hand-written over a generated protocol layer
 that is no longer visible. Programs need to be adapted; this page tells how.
@@ -84,7 +84,7 @@ let () =
 
 ## Function by function
 
-| 0.x | 1.0 |
+| 0.1 | 0.2 |
 | --- | --- |
 | `Playwright.create ~env ~sw ()` | unchanged; also `Playwright.run ~env f` |
 | `Playwright.create ~download_timeout ~init_timeout ~shutdown_timeout ~max_event_tasks` | removed; cancel the fiber to give up early |

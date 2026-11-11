@@ -1,9 +1,9 @@
 # Changes
 
-## 1.0.0 (unreleased)
+## 0.2.0 (unreleased)
 
 A rewrite of the library for Playwright 1.65. The API changed throughout; see
-[doc/migration.md](doc/migration.md) for how to adapt programs written for 0.x.
+[doc/migration.md](doc/migration.md) for how to adapt programs written for 0.1.
 
 ### Added
 

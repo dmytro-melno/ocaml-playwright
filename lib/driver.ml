@@ -73,7 +73,7 @@ let find_node () =
         | None ->
             Error.raise_
                 "Node.js is required to run the Playwright driver, but no `node` executable was found in PATH. Install \
-                 Node.js 18 or newer, or set PLAYWRIGHT_NODEJS_PATH to the executable.")
+                 Node.js 20 or newer, or set PLAYWRIGHT_NODEJS_PATH to the executable.")
 
 (* Accepts the package directory itself or a directory that contains it as [package/], which is
    how npm tarballs unpack. *)
