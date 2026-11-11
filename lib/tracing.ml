@@ -37,7 +37,7 @@ let save_chunk (t : t) ?path stacks_id =
         discard_stacks ()
     | Some path when not t.t_session.is_remote ->
         let path = Files.absolute path in
-        Files.mkdir_p (Filename.dirname path);
+        Files.make_parent path;
         let result = Protocol.Tracing.tracing_stop_chunk ~mode:`Entries t.t_channel in
         Protocol.Local_utils.zip ~zip_file:path ~entries:(Option.value result.entries ~default:[]) ?stacks_id ~mode:`Write
             ~include_sources:t.include_sources (local_utils t)
@@ -88,7 +88,7 @@ let export_har (t : t) har_id =
             (* The driver has written an uncompressed HAR to its final place already. *)
             let result = Protocol.Tracing.har_export ~har_id ~mode:`Entries t.t_channel in
             if is_zip path then begin
-                Files.mkdir_p (Filename.dirname path);
+                Files.make_parent path;
                 Protocol.Local_utils.zip ~zip_file:path ~entries:(Option.value result.entries ~default:[]) ~mode:`Write ~include_sources:false
                     (local_utils t)
             end

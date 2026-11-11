@@ -149,6 +149,56 @@ let test_driver_install_cancelled () =
         Alcotest.(check bool) "at once" true (seconds < 5.);
         check_cleaned_up ~dir)
 
+(* {1 Files} *)
+
+let test_files () =
+    with_temp_dir @@ fun dir ->
+    Eio_main.run @@ fun _env ->
+    let path = List.fold_left Filename.concat dir [ "made"; "on"; "the"; "way"; "file.bin" ] in
+    let contents = String.init 300_000 (fun i -> Char.chr (i mod 251)) in
+    Files.write path contents;
+    Alcotest.(check bool) "written into directories that did not exist, and read back" true (String.equal contents (Files.read path));
+    let missing = Filename.concat dir "missing.txt" in
+    let error = failure "missing file" (fun () -> Files.read missing) in
+    check_contains "says what was tried" ~sub:"Cannot read file" error.message;
+    check_contains "and with which file" ~sub:missing error.message;
+    check_contains "also for writing" ~sub:"Cannot write file" (failure "a directory in the way" (fun () -> Files.write dir "x")).message;
+    (* In parts, as files travel to and from a remote driver. *)
+    let large = String.init ((2 * Files.chunk_size) + 12_345) (fun i -> Char.chr (i mod 253)) in
+    let copy = Filename.concat dir "copy.bin" in
+    Files.write path large;
+    let parts = ref [] in
+    Files.with_input path (fun read ->
+        Files.with_output copy (fun write ->
+            let rec go () =
+                match read () with
+                | "" -> ()
+                | part ->
+                    parts := String.length part :: !parts;
+                    write part;
+                    go ()
+            in
+            go ()));
+    Alcotest.(check (list int)) "the parts" [ Files.chunk_size; Files.chunk_size; 12_345 ] (List.rev !parts);
+    Alcotest.(check bool) "the copy" true (String.equal large (Files.read copy));
+    let uploads = Files.to_upload ~directory:(Filename.concat dir "made") [] in
+    Alcotest.(check (list string)) "the files below a directory" [ "on/the/way/file.bin" ] (List.map (fun (file : Files.upload) -> file.name) uploads);
+    Alcotest.(check (pair (list string) (list string))) "directories apart" ([ dir ], [ path ]) (Files.partition_directories [ dir; path ])
+
+(* A read that takes its time: of a pipe that nobody has written to yet.  Done in place, it
+   would keep the fiber from running that is to write. *)
+let test_files_do_not_block () =
+    if Sys.win32 then Alcotest.skip ();
+    with_temp_dir @@ fun dir ->
+    Eio_main.run @@ fun _env ->
+    let pipe = Filename.concat dir "pipe" in
+    Unix.mkfifo pipe 0o600;
+    let contents = ref "" in
+    Eio.Fiber.both
+        (fun () -> contents := Files.read pipe)
+        (fun () -> Out_channel.with_open_bin pipe (fun oc -> output_string oc "written meanwhile"));
+    Alcotest.(check string) "other fibers ran during the read" "written meanwhile" !contents
+
 (* {1 Blocking work} *)
 
 let test_in_systhread () =
@@ -180,5 +230,6 @@ let tests =
         Alcotest.test_case "locate" `Quick test_driver_locate;
         Alcotest.test_case "installation" `Quick test_driver_install;
         Alcotest.test_case "cancelled installation" `Quick test_driver_install_cancelled ];
+      "files", [ Alcotest.test_case "reading and writing" `Quick test_files; Alcotest.test_case "other fibers go on" `Quick test_files_do_not_block ];
       "blocking work", [ Alcotest.test_case "in a thread" `Quick test_in_systhread ];
       "error", [ Alcotest.test_case "rendering" `Quick test_error_rendering ] ]

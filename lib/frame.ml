@@ -86,39 +86,23 @@ type converted_files = {
 }
 
 let no_files = { payloads = None; local_paths = None; local_directory = None; streams = None; directory_stream = None }
-let upload_chunk_size = 1 lsl 20
 
-(* The files below [directory], as paths relative to it. *)
-let rec files_below directory =
-    Sys.readdir directory |> Array.to_list |> List.sort String.compare
-    |> List.concat_map (fun name ->
-        let path = Filename.concat directory name in
-        if Files.is_directory path then List.map (fun below -> name ^ "/" ^ below) (files_below path) else [ name ])
-
+(* Sends local files to the driver of a remote browser, which cannot open them itself. *)
 let upload (context : browser_context) ?directory files =
-    let files =
-        match directory with
-        | Some directory -> List.map (fun name -> name, Filename.concat directory name) (files_below directory)
-        | None -> List.map (fun path -> Filename.basename path, path) files
-    in
-    let items =
-        List.map
-            (fun (name, path) : Protocol.Browser_context.Create_temp_files_items.t -> { name; last_modified_ms = Some ((Unix.stat path).st_mtime *. 1000.) })
-            files
-    in
+    let files = Files.to_upload ?directory files in
+    let items = List.map (fun (file : Files.upload) : Protocol.Browser_context.Create_temp_files_items.t -> { name = file.name; last_modified_ms = Some file.modified_ms }) files in
     let result = Protocol.Browser_context.create_temp_files ?root_dir_name:(Option.map Filename.basename directory) ~items context.c_channel in
     let abandon () = List.iter (fun stream -> try Protocol.Writable_stream.close stream with Error.E _ -> ()) result.writable_streams in
     Connection.guard (Channel.conn context.c_channel) "closing the streams of an upload" ~undo:abandon @@ fun () ->
     List.iter2
-        (fun (_, path) stream ->
-            In_channel.with_open_bin path (fun ic ->
-                let buffer = Bytes.create upload_chunk_size in
+        (fun (file : Files.upload) stream ->
+            Files.with_input file.path (fun read ->
                 let rec copy () =
-                    let n = In_channel.input ic buffer 0 upload_chunk_size in
-                    if n > 0 then begin
-                        Protocol.Writable_stream.write ~binary:(Bytes.sub_string buffer 0 n) stream;
+                    match read () with
+                    | "" -> ()
+                    | chunk ->
+                        Protocol.Writable_stream.write ~binary:chunk stream;
                         copy ()
-                    end
                 in
                 copy ());
             Protocol.Writable_stream.close stream)
@@ -138,7 +122,7 @@ let convert_input_files (frame : t option) = function
     | Paths paths ->
         let paths = List.map Files.absolute paths in
         let files, directory =
-            match List.partition Files.is_directory paths with
+            match Files.partition_directories paths with
             | [], files -> files, None
             | [ directory ], [] -> [], Some directory
             | _ :: _ :: _, [] -> Error.raise_ "Multiple directories are not supported"
