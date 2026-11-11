@@ -17,4 +17,31 @@ let write path contents =
         Out_channel.with_open_bin path (fun oc -> output_string oc contents)
     with Sys_error message | Unix.Unix_error (_, _, message) -> Error.raise_ "Cannot write file %s: %s" path message
 
+let mime_type path =
+    match String.lowercase_ascii (Filename.extension path) with
+    | ".html" | ".htm" -> "text/html"
+    | ".css" -> "text/css"
+    | ".js" | ".mjs" -> "text/javascript"
+    | ".json" -> "application/json"
+    | ".txt" -> "text/plain"
+    | ".csv" -> "text/csv"
+    | ".xml" -> "application/xml"
+    | ".png" -> "image/png"
+    | ".jpg" | ".jpeg" -> "image/jpeg"
+    | ".gif" -> "image/gif"
+    | ".webp" -> "image/webp"
+    | ".svg" -> "image/svg+xml"
+    | ".ico" -> "image/x-icon"
+    | ".pdf" -> "application/pdf"
+    | ".zip" -> "application/zip"
+    | ".wasm" -> "application/wasm"
+    | ".woff" -> "font/woff"
+    | ".woff2" -> "font/woff2"
+    | ".ttf" -> "font/ttf"
+    | ".mp4" -> "video/mp4"
+    | ".webm" -> "video/webm"
+    | ".mp3" -> "audio/mpeg"
+    | ".wav" -> "audio/wav"
+    | _ -> "application/octet-stream"
+
 let is_directory path = try Sys.is_directory path with Sys_error _ -> false

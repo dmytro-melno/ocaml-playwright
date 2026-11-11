@@ -22,6 +22,8 @@ type t = {
     mutable closed : Error.t option;
     closed_promise : Error.t Promise.t;
     closed_resolver : Error.t Promise.u;
+    stopped_promise : unit Promise.t;  (* resolved when {!run} has returned *)
+    stopped_resolver : unit Promise.u;
     mutable factory : channel -> unit;
     report : string -> exn -> Printexc.raw_backtrace -> unit;
     trace : (string -> unit) option;
@@ -61,10 +63,11 @@ let random_prefix () =
 
 let create ~sw ~clock ~report ?trace ~render_value transport =
     let closed_promise, closed_resolver = Promise.create () in
+    let stopped_promise, stopped_resolver = Promise.create () in
     let conn =
         { transport; sw; clock = (clock :> float Eio.Time.clock_ty r); objects = Hashtbl.create 256; pending = Hashtbl.create 64;
           outbox = Eio.Stream.create max_int; id_prefix = random_prefix (); last_id = 0; closed = None;
-          closed_promise; closed_resolver; factory = (fun _ -> ()); report; trace; render_value }
+          closed_promise; closed_resolver; stopped_promise; stopped_resolver; factory = (fun _ -> ()); report; trace; render_value }
     in
     ignore (make_channel conn ~parent:None ~guid:"" ~type_:"Root" ~initializer_:(`Assoc []));
     conn
@@ -73,16 +76,19 @@ let root conn = Hashtbl.find conn.objects ""
 let find conn guid = Hashtbl.find_opt conn.objects guid
 let is_closed conn = conn.closed <> None
 let closed conn = conn.closed_promise
+let stopped conn = conn.stopped_promise
 
 let is_cancellation = function Eio.Cancel.Cancelled _ -> true | _ -> false
 
 (* Runs [f], which is user code or internal follow-up work, in its own fiber.  The fiber starts
-   immediately and runs until it first blocks, so callbacks begin in event order. *)
+   immediately and runs until it first blocks, so callbacks begin in event order.  It does not
+   keep the switch alive: callbacks still running when the program is done are cancelled. *)
 let fork conn what f =
     if conn.closed = None then
         try
-            Fiber.fork ~sw:conn.sw (fun () ->
-                try f () with ex when not (is_cancellation ex) -> conn.report what ex (Printexc.get_raw_backtrace ()))
+            Fiber.fork_daemon ~sw:conn.sw (fun () ->
+                (try f () with ex when not (is_cancellation ex) -> conn.report what ex (Printexc.get_raw_backtrace ()));
+                `Stop_daemon)
         with ex when is_cancellation ex -> ()
 
 (* The single state transition to closed: every pending and future command fails with [error]. *)
@@ -204,14 +210,17 @@ let run conn =
                  with ex when not (is_cancellation ex) -> conn.report "protocol message" ex (Printexc.get_raw_backtrace ()))
         done
     in
-    try
-        Fiber.first
-            (fun () -> Fiber.first read write)
-            (fun () -> ignore (Promise.await conn.closed_promise))
-    with ex ->
-        let bt = Printexc.get_raw_backtrace () in
-        close conn (Error.target_closed ~message:("The Playwright connection failed: " ^ Printexc.to_string ex) ());
-        if is_cancellation ex then Printexc.raise_with_backtrace ex bt
+    Fun.protect
+        ~finally:(fun () -> Promise.resolve conn.stopped_resolver ())
+        (fun () ->
+            try
+                Fiber.first
+                    (fun () -> Fiber.first read write)
+                    (fun () -> ignore (Promise.await conn.closed_promise))
+            with ex ->
+                let bt = Printexc.get_raw_backtrace () in
+                close conn (Error.target_closed ~message:("The Playwright connection failed: " ^ Printexc.to_string ex) ());
+                if is_cancellation ex then Printexc.raise_with_backtrace ex bt)
 
 (* Fails with a {!Error.Timeout} error unless [f] finishes within [timeout] milliseconds;
    [0.] waits forever. *)

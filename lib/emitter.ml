@@ -49,7 +49,7 @@ let subscribe t fn =
     add t listener;
     fun () -> remove t listener
 
-(* Returns whether there was a public listener to deliver the event to. *)
+(* Returns whether there was a listener to deliver the event to. *)
 let emit conn t value =
     List.fold_left
         (fun handled listener ->
@@ -57,13 +57,9 @@ let emit conn t value =
             if not (List.memq listener t.listeners) then handled
             else begin
                 if listener.once then remove t listener;
-                if listener.inline then begin
-                    (try listener.fn value with ex -> conn.Connection.report "internal event listener" ex (Printexc.get_raw_backtrace ()));
-                    handled
-                end
-                else begin
-                    Connection.fork conn "event listener" (fun () -> listener.fn value);
-                    true
-                end
+                if listener.inline then
+                    try listener.fn value with ex -> conn.Connection.report "internal event listener" ex (Printexc.get_raw_backtrace ())
+                else Connection.fork conn "event listener" (fun () -> listener.fn value);
+                true
             end)
         false t.listeners

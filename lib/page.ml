@@ -1,0 +1,462 @@
+open Eio.Std
+open Types
+
+type t = page
+
+type _ event =
+    | Close : page event
+    | Console : console_message event
+    | Crash : page event
+    | Dialog : dialog event
+    | Dom_content_loaded : page event
+    | Download : download event
+    | File_chooser : file_chooser event
+    | Frame_attached : frame event
+    | Frame_detached : frame event
+    | Frame_navigated : frame event
+    | Load : page event
+    | Page_error : Error.t event
+    | Popup : page event
+    | Request : request event
+    | Request_failed : request event
+    | Request_finished : request event
+    | Response : response event
+    | Web_socket : web_socket event
+    | Worker : worker event
+
+let emitter : type a. t -> a event -> a Emitter.t =
+    fun page -> function
+    | Close -> page.pe_close
+    | Console -> page.pe_console
+    | Crash -> page.pe_crash
+    | Dialog -> page.pe_dialog
+    | Dom_content_loaded -> page.pe_dom_content_loaded
+    | Download -> page.pe_download
+    | File_chooser -> page.pe_file_chooser
+    | Frame_attached -> page.pe_frame_attached
+    | Frame_detached -> page.pe_frame_detached
+    | Frame_navigated -> page.pe_frame_navigated
+    | Load -> page.pe_load
+    | Page_error -> page.pe_page_error
+    | Popup -> page.pe_popup
+    | Request -> page.pe_request
+    | Request_failed -> page.pe_request_failed
+    | Request_finished -> page.pe_request_finished
+    | Response -> page.pe_response
+    | Web_socket -> page.pe_web_socket
+    | Worker -> page.pe_worker
+
+let event_name : type a. a event -> string = function
+    | Close -> "close"
+    | Console -> "console"
+    | Crash -> "crash"
+    | Dialog -> "dialog"
+    | Dom_content_loaded -> "domcontentloaded"
+    | Download -> "download"
+    | File_chooser -> "filechooser"
+    | Frame_attached -> "frameattached"
+    | Frame_detached -> "framedetached"
+    | Frame_navigated -> "framenavigated"
+    | Load -> "load"
+    | Page_error -> "pageerror"
+    | Popup -> "popup"
+    | Request -> "request"
+    | Request_failed -> "requestfailed"
+    | Request_finished -> "requestfinished"
+    | Response -> "response"
+    | Web_socket -> "websocket"
+    | Worker -> "worker"
+
+let session (page : t) = page.main_frame.f_session
+let conn (page : t) = (session page).conn
+let emit (page : t) emitter value = ignore (Emitter.emit (conn page) emitter value)
+let close_error = Frame.page_close_error
+
+(* {1 Network interception} *)
+
+let update_interception (page : t) =
+    let patterns =
+        Route.Handler.globs (List.map (fun (handler : route_handler) -> handler.rh_matcher) page.p_routes)
+        |> List.map (fun glob : Protocol.Page.Set_network_interception_patterns_patterns.t ->
+               { glob = Some glob; regex_source = None; regex_flags = None; url_pattern = None })
+    in
+    Protocol.Page.set_network_interception_patterns ~patterns page.p_channel
+
+let update_web_socket_interception (page : t) =
+    let patterns =
+        Route.Handler.globs (List.map (fun (handler : ws_route_handler) -> handler.wh_matcher) page.p_ws_routes)
+        |> List.map (fun glob : Protocol.Page.Set_web_socket_interception_patterns_patterns.t ->
+               { glob = Some glob; regex_source = None; regex_flags = None; url_pattern = None })
+    in
+    Protocol.Page.set_web_socket_interception_patterns ~patterns page.p_channel
+
+(* The page's own handlers come first; what they leave goes to the context's. *)
+let on_route (page : t) (route : route) =
+    route.rt_context <- Some page.context;
+    let settled =
+        Route.Handler.dispatch
+            ~handlers:(fun () -> page.p_routes)
+            ~remove:(fun handler -> page.p_routes <- List.filter (fun h -> h != handler) page.p_routes)
+            ~stalled:(fun () -> page.close_was_called || Browser_context.is_closed page.context)
+            ~on_empty:(fun () -> try update_interception page with Error.E _ -> ())
+            route
+    in
+    if not settled then Browser_context.on_route page.context route
+
+let on_web_socket_route (page : t) (route : web_socket_route) =
+    if not (Route.Web_socket.dispatch page.p_ws_routes route) then Browser_context.on_web_socket_route page.context route
+
+let on_binding (page : t) (call : Channel.t) =
+    let init = Protocol.Binding_call.Initializer.of_json call.conn call.initializer_ in
+    match Hashtbl.find_opt page.p_bindings init.name with
+    | Some binding -> Route.Binding.call call binding
+    | None -> Browser_context.on_binding page.context call
+
+let on_locator_handler_triggered (page : t) uid =
+    let remove =
+        match Hashtbl.find_opt page.locator_handlers uid with
+        | None -> false
+        | Some handler ->
+            if handler.lh_times <> Some 0 then begin
+                handler.lh_times <- Option.map pred handler.lh_times;
+                try handler.lh_handler handler.lh_locator
+                with ex when not (Connection.is_cancellation ex) -> (conn page).report "locator handler" ex (Printexc.get_raw_backtrace ())
+            end;
+            handler.lh_times = Some 0
+    in
+    if remove then Hashtbl.remove page.locator_handlers uid;
+    try Protocol.Page.resolve_locator_handler_no_reply ~uid ~remove page.p_channel with Error.E _ -> ()
+
+(* {1 Events from the driver} *)
+
+let handle_event (page : t) name params =
+    let conn = conn page in
+    let fork what f = Connection.fork conn what f in
+    match Protocol.Page.event_of_json conn name params with
+    | Some (Binding_call { binding }) -> fork "exposed binding" (fun () -> on_binding page binding)
+    | Some Close ->
+        page.closed <- true;
+        page.context.pages <- List.filter (fun p -> p != page) page.context.pages;
+        if not (Promise.is_resolved page.p_gone) then Promise.resolve page.p_gone_resolver (close_error page);
+        emit page page.pe_close page
+    | Some Crash ->
+        if not (Promise.is_resolved page.p_gone) then Promise.resolve page.p_gone_resolver (Error.target_closed ~message:"Page crashed" ());
+        emit page page.pe_crash page
+    | Some (Download { url; suggested_filename; artifact }) ->
+        emit page page.pe_download { dl_page = page; dl_url = url; suggested_filename; dl_artifact = artifact }
+    | Some (Viewport_size_changed { viewport_size }) ->
+        page.viewport_size <-
+            Option.map (fun (size : Protocol.Page.Viewport_size_changed_event_viewport_size.t) -> { width = size.width; height = size.height }) viewport_size
+    | Some (File_chooser { element; is_multiple }) ->
+        emit page page.pe_file_chooser { fc_page = page; fc_element = Types.element element; is_multiple }
+    | Some (Frame_attached { frame }) ->
+        let frame = Types.frame frame in
+        frame.page <- Some page;
+        page.frames <- page.frames @ [ frame ];
+        Option.iter
+            (fun (parent : frame) -> if not (List.memq frame parent.child_frames) then parent.child_frames <- parent.child_frames @ [ frame ])
+            frame.parent_frame;
+        emit page page.pe_frame_attached frame
+    | Some (Frame_detached { frame }) ->
+        let frame = Types.frame frame in
+        page.frames <- List.filter (fun f -> f != frame) page.frames;
+        frame.detached <- true;
+        Option.iter (fun (parent : frame) -> parent.child_frames <- List.filter (fun f -> f != frame) parent.child_frames) frame.parent_frame;
+        emit page page.pe_frame_detached frame
+    | Some (Locator_handler_triggered { uid }) -> fork "locator handler" (fun () -> on_locator_handler_triggered page uid)
+    | Some (Route { route }) -> fork "route" (fun () -> on_route page (Types.route route))
+    | Some (Web_socket_route { web_socket_route }) ->
+        fork "WebSocket route" (fun () -> on_web_socket_route page (Types.web_socket_route web_socket_route))
+    | Some (Web_socket { web_socket }) -> emit page page.pe_web_socket (Types.web_socket web_socket)
+    | Some (Worker { worker }) ->
+        let worker = Types.worker worker in
+        worker.w_page <- Some page;
+        page.workers <- page.workers @ [ worker ];
+        emit page page.pe_worker worker
+    | Some (Screencast_frame _) | None -> ()
+
+let create (channel : Channel.t) =
+    let init = Protocol.Page.Initializer.of_json channel.conn channel.initializer_ in
+    let context = match channel.parent with Some parent -> Types.browser_context parent | None -> Types.mismatch channel "child of a BrowserContext" in
+    let main_frame = Types.frame init.main_frame in
+    let p_gone, p_gone_resolver = Promise.create () in
+    let page =
+        { p_channel = channel; context; main_frame; frames = [ main_frame ]; workers = []; closed = init.is_closed; close_was_called = false;
+          p_close_reason = None;
+          viewport_size = Option.map (fun (size : Protocol.Page.Initializer_viewport_size.t) -> { width = size.width; height = size.height }) init.viewport_size;
+          p_routes = []; p_ws_routes = []; p_bindings = Hashtbl.create 4; p_timeouts = Timeouts.create ~parent:context.c_timeouts ();
+          opener = Option.map Types.page init.opener; owned_context = None; video_artifact = init.video; locator_handlers = Hashtbl.create 1;
+          p_gone; p_gone_resolver; pe_close = Emitter.create (); pe_console = Emitter.create (); pe_crash = Emitter.create ();
+          pe_dialog = Emitter.create (); pe_dom_content_loaded = Emitter.create (); pe_download = Emitter.create ();
+          pe_file_chooser = Emitter.create (); pe_frame_attached = Emitter.create (); pe_frame_detached = Emitter.create ();
+          pe_frame_navigated = Emitter.create (); pe_load = Emitter.create (); pe_page_error = Emitter.create (); pe_popup = Emitter.create ();
+          pe_request = Emitter.create (); pe_request_failed = Emitter.create (); pe_request_finished = Emitter.create ();
+          pe_response = Emitter.create (); pe_web_socket = Emitter.create (); pe_worker = Emitter.create () }
+    in
+    main_frame.page <- Some page;
+    let subscribe emitter event =
+        Events.subscribe_on_demand channel.conn emitter (fun ~enabled -> Protocol.Page.update_subscription ~event ~enabled channel)
+    in
+    subscribe page.pe_console `Console;
+    subscribe page.pe_dialog `Dialog;
+    subscribe page.pe_request `Request;
+    subscribe page.pe_response `Response;
+    subscribe page.pe_request_finished `Request_finished;
+    subscribe page.pe_request_failed `Request_failed;
+    subscribe page.pe_file_chooser `File_chooser;
+    channel.impl <- Page page;
+    channel.on_event <- handle_event page
+
+(* {1 Everything a page shares with its main frame} *)
+
+include Frame.Operations (struct
+    type t = page
+
+    let frame (page : t) = page.main_frame
+end)
+
+include Locator.Queries (struct
+    type t = page
+
+    let session = session
+    let find (page : t) selector = Locator.make page.main_frame selector
+end)
+
+let locator ?has_text ?has_text_regex ?has_not_text ?has_not_text_regex ?has ?has_not selector (page : t) =
+    Locator.make ?has_text ?has_text_regex ?has_not_text ?has_not_text_regex ?has ?has_not page.main_frame selector
+
+let frame_locator selector (page : t) : frame_locator = { fl_frame = page.main_frame; frame_selector = selector }
+
+(* {1 Accessors} *)
+
+let context (page : t) = page.context
+let opener (page : t) = match page.opener with Some opener when not opener.closed -> Some opener | _ -> None
+let main_frame (page : t) = page.main_frame
+let frames (page : t) = page.frames
+let url (page : t) = page.main_frame.f_url
+let viewport_size (page : t) = Option.map (fun (size : size) -> size.width, size.height) page.viewport_size
+let is_closed (page : t) = page.closed
+let workers (page : t) = page.workers
+let video (page : t) = if page.context.records_video then Some page else None
+let set_default_timeout timeout (page : t) = page.p_timeouts.default <- Some timeout
+let set_default_navigation_timeout timeout (page : t) = page.p_timeouts.default_navigation <- Some timeout
+
+let frame ?name ?url (page : t) =
+    match name, url with
+    | Some name, _ -> List.find_opt (fun (frame : frame) -> frame.f_name = name) page.frames
+    | None, Some glob ->
+        let matches = Frame.url_matcher page.main_frame glob in
+        List.find_opt (fun (frame : frame) -> matches frame.f_url) page.frames
+    | None, None -> invalid_arg "Playwright: either ~name or ~url must be specified"
+
+(* {1 Events for the user} *)
+
+let on event listener (page : t) = Emitter.on (emitter page event) listener
+let once event listener (page : t) = Emitter.once (emitter page event) listener
+let off event listener (page : t) = Emitter.off (emitter page event) listener
+
+let expect_event (type a) ?timeout ?predicate (event : a event) action (page : t) : a =
+    let timeout = Timeouts.action ?timeout page.p_timeouts in
+    let rejections waiter =
+        (match event with
+        | Crash -> ()
+        | _ -> Waiter.reject_on waiter page.pe_crash (fun _ -> Some (Error.make "Page crashed")));
+        match event with
+        | Close -> ()
+        | _ -> Waiter.reject_on waiter page.pe_close (fun _ -> Some (close_error page))
+    in
+    Events.expect (conn page) ~timeout ~name:(event_name event) ?predicate ~rejections (emitter page event) action
+
+let wait_for_event ?timeout ?predicate event page = expect_event ?timeout ?predicate event ignore page
+let expect_popup ?timeout ?predicate action page = expect_event ?timeout ?predicate Popup action page
+let expect_download ?timeout ?predicate action page = expect_event ?timeout ?predicate Download action page
+let expect_file_chooser ?timeout ?predicate action page = expect_event ?timeout ?predicate File_chooser action page
+let expect_console_message ?timeout ?predicate action page = expect_event ?timeout ?predicate Console action page
+let expect_web_socket ?timeout ?predicate action page = expect_event ?timeout ?predicate Web_socket action page
+let expect_worker ?timeout ?predicate action page = expect_event ?timeout ?predicate Worker action page
+
+(* Combines an optional URL glob and an optional predicate on the object carrying the URL. *)
+let url_predicate (page : t) ?url ?predicate url_of =
+    let matches = Option.map (Frame.url_matcher page.main_frame) url in
+    fun value ->
+        (match matches with Some matches -> matches (url_of value) | None -> true)
+        && match predicate with Some predicate -> predicate value | None -> true
+
+let expect_request ?timeout ?url ?predicate action page =
+    expect_event ?timeout ~predicate:(url_predicate page ?url ?predicate Network.Request.url) Request action page
+
+let expect_request_finished ?timeout ?url ?predicate action page =
+    expect_event ?timeout ~predicate:(url_predicate page ?url ?predicate Network.Request.url) Request_finished action page
+
+let expect_response ?timeout ?url ?predicate action page =
+    expect_event ?timeout ~predicate:(url_predicate page ?url ?predicate Network.Response.url) Response action page
+
+let wait_for_request ?timeout ?url ?predicate page = expect_request ?timeout ?url ?predicate ignore page
+let wait_for_response ?timeout ?url ?predicate page = expect_response ?timeout ?url ?predicate ignore page
+
+(* {1 Navigation and state} *)
+
+let reload ?timeout ?(wait_until = `Load) (page : t) =
+    Protocol.Page.reload ~timeout:(Timeouts.navigation ?timeout page.p_timeouts) ~wait_until page.p_channel |> Option.map Types.response
+
+let go_back ?timeout ?(wait_until = `Load) (page : t) =
+    Protocol.Page.go_back ~timeout:(Timeouts.navigation ?timeout page.p_timeouts) ~wait_until page.p_channel |> Option.map Types.response
+
+let go_forward ?timeout ?(wait_until = `Load) (page : t) =
+    Protocol.Page.go_forward ~timeout:(Timeouts.navigation ?timeout page.p_timeouts) ~wait_until page.p_channel |> Option.map Types.response
+
+let bring_to_front (page : t) = Protocol.Page.bring_to_front page.p_channel
+let request_gc (page : t) = Protocol.Page.request_gc page.p_channel
+let requests (page : t) = Protocol.Page.requests page.p_channel |> List.map Types.request
+
+let set_viewport_size (width, height) (page : t) =
+    page.viewport_size <- Some { width; height };
+    Protocol.Page.set_viewport_size ~viewport_size:{ width; height } page.p_channel
+
+let emulate_media ?media ?color_scheme ?reduced_motion ?forced_colors ?contrast (page : t) =
+    Protocol.Page.emulate_media ?media ?color_scheme ?reduced_motion ?forced_colors ?contrast page.p_channel
+
+let set_extra_http_headers headers (page : t) = Protocol.Page.set_extra_http_headers ~headers:(Network.name_values headers) page.p_channel
+
+let add_init_script ?path ?script (page : t) =
+    ignore (Protocol.Page.add_init_script ~source:(Browser_context.init_script ?path ?script ()) page.p_channel)
+
+let expose_binding name (binding : binding) (page : t) =
+    ignore (Protocol.Page.expose_binding ~name page.p_channel);
+    Hashtbl.replace page.p_bindings name binding
+
+let expose_function name f page = expose_binding name (fun _ args -> f args) page
+
+let aria_snapshot ?timeout ?mode ?depth ?boxes (page : t) =
+    Protocol.Frame.aria_snapshot ~timeout:(Timeouts.action ?timeout page.p_timeouts) ?mode ?depth ?boxes page.main_frame.f_channel
+
+(* {1 Routing} *)
+
+let add_route ?times matcher handler (page : t) =
+    let handler = Route.Handler.make (session page) ?base_url:page.context.base_url ?times matcher handler in
+    page.p_routes <- handler :: page.p_routes;
+    update_interception page
+
+let route ?times glob handler page = add_route ?times (Glob glob) handler page
+let route_matching ?times predicate handler page = add_route ?times (Predicate predicate) handler page
+
+let unroute glob (page : t) =
+    page.p_routes <- List.filter (fun (handler : route_handler) -> not (Route.Handler.matcher_equal handler.rh_matcher (Glob glob))) page.p_routes;
+    update_interception page
+
+let unroute_all (page : t) =
+    page.p_routes <- [];
+    update_interception page
+
+let add_web_socket_route matcher handler (page : t) =
+    page.p_ws_routes <- Route.Web_socket.make_handler (session page) ?base_url:page.context.base_url matcher handler :: page.p_ws_routes;
+    update_web_socket_interception page
+
+let route_web_socket glob handler page = add_web_socket_route (Glob glob) handler page
+let route_web_socket_matching predicate handler page = add_web_socket_route (Predicate predicate) handler page
+
+(* {1 Locator handlers} *)
+
+let add_locator_handler ?times ?no_wait_after (locator : locator) handler (page : t) =
+    if locator.l_frame != page.main_frame then invalid_arg "Playwright: the locator must belong to the main frame of this page";
+    if times <> Some 0 then begin
+        let uid = Protocol.Page.register_locator_handler ~selector:locator.selector ?no_wait_after page.p_channel in
+        Hashtbl.replace page.locator_handlers uid { lh_locator = locator; lh_handler = handler; lh_times = times }
+    end
+
+let remove_locator_handler (locator : locator) (page : t) =
+    Hashtbl.to_seq page.locator_handlers
+    |> List.of_seq
+    |> List.iter (fun (uid, (handler : locator_handler)) ->
+           if Locator.equal handler.lh_locator locator then begin
+               Hashtbl.remove page.locator_handlers uid;
+               try Protocol.Page.unregister_locator_handler ~uid page.p_channel with Error.E _ -> ()
+           end)
+
+(* {1 Output} *)
+
+let screenshot ?timeout ?path ?type_ ?quality ?full_page ?clip ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (page : t) =
+    Protocol.Page.screenshot ~timeout:(Timeouts.action ?timeout page.p_timeouts) ?type_:(Screenshot.image_type ?type_ ?path ()) ?quality
+        ?full_page ?clip ?omit_background ?caret ?animations ?scale ?mask:(Option.map Screenshot.mask mask) ?mask_color ?style page.p_channel
+    |> Screenshot.save ?path
+
+let pdf ?path ?scale ?display_header_footer ?header_template ?footer_template ?print_background ?landscape ?page_ranges ?format ?width ?height
+    ?prefer_css_page_size ?margin_top ?margin_right ?margin_bottom ?margin_left ?tagged ?outline (page : t) =
+    let margin : Protocol.Page.Pdf_margin.t option =
+        match margin_top, margin_right, margin_bottom, margin_left with
+        | None, None, None, None -> None
+        | top, right, bottom, left -> Some { top; right; bottom; left }
+    in
+    Protocol.Page.pdf ?scale ?display_header_footer ?header_template ?footer_template ?print_background ?landscape ?page_ranges ?format ?width
+        ?height ?prefer_css_page_size ?margin ?tagged ?outline page.p_channel
+    |> Screenshot.save ?path
+
+(* {1 Closing} *)
+
+let close ?(run_before_unload = false) ?reason (page : t) =
+    page.p_close_reason <- reason;
+    if not run_before_unload then page.close_was_called <- true;
+    try
+        match page.owned_context with
+        | Some context -> Browser_context.close context
+        | None -> if run_before_unload then Protocol.Page.run_before_unload page.p_channel else Protocol.Page.close ?reason page.p_channel
+    with Error.E { kind = Target_closed; _ } when not run_before_unload -> ()
+
+(* Hands control to the Playwright inspector until the user resumes the script. *)
+let pause (page : t) =
+    let timeouts = page.context.c_timeouts in
+    let default, default_navigation = timeouts.default, timeouts.default_navigation in
+    timeouts.default <- Some 0.;
+    timeouts.default_navigation <- Some 0.;
+    Fun.protect
+        ~finally:(fun () ->
+            timeouts.default <- default;
+            timeouts.default_navigation <- default_navigation)
+        (fun () ->
+            Fiber.first (fun () -> Protocol.Browser_context.pause page.context.c_channel) (fun () -> ignore (Promise.await page.p_gone)))
+
+(* {1 Input devices} *)
+
+module Keyboard = struct
+    type t = page
+
+    let down key (page : t) = Protocol.Page.keyboard_down ~key page.p_channel
+    let up key (page : t) = Protocol.Page.keyboard_up ~key page.p_channel
+    let insert_text text (page : t) = Protocol.Page.keyboard_insert_text ~text page.p_channel
+    let type_ ?delay text (page : t) = Protocol.Page.keyboard_type ~text ?delay page.p_channel
+    let press ?delay key (page : t) = Protocol.Page.keyboard_press ~key ?delay page.p_channel
+end
+
+module Mouse = struct
+    type t = page
+
+    let move ?steps x y (page : t) = Protocol.Page.mouse_move ~x ~y ?steps page.p_channel
+    let down ?button ?click_count (page : t) = Protocol.Page.mouse_down ?button ?click_count page.p_channel
+    let up ?button ?click_count (page : t) = Protocol.Page.mouse_up ?button ?click_count page.p_channel
+    let click ?delay ?button ?click_count x y (page : t) = Protocol.Page.mouse_click ~x ~y ?delay ?button ?click_count page.p_channel
+    let dblclick ?delay ?button x y page = click ?delay ?button ~click_count:2 x y page
+    let wheel delta_x delta_y (page : t) = Protocol.Page.mouse_wheel ~delta_x ~delta_y page.p_channel
+end
+
+module Touchscreen = struct
+    type t = page
+
+    let tap x y (page : t) = Protocol.Page.touchscreen_tap ~x ~y page.p_channel
+end
+
+module Video = struct
+    type t = page
+
+    let artifact (page : t) =
+        match page.video_artifact with
+        | Some artifact -> artifact
+        | None -> Error.raise_ "Video recording has not been started."
+
+    (* Where the browser writes the video.  The file is complete once the page is closed. *)
+    let path (page : t) =
+        if (session page).is_remote then Error.raise_ "Path is not available when connecting remotely. Use save_as to save a local copy.";
+        (Protocol.Artifact.Initializer.of_json (conn page) (artifact page).initializer_).absolute_path
+
+    let save_as path (page : t) = Artifact.save_as (session page) (artifact page) path
+    let delete (page : t) = Option.iter Artifact.delete page.video_artifact
+end

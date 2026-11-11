@@ -3,6 +3,7 @@
 type kind =
     | Timeout
     | Target_closed
+    | Assertion_failed
     | Other
 
 type t = {
@@ -22,6 +23,7 @@ let make ?(kind = Other) ?name ?stack ?(log = []) ?(details = `Null) message =
         | Some name, _ -> name
         | None, Timeout -> "TimeoutError"
         | None, Target_closed -> "TargetClosedError"
+        | None, Assertion_failed -> "AssertionError"
         | None, Other -> "Error"
     in
     { kind; name; message; stack; log; details }
@@ -38,8 +40,7 @@ let kind_of_name = function
     | _ -> Other
 
 let call_log log =
-    if List.for_all (fun line -> line = "") log then ""
-    else "\nCall log:\n" ^ String.concat "\n" (List.map (fun line -> "  - " ^ line) log)
+    if List.for_all (fun line -> line = "") log then "" else "\nCall log:\n" ^ String.concat "\n" log
 
 (* Decodes the [error] member of a response: either a serialized JavaScript [Error] or, when the
    page threw something else, an arbitrary serialized value. *)

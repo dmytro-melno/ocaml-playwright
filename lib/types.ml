@@ -19,6 +19,18 @@ type session = {
     mutable selector_engines : Protocol.Selector_engine.t list;
     mutable all_contexts : browser_context list;
     url_matchers : (string, string -> bool) Hashtbl.t;  (* compiled globs, by base URL and glob *)
+    mutable devices : device list;
+}
+
+and device = {
+    device_name : string;
+    device_user_agent : string;
+    device_viewport : size;
+    device_screen : size option;
+    device_scale_factor : float;
+    device_is_mobile : bool;
+    device_has_touch : bool;
+    default_browser_type : [ `Chromium | `Firefox | `Webkit ];
 }
 
 (* A JavaScript value that crosses the boundary between OCaml and the page. *)
@@ -62,7 +74,11 @@ and browser = {
     mutable contexts : browser_context list;
     mutable connected : bool;
     mutable b_close_reason : string option;
-    mutable on_closed : unit -> unit;  (* releases what a remote connection holds *)
+    mutable b_traces_dir : string option;
+    (* For a browser reached through its own connection: how to drop that connection. *)
+    mutable disconnect : (unit -> unit) option;
+    b_closed : unit Promise.t;
+    b_closed_resolver : unit Promise.u;
     e_disconnected : browser Emitter.t;
 }
 
@@ -129,7 +145,7 @@ and page = {
     pe_frame_detached : frame Emitter.t;
     pe_frame_navigated : frame Emitter.t;
     pe_load : page Emitter.t;
-    pe_page_error : js_error Emitter.t;
+    pe_page_error : Error.t Emitter.t;
     pe_popup : page Emitter.t;
     pe_request : request Emitter.t;
     pe_request_failed : request Emitter.t;
@@ -304,16 +320,10 @@ and console_message = {
     cm_worker : worker option;
 }
 
-(* An error thrown in the page. *)
-and js_error = {
-    e_name : string;
-    e_message : string;
-    e_stack : string;
-}
-
+(* An uncaught error thrown in a page. *)
 and web_error = {
     we_page : page option;
-    we_error : js_error;
+    we_error : Error.t;
 }
 
 and download = {
@@ -375,6 +385,7 @@ type playwright = {
     chromium : browser_type;
     firefox : browser_type;
     webkit : browser_type;
+    mutable stop : unit -> unit;  (* shuts the driver down; idempotent *)
 }
 
 (* The client object behind each channel. *)

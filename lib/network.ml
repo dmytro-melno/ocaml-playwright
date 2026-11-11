@@ -233,4 +233,43 @@ module Web_socket = struct
 
     let url (socket : t) = socket.ws_url
     let is_closed (socket : t) = socket.ws_closed
+
+    type _ event =
+        | Close : web_socket event
+        | Frame_sent : ws_payload event
+        | Frame_received : ws_payload event
+        | Socket_error : string event
+
+    let emitter : type a. t -> a event -> a Emitter.t =
+        fun socket -> function
+        | Close -> socket.wse_close
+        | Frame_sent -> socket.wse_frame_sent
+        | Frame_received -> socket.wse_frame_received
+        | Socket_error -> socket.wse_socket_error
+
+    let event_name : type a. a event -> string = function
+        | Close -> "close"
+        | Frame_sent -> "framesent"
+        | Frame_received -> "framereceived"
+        | Socket_error -> "socketerror"
+
+    let on event listener (socket : t) = Emitter.on (emitter socket event) listener
+    let once event listener (socket : t) = Emitter.once (emitter socket event) listener
+    let off event listener (socket : t) = Emitter.off (emitter socket event) listener
+
+    let expect_event (type a) ?timeout ?predicate (event : a event) action (socket : t) : a =
+        let timeouts = match socket.ws_page with Some page -> page.p_timeouts | None -> Timeouts.create () in
+        let rejections waiter =
+            (match event with
+            | Socket_error -> ()
+            | _ -> Waiter.reject_on waiter socket.wse_socket_error (fun _ -> Some (Error.make "Socket error")));
+            (match event with
+            | Close -> ()
+            | _ -> Waiter.reject_on waiter socket.wse_close (fun _ -> Some (Error.make "Socket closed")));
+            Option.iter (fun (page : page) -> Waiter.reject_on waiter page.pe_close (fun _ -> Some (Error.target_closed ?message:page.p_close_reason ()))) socket.ws_page
+        in
+        Events.expect socket.ws_channel.conn ~timeout:(Timeouts.action ?timeout timeouts) ~name:(event_name event) ?predicate ~rejections
+            (emitter socket event) action
+
+    let wait_for_event ?timeout ?predicate event socket = expect_event ?timeout ?predicate event ignore socket
 end
