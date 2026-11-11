@@ -123,18 +123,23 @@ let js_error (error : Protocol.Serialized_error.t) : Error.t =
     | None, Some value -> Error.make (Js.show (Js.of_wire value))
     | None, None -> Error.make ""
 
+(* The context is gone: it was closed, or its browser or the connection to it went away. *)
+let did_close (context : t) =
+    if context.close_state <> `Closed then begin
+        context.close_state <- `Closed;
+        Option.iter (fun (browser : browser) -> browser.contexts <- List.filter (fun c -> c != context) browser.contexts) context.browser;
+        (let selectors = context.c_session.selectors in
+         selectors.all_contexts <- List.filter (fun c -> c != context) selectors.all_contexts);
+        Promise.resolve context.c_closed_resolver ();
+        emit context context.ce_close context
+    end
+
 let handle_event (context : t) name params =
     let conn = context.c_session.conn in
     let fork what f = Connection.fork conn what f in
     match Protocol.Browser_context.event_of_json conn name params with
     | Some (Binding_call { binding }) -> fork "exposed binding" (fun () -> on_binding context binding)
-    | Some Close ->
-        context.close_state <- `Closed;
-        Option.iter (fun (browser : browser) -> browser.contexts <- List.filter (fun c -> c != context) browser.contexts) context.browser;
-        (let selectors = context.c_session.selectors in
-         selectors.all_contexts <- List.filter (fun c -> c != context) selectors.all_contexts);
-        if not (Promise.is_resolved context.c_closed) then Promise.resolve context.c_closed_resolver ();
-        emit context context.ce_close context
+    | Some Close -> did_close context
     | Some (Page { page }) ->
         let page = Types.page page in
         context.pages <- context.pages @ [ page ];
@@ -193,7 +198,7 @@ let handle_event (context : t) name params =
         Option.iter
             (fun response ->
                 let response = Types.response response in
-                if not (Promise.is_resolved response.rs_finished) then Promise.resolve response.rs_finished_resolver ())
+                if not (Promise.is_resolved response.rs_finished) then Promise.resolve response.rs_finished_resolver (Ok ()))
             response
     | Some (Response { response; page }) ->
         let response = Types.response response in
@@ -226,7 +231,8 @@ let create session (channel : Channel.t) =
     subscribe context.ce_request_failed `Request_failed;
     session.selectors.all_contexts <- context :: session.selectors.all_contexts;
     channel.impl <- Browser_context context;
-    channel.on_event <- handle_event context
+    channel.on_event <- handle_event context;
+    channel.on_lost <- (fun _ -> did_close context)
 
 (* Starts the HAR recording that a context was created with, if any. *)
 let start_har_recording (options : Context_options.t) (context : t) =
@@ -340,7 +346,7 @@ let close ?reason (context : t) =
         in
         (try
             Protocol.Browser_context.close ?reason context.c_channel;
-            Fiber.first (fun () -> Promise.await context.c_closed) (fun () -> ignore (Promise.await (Connection.closed context.c_session.conn)))
+            Promise.await context.c_closed
          with ex when gone ex -> ());
         Option.iter raise har_failure
     end

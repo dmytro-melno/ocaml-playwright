@@ -11,6 +11,6 @@ let of_json conn (j : Json.t) : t =
     let guid = Json.Decode.(req "guid" string j) in
     match Connection.find conn guid with
     | Some channel -> channel
-    | None -> Json.decode_error "object %S is not bound in the connection" guid
+    | None -> Error.raise_ "Protocol error: object %S is not bound in the connection" guid
 
 let call = Connection.call

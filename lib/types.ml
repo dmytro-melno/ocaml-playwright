@@ -233,8 +233,9 @@ and response = {
     rs_init : Protocol.Response.Initializer.t;
     rs_request : request;
     mutable rs_raw_headers : (string * string) list option;
-    rs_finished : unit Promise.t;
-    rs_finished_resolver : unit Promise.u;
+    (* Resolved once the body has been received in full, or cannot be any more. *)
+    rs_finished : (unit, Error.t) result Promise.t;
+    rs_finished_resolver : (unit, Error.t) result Promise.u;
 }
 
 and route = {
@@ -381,6 +382,7 @@ and api_response = {
 
 and cdp_session = {
     cdp_channel : Channel.t;
+    mutable cdp_detached : bool;
     cdpe_event : (string * Json.t) Emitter.t;
     cdpe_close : cdp_session Emitter.t;
     mutable cdp_listeners : ((string -> Json.t -> unit) * (string * Json.t -> unit)) list;  (* public listeners and what stands for them *)
@@ -392,7 +394,7 @@ type playwright = {
     chromium : browser_type;
     firefox : browser_type;
     webkit : browser_type;
-    mutable stop : unit -> unit;  (* shuts the driver down; idempotent *)
+    stopped : unit Promise.t;  (* resolved once the connection has ended and the driver is gone *)
 }
 
 (* The client object behind each channel. *)
@@ -415,7 +417,7 @@ type Connection.impl +=
     | Cdp_session of cdp_session
 
 let mismatch (channel : Channel.t) expected =
-    Json.decode_error "object %S is a %s, not a %s" channel.guid channel.type_ expected
+    Error.raise_ "Protocol error: object %S is a %s, not a %s" channel.guid channel.type_ expected
 
 let browser_type (c : Channel.t) = match c.impl with Browser_type x -> x | _ -> mismatch c "BrowserType"
 let browser (c : Channel.t) = match c.impl with Browser x -> x | _ -> mismatch c "Browser"

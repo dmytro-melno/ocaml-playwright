@@ -245,6 +245,70 @@ let test_connect_over_cdp t () =
     Alcotest.(check string) "detaching leaves the browser running" "Original" (Page.title original);
     Browser.close browser
 
+(* What must hold when a Playwright instance ends, however that comes about: its objects say
+   that they are gone, their last events are delivered, the handlers that are still at work are
+   cancelled, and no fiber is left waiting.  [obtain] gets the browser; [end_] ends the instance. *)
+let check_instance_end t what ~create ~obtain end_ =
+    Server.page t.server "/blank" "<title>Blank</title>";
+    Server.route t.server "/stalled" (fun _ -> Server.respond ~complete:false "the beginning");
+    let reported = ref [] in
+    let pw : Playwright.t = create ~on_error:(fun what ex -> reported := (what, ex) :: !reported) in
+    let browser = obtain pw in
+    let context = Browser.new_context browser in
+    let page = BrowserContext.new_page context in
+    ignore (Page.goto (Server.url t.server "/blank") page);
+    let events = ref [] in
+    let note event _ = events := event :: !events in
+    Page.on Page.Close (note "page") page;
+    BrowserContext.on BrowserContext.Close (note "context") context;
+    Browser.on_disconnected (note "browser") browser;
+    (* A handler that is at work. *)
+    let handler = ref "idle" in
+    let working, started = Promise.create () in
+    Page.on Page.Console
+        (fun _ ->
+            if !handler = "idle" then begin
+                handler := "working";
+                Promise.resolve started ();
+                try Fiber.await_cancel ()
+                with ex ->
+                    handler := "cancelled";
+                    raise ex
+            end)
+        page;
+    ignore (Page.evaluate "console.log('to the handler')" page);
+    Promise.await working;
+    (* Fibers that wait, in the ways there are to wait. *)
+    let response = Page.expect_response ~url:"**/stalled" (fun () -> ignore (Page.evaluate "void fetch('/stalled')" page)) page in
+    let waiting =
+        List.map
+            (fun (name, wait) -> name, Fiber.fork_promise ~sw:t.sw wait)
+            [ "a call", (fun () -> ignore (Page.evaluate "new Promise(() => {})" page));
+              "an event", (fun () -> ignore (Page.wait_for_event ~timeout:0. Page.Popup page));
+              "an element", (fun () -> ignore (Page.wait_for_selector ~timeout:0. "#never" page));
+              "the body of a response", (fun () -> Response.finished response);
+              "an assertion", (fun () -> Expect.to_have_title ~timeout:0. "Never" page) ]
+    in
+    Fiber.yield ();
+    Eio.Time.with_timeout_exn (Eio.Stdenv.clock t.env) 30. (fun () ->
+        end_ pw page;
+        List.iter
+            (fun (name, (outcome : (unit, exn) result Promise.t)) ->
+                match Promise.await outcome with
+                | Error (Playwright.Error error) -> Alcotest.check error_kind (Printf.sprintf "%s: waiting for %s" what name) Error.Target_closed error.kind
+                | Error ex -> raise ex
+                | Ok () -> Alcotest.failf "%s: waiting for %s should have failed" what name)
+            waiting;
+        Playwright.close pw);
+    Alcotest.(check (list string)) (what ^ ": the last events, each once, the page first") [ "page"; "context"; "browser" ] (List.rev !events);
+    Alcotest.(check bool) (what ^ ": everything is closed") true
+        (Page.is_closed page && (not (Browser.is_connected browser)) && Browser.contexts browser = [] && BrowserContext.pages context = []);
+    Alcotest.(check string) (what ^ ": a handler at work") "cancelled" !handler;
+    check_failure (what ^ ": later calls") ~kind:Target_closed (fun () -> Page.title page);
+    check_failure (what ^ ": also on the instance") ~kind:Target_closed (fun () -> BrowserType.launch (chromium pw));
+    Alcotest.(check (list string)) (what ^ ": nothing goes to the error hook") []
+        (List.map (fun (what, ex) -> Printf.sprintf "%s: %s" what (Printexc.to_string ex)) !reported)
+
 (* Runs a Playwright server for one browser and passes its endpoint to [f]. *)
 let with_server t f =
     let driver = Playwright__Driver.locate ~install_if_missing:false () in
@@ -306,7 +370,42 @@ let test_connect t () =
     Fiber.yield ();
     (try Browser.close ~reason:"closing the remote browser" browser with Playwright.Error _ -> ());
     Promise.await gone;
+    (* The end of the instance is the end of what it reached through a server, too. *)
+    check_instance_end t "closed while connected to a server"
+        ~create:(fun ~on_error -> Playwright.create ~sw:t.sw ~env:t.env ~on_error ())
+        ~obtain:(fun pw -> BrowserType.connect endpoint (chromium pw))
+        (fun pw _ -> Playwright.close pw);
     check_failure "wrong endpoint" (fun () -> BrowserType.connect ~timeout:3000. (Printf.sprintf "ws://127.0.0.1:%d/nothing" (closed_port t)) (chromium t.pw))
+
+(* Starts an instance whose driver can be killed: returns the process identifier with it. *)
+let create_with_driver_pid t ~on_error =
+    let driver = Playwright__Driver.locate ~install_if_missing:false () in
+    let pid_file = scratch_file t "driver.pid" in
+    let wrapper = scratch_file t "node.sh" in
+    write_file wrapper (Printf.sprintf "#!/bin/sh\necho $$ > %s\nexec %s \"$@\"\n" (Filename.quote pid_file) (Filename.quote driver.node));
+    Unix.chmod wrapper 0o755;
+    let variable = "PLAYWRIGHT_NODEJS_PATH" in
+    let previous = Option.value (Sys.getenv_opt variable) ~default:"" in
+    Unix.putenv variable wrapper;
+    let pw = Fun.protect ~finally:(fun () -> Unix.putenv variable previous) (fun () -> Playwright.create ~sw:t.sw ~env:t.env ~on_error ()) in
+    pw, int_of_string (String.trim (read_file pid_file))
+
+let test_instance_end t () =
+    let create ~on_error = Playwright.create ~sw:t.sw ~env:t.env ~on_error () in
+    let launch pw = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
+    check_instance_end t "closed" ~create ~obtain:launch (fun pw _ -> Playwright.close pw);
+    check_instance_end t "closed by one of its handlers" ~create ~obtain:launch (fun pw page ->
+        Page.on Page.Request (fun _ -> Playwright.close pw) page;
+        try ignore (Page.evaluate "fetch('/blank').then(() => 1)" page) with Playwright.Error { kind = Target_closed; _ } -> ());
+    if not Sys.win32 then begin
+        let driver = ref 0 in
+        let create ~on_error =
+            let pw, pid = create_with_driver_pid t ~on_error in
+            driver := pid;
+            pw
+        in
+        check_instance_end t "driver killed" ~create ~obtain:launch (fun _ _ -> Unix.kill !driver Sys.sigkill)
+    end
 
 let test_second_driver t () =
     Server.page t.server "/blank" "<title>Blank</title>";
@@ -339,4 +438,5 @@ let tests t =
         case t "persistent context" (test_persistent_context t);
         case t "connect over CDP" (test_connect_over_cdp t);
         case t "connect to a server" (test_connect t);
-        case t "several drivers" (test_second_driver t) ] ]
+        case t "several drivers" (test_second_driver t);
+        case t "the end of an instance" (test_instance_end t) ] ]

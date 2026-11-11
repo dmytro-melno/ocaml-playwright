@@ -4,52 +4,59 @@
 type t = {
     channel : Channel.t;
     inbox : Json.t option Eio.Stream.t;  (* [None] marks the end *)
+    mutable ended : bool;
     mutable close_reason : string option;
+    (* Called when the connection that the pipe lives on ends, which leaves nothing to read from. *)
+    mutable on_lost : Error.t -> unit;
 }
 
 type Connection.impl += Json_pipe of t
 
+(* Marks the end of the pipe.  The messages that arrived before it are still read. *)
+let finish pipe ~reason =
+    if not pipe.ended then begin
+        pipe.ended <- true;
+        if pipe.close_reason = None then pipe.close_reason <- reason;
+        Eio.Stream.add pipe.inbox None
+    end
+
 (* Messages are collected from the moment the pipe exists, so that none is lost before the
    remote connection starts reading. *)
 let create (channel : Channel.t) =
-    let pipe = { channel; inbox = Eio.Stream.create max_int; close_reason = None } in
+    let pipe = { channel; inbox = Eio.Stream.create max_int; ended = false; close_reason = None; on_lost = ignore } in
     channel.impl <- Json_pipe pipe;
     channel.on_event <-
         (fun name params ->
             match Protocol.Json_pipe.event_of_json channel.conn name params with
-            | Some (Message { message }) -> Eio.Stream.add pipe.inbox (Some message)
-            | Some (Closed { reason }) ->
-                if pipe.close_reason = None then pipe.close_reason <- reason;
-                Eio.Stream.add pipe.inbox None
-            | None -> ())
+            | Some (Message { message }) -> if not pipe.ended then Eio.Stream.add pipe.inbox (Some message)
+            | Some (Closed { reason }) -> finish pipe ~reason
+            | None -> ());
+    channel.on_lost <-
+        (fun error ->
+            finish pipe ~reason:(Some error.message);
+            pipe.on_lost error)
 
 let of_channel (channel : Channel.t) =
     match channel.impl with
     | Json_pipe pipe -> pipe
-    | _ -> Json.decode_error "object %S is a %s, not a JsonPipe" channel.guid channel.type_
+    | _ -> Error.raise_ "Protocol error: object %S is a %s, not a JsonPipe" channel.guid channel.type_
 
+(* Asks the driver to close the pipe.  It is the end of it whether or not the driver hears. *)
 let close pipe =
-    (try Protocol.Json_pipe.close pipe.channel with Error.E _ -> ());
-    Eio.Stream.add pipe.inbox None
+    if not pipe.ended then begin
+        (try Protocol.Json_pipe.close pipe.channel with Error.E _ -> ());
+        finish pipe ~reason:None
+    end
 
-(* The pipe as a transport.  It ends when the pipe is closed or the connection that the pipe
-   itself lives on is; [on_end] runs first. *)
-let transport ~on_end pipe : Transport.t =
-    let ended = ref false in
+(* The pipe as a transport, which ends when the pipe does. *)
+let transport pipe : Transport.t =
+    let drained = ref false in
     let receive () =
-        if !ended then None
-        else
-            let message =
-                Eio.Fiber.first
-                    (fun () -> Eio.Stream.take pipe.inbox)
-                    (fun () ->
-                        ignore (Eio.Promise.await (Connection.closed pipe.channel.conn));
-                        None)
-            in
-            if message = None then begin
-                ended := true;
-                on_end ()
-            end;
+        if !drained then None
+        else begin
+            let message = Eio.Stream.take pipe.inbox in
+            if message = None then drained := true;
             message
+        end
     in
     { send = (fun message -> Protocol.Json_pipe.send ~message pipe.channel); receive }

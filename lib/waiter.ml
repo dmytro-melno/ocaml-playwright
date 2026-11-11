@@ -42,7 +42,7 @@ let next t select =
         | Error error -> raise (Error.E error)
         | Ok event -> (match select event with Some value -> value | None -> take ())
     in
-    let guarded () = Fiber.first take (fun () -> raise (Error.E (Promise.await (Connection.closed t.conn)))) in
+    let guarded () = Fibers.first take (fun () -> raise (Error.E (Promise.await (Connection.closed t.conn)))) in
     match t.deadline with
     | None -> guarded ()
     | Some deadline ->

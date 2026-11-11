@@ -153,6 +153,7 @@ module Response = struct
         let rs_finished, rs_finished_resolver = Promise.create () in
         let response = { rs_channel = channel; rs_init = init; rs_request = request; rs_raw_headers = None; rs_finished; rs_finished_resolver } in
         request.r_response <- Some response;
+        channel.on_lost <- (fun error -> if not (Promise.is_resolved rs_finished) then Promise.resolve rs_finished_resolver (Error error));
         let t = init.timing in
         request.timing <-
             { request.timing with start_time = t.start_time; domain_lookup_start = t.domain_lookup_start; domain_lookup_end = t.domain_lookup_end;
@@ -195,9 +196,10 @@ module Response = struct
 
     (* Waits until the body has been received in full. *)
     let finished (r : t) =
+        let finished () = match Promise.await r.rs_finished with Ok () -> () | Error error -> raise (Error.E error) in
         match Request.target_gone r.rs_request with
-        | None -> Promise.await r.rs_finished
-        | Some gone -> Fiber.first (fun () -> Promise.await r.rs_finished) (fun () -> raise (Error.E (Promise.await gone)))
+        | None -> finished ()
+        | Some gone -> Fibers.first finished (fun () -> raise (Error.E (Promise.await gone)))
 end
 
 module Web_socket = struct
@@ -211,14 +213,18 @@ module Web_socket = struct
         | 2 -> Some (Binary (Json.Decode.binary (`String data)))
         | _ -> None
 
+    let did_close (socket : t) =
+        if not socket.ws_closed then begin
+            socket.ws_closed <- true;
+            emit socket socket.wse_close socket
+        end
+
     let handle_event (socket : t) name params =
         match Protocol.Web_socket.event_of_json socket.ws_channel.conn name params with
         | Some (Frame_sent { opcode; data }) -> Option.iter (emit socket socket.wse_frame_sent) (payload ~opcode data)
         | Some (Frame_received { opcode; data }) -> Option.iter (emit socket socket.wse_frame_received) (payload ~opcode data)
         | Some (Socket_error { error }) -> emit socket socket.wse_socket_error error
-        | Some Close ->
-            socket.ws_closed <- true;
-            emit socket socket.wse_close socket
+        | Some Close -> did_close socket
         | Some Open | None -> ()
 
     let create (channel : Channel.t) =
@@ -229,7 +235,8 @@ module Web_socket = struct
               wse_frame_sent = Emitter.create (); wse_frame_received = Emitter.create (); wse_socket_error = Emitter.create () }
         in
         channel.impl <- Web_socket socket;
-        channel.on_event <- handle_event socket
+        channel.on_event <- handle_event socket;
+        channel.on_lost <- (fun _ -> did_close socket)
 
     let url (socket : t) = socket.ws_url
     let is_closed (socket : t) = socket.ws_closed

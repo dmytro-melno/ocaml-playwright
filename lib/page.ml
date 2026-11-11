@@ -129,16 +129,21 @@ let on_locator_handler_triggered (page : t) uid =
 
 (* {1 Events from the driver} *)
 
+(* The page is gone: it was closed, or its context, its browser or the connection to it went away. *)
+let did_close (page : t) =
+    if not page.closed then begin
+        page.closed <- true;
+        page.context.pages <- List.filter (fun p -> p != page) page.context.pages;
+        if not (Promise.is_resolved page.p_gone) then Promise.resolve page.p_gone_resolver (close_error page);
+        emit page page.pe_close page
+    end
+
 let handle_event (page : t) name params =
     let conn = conn page in
     let fork what f = Connection.fork conn what f in
     match Protocol.Page.event_of_json conn name params with
     | Some (Binding_call { binding }) -> fork "exposed binding" (fun () -> on_binding page binding)
-    | Some Close ->
-        page.closed <- true;
-        page.context.pages <- List.filter (fun p -> p != page) page.context.pages;
-        if not (Promise.is_resolved page.p_gone) then Promise.resolve page.p_gone_resolver (close_error page);
-        emit page page.pe_close page
+    | Some Close -> did_close page
     | Some Crash ->
         if not (Promise.is_resolved page.p_gone) then Promise.resolve page.p_gone_resolver (Error.target_closed ~message:"Page crashed" ());
         emit page page.pe_crash page
@@ -205,7 +210,8 @@ let create (channel : Channel.t) =
     subscribe page.pe_request_failed `Request_failed;
     subscribe page.pe_file_chooser `File_chooser;
     channel.impl <- Page page;
-    channel.on_event <- handle_event page
+    channel.on_event <- handle_event page;
+    channel.on_lost <- (fun _ -> did_close page)
 
 (* {1 Everything a page shares with its main frame} *)
 

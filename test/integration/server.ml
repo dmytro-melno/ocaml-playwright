@@ -10,7 +10,12 @@ type request = {
     body : string;
 }
 
-type response = { status : int; headers : (string * string) list; body : string }
+type response = {
+    status : int;
+    headers : (string * string) list;
+    body : string;
+    complete : bool;  (* [false] for a response that promises more than [body] and never sends it *)
+}
 
 type t = {
     port : int;
@@ -18,8 +23,8 @@ type t = {
     mutable requests : request list;  (* most recent first *)
 }
 
-let respond ?(status = 200) ?(headers = []) ?(content_type = "text/plain") body =
-    { status; headers = ("content-type", content_type) :: headers; body }
+let respond ?(status = 200) ?(headers = []) ?(content_type = "text/plain") ?(complete = true) body =
+    { status; headers = ("content-type", content_type) :: headers; body; complete }
 
 let html ?status ?headers body = respond ?status ?headers ~content_type:"text/html; charset=utf-8" body
 let json ?status ?headers value = respond ?status ?headers ~content_type:"application/json" (Yojson.Safe.to_string value)
@@ -67,10 +72,10 @@ let serve t flow =
             let head =
                 Printf.sprintf "HTTP/1.1 %d %s\r\n%scontent-length: %d\r\n\r\n" response.status (reason response.status)
                     (String.concat "" (List.map (fun (name, value) -> Printf.sprintf "%s: %s\r\n" name value) response.headers))
-                    (String.length response.body)
+                    (String.length response.body + if response.complete then 0 else 1)
             in
             Eio.Flow.copy_string (head ^ if method_ = "HEAD" then "" else response.body) flow;
-            loop ()
+            if response.complete then loop () else Fiber.await_cancel ()
     in
     try loop () with End_of_file | Eio.Io _ -> ()
 

@@ -12,14 +12,18 @@ let setup_context (browser : t) (context : browser_context) =
     context.tracing.traces_dir <- browser.b_traces_dir;
     context.request.a_tracing.traces_dir <- browser.b_traces_dir
 
-let handle_event (browser : t) name params =
-    let conn = browser.b_session.conn in
-    match Protocol.Browser.event_of_json conn name params with
-    | Some (Context { context }) -> setup_context browser (Types.browser_context context)
-    | Some Close ->
+(* The browser is gone: it was closed, it crashed, or the connection to it ended. *)
+let did_close (browser : t) =
+    if browser.connected then begin
         browser.connected <- false;
-        if not (Promise.is_resolved browser.b_closed) then Promise.resolve browser.b_closed_resolver ();
-        ignore (Emitter.emit conn browser.e_disconnected browser)
+        Promise.resolve browser.b_closed_resolver ();
+        ignore (Emitter.emit browser.b_session.conn browser.e_disconnected browser)
+    end
+
+let handle_event (browser : t) name params =
+    match Protocol.Browser.event_of_json browser.b_session.conn name params with
+    | Some (Context { context }) -> setup_context browser (Types.browser_context context)
+    | Some Close -> did_close browser
     | None -> ()
 
 let create session (channel : Channel.t) =
@@ -31,7 +35,8 @@ let create session (channel : Channel.t) =
           b_close_reason = None; b_traces_dir = None; disconnect = None; b_closed; b_closed_resolver; e_disconnected = Emitter.create () }
     in
     channel.impl <- Browser browser;
-    channel.on_event <- handle_event browser
+    channel.on_event <- handle_event browser;
+    channel.on_lost <- (fun _ -> did_close browser)
 
 let browser_type (browser : t) =
     match browser.browser_type with
@@ -99,6 +104,6 @@ let close ?reason (browser : t) =
         | None ->
             if browser.connected then begin
                 Protocol.Browser.close ?reason browser.b_channel;
-                Fiber.first (fun () -> Promise.await browser.b_closed) (fun () -> ignore (Promise.await (Connection.closed browser.b_session.conn)))
+                Promise.await browser.b_closed
             end)
     with Error.E { kind = Target_closed; _ } -> ()

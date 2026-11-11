@@ -2,20 +2,14 @@
 
    The server speaks the protocol of the driver, so a remote browser is reached through a second
    connection with an object tree of its own.  The local driver holds the WebSocket to the server
-   and relays the messages through a {!Json_pipe}. *)
+   and relays the messages through a {!Json_pipe}.
 
-open Eio.Std
+   The remote connection ends with the pipe: when the browser is closed here, when the server
+   goes away, and when the connection to the driver ends.  Each time, the objects of the remote
+   connection are told that they are lost, so the browser reports that it is disconnected and
+   its contexts and pages that they are closed. *)
+
 open Types
-
-(* What the server would have announced, had it had the time: its pages, contexts and browser are gone. *)
-let emulate_close (browser : browser) =
-    let closed = `Assoc [] in
-    List.iter
-        (fun (context : browser_context) ->
-            List.iter (fun page -> Page.handle_event page "close" closed) (Browser_context.pages context);
-            Browser_context.handle_event context "close" closed)
-        (Browser.contexts browser);
-    if Browser.is_connected browser then Browser.handle_event browser "close" closed
 
 let connect ?(timeout = 0.) ?(headers = []) ?slow_mo ?expose_network endpoint (t : browser_type) : browser =
     let local = t.bt_session in
@@ -29,19 +23,16 @@ let connect ?(timeout = 0.) ?(headers = []) ?slow_mo ?expose_network endpoint (t
             ?expose_network ?slow_mo (Url_match.local_utils local)
     in
     let pipe = Json_pipe.of_channel result.pipe in
-    let browser = ref None in
-    let conn =
-        Connection.create ~sw:local.conn.sw ~clock:local.conn.clock ~report:local.conn.report ?trace:local.conn.trace
-            ~render_value:local.conn.render_value
-            (Json_pipe.transport ~on_end:(fun () -> Option.iter emulate_close !browser) pipe)
-    in
+    let conn = Connection.create_relayed local.conn (Json_pipe.transport pipe) in
+    let ended () = Error.target_closed ?message:pipe.close_reason () in
+    (* Nothing more can arrive once the driver is gone, so there is no point in waiting for the
+       reader to find out. *)
+    pipe.on_lost <- (fun _ -> Connection.close conn (ended ()));
     ignore (Objects.new_session ~parent:local conn);
-    Fiber.fork_daemon ~sw:local.conn.sw (fun () ->
-        Connection.run ~end_message:(fun () -> Option.value pipe.close_reason ~default:Error.target_closed_message) conn;
-        `Stop_daemon);
+    Connection.fork local.conn "remote connection" (fun () -> Connection.run ~end_message:(fun () -> (ended ()).message) conn);
     let disconnect () =
         Json_pipe.close pipe;
-        Fiber.first (fun () -> Promise.await (Connection.stopped conn)) (fun () -> ignore (Promise.await (Connection.closed local.conn)))
+        Connection.close conn (ended ())
     in
     match
         Connection.with_timeout conn ~timeout
@@ -54,17 +45,12 @@ let connect ?(timeout = 0.) ?(headers = []) ?slow_mo ?expose_network endpoint (t
                 | None -> Error.raise_ "Malformed endpoint. Did you use BrowserType.launchServer method?")
     with
     | connected ->
-        browser := Some connected;
         Browser_type.adopt t connected;
         connected.disconnect <- Some disconnect;
         (* A browser that the server has closed leaves nothing to stay connected to. *)
-        let (_ : unit -> unit) =
-            Emitter.subscribe connected.e_disconnected (fun _ -> Connection.fork local.conn "disconnecting" (fun () -> Json_pipe.close pipe))
-        in
+        let (_ : unit -> unit) = Emitter.subscribe connected.e_disconnected (fun _ -> Connection.fork local.conn "disconnecting" disconnect) in
         connected
     | exception ex ->
         let backtrace = Printexc.get_raw_backtrace () in
-        Fiber.fork_daemon ~sw:local.conn.sw (fun () ->
-            disconnect ();
-            `Stop_daemon);
+        Connection.fork local.conn "disconnecting" disconnect;
         Printexc.raise_with_backtrace ex backtrace

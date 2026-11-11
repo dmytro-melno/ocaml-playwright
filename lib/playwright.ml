@@ -441,25 +441,31 @@ let create ?(on_error = fun what ex -> report_to_stderr what ex (Printexc.get_ra
     let driver = Eio_unix.run_in_systhread ~label:"playwright-driver" (fun () -> Driver.locate ()) in
     let process = Driver_process.spawn ~sw ~env driver in
     let conn =
-        Connection.create ~sw ~clock:(Eio.Stdenv.clock env)
+        Connection.create ~clock:(Eio.Stdenv.clock env)
             ~report:(fun what ex _ -> on_error what ex)
             ?trace:(wire_trace ())
             ~render_value:(fun value -> Js.show (Js.of_wire value))
             process.transport
     in
     let session = Objects.new_session conn in
+    (* The instance is served by this fiber, which also takes it down, whatever ends it: {!close},
+       the driver going away or the switch finishing.  The connection goes first, which settles
+       every object and cancels the handlers; then the driver, which takes its browsers with it
+       and is given a bounded time to comply.  [process.stop] cannot be cancelled. *)
+    let stopped, stopped_resolver = Promise.create () in
+    let serving = ref false in
     Fiber.fork_daemon ~sw (fun () ->
-        Connection.run conn;
+        serving := true;
+        Fun.protect
+            ~finally:(fun () -> Promise.resolve stopped_resolver ())
+            (fun () -> Fun.protect ~finally:process.stop (fun () -> Connection.run conn));
         `Stop_daemon);
-    (* Runs to the end even when the caller is being cancelled: the driver and its browsers must
-       not be left behind.  The driver itself is given a bounded time to comply. *)
-    let stop () =
-        Eio.Cancel.protect (fun () ->
-            Connection.close conn (Error.target_closed ~message:"Playwright has been closed" ());
-            Promise.await (Connection.stopped conn);
-            process.stop ())
-    in
-    Switch.on_release sw stop;
+    if not !serving then begin
+        (* The switch is being cancelled. *)
+        process.stop ();
+        Promise.resolve stopped_resolver ();
+        Switch.check sw
+    end;
     match
         let channel =
             Connection.with_timeout conn ~timeout:initialize_timeout
@@ -468,20 +474,25 @@ let create ?(on_error = fun what ex -> report_to_stderr what ex (Printexc.get_ra
         in
         let init = Protocol.Playwright.Initializer.of_json conn channel.initializer_ in
         { Types.session; pw_channel = channel; chromium = Types.browser_type init.chromium; firefox = Types.browser_type init.firefox;
-          webkit = Types.browser_type init.webkit; stop }
+          webkit = Types.browser_type init.webkit; stopped }
     with
     | playwright -> playwright
     | exception ex ->
         let backtrace = Printexc.get_raw_backtrace () in
-        stop ();
+        Connection.close conn (Error.target_closed ~message:"Playwright could not be started" ());
+        Eio.Cancel.protect (fun () -> Promise.await stopped);
         Printexc.raise_with_backtrace ex backtrace
 
-let close (t : t) = t.stop ()
+(* Ends the connection, which is immediate, and waits for the rest to follow.  A handler of the
+   instance that closes it is itself cancelled while it waits here. *)
+let close (t : t) =
+    Connection.close t.session.conn (Error.target_closed ~message:"Playwright has been closed" ());
+    Promise.await t.stopped
 
 let run ?on_error ~env f =
     Switch.run (fun sw ->
         let t = create ?on_error ~sw ~env () in
-        Fun.protect ~finally:(fun () -> close t) (fun () -> f t))
+        Fun.protect ~finally:(fun () -> Eio.Cancel.protect (fun () -> close t)) (fun () -> f t))
 
 let chromium (t : t) = t.chromium
 let firefox (t : t) = t.firefox

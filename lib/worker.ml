@@ -19,6 +19,15 @@ let close_error (worker : t) =
     | Some page -> Frame.page_close_error page
     | None -> Error.target_closed ()
 
+(* The worker is gone: it ended, or its page or the connection to it went away. *)
+let did_close (worker : t) =
+    if not (Promise.is_resolved worker.w_gone) then begin
+        Option.iter (fun (page : page) -> page.workers <- List.filter (fun w -> w != worker) page.workers) worker.w_page;
+        Option.iter (fun (context : browser_context) -> context.service_workers <- List.filter (fun w -> w != worker) context.service_workers) worker.w_context;
+        Promise.resolve worker.w_gone_resolver (close_error worker);
+        ignore (Emitter.emit worker.w_session.conn worker.we_close worker)
+    end
+
 let handle_event (worker : t) name params =
     let conn = worker.w_session.conn in
     match Protocol.Worker.event_of_json conn name params with
@@ -29,11 +38,7 @@ let handle_event (worker : t) name params =
               cm_page = None; cm_worker = Some worker }
         in
         ignore (Emitter.emit conn worker.we_console message)
-    | Some Close ->
-        Option.iter (fun (page : page) -> page.workers <- List.filter (fun w -> w != worker) page.workers) worker.w_page;
-        Option.iter (fun (context : browser_context) -> context.service_workers <- List.filter (fun w -> w != worker) context.service_workers) worker.w_context;
-        if not (Promise.is_resolved worker.w_gone) then Promise.resolve worker.w_gone_resolver (close_error worker);
-        ignore (Emitter.emit conn worker.we_close worker)
+    | Some Close -> did_close worker
     | None -> ()
 
 let create session (channel : Channel.t) =
@@ -45,7 +50,8 @@ let create session (channel : Channel.t) =
     in
     Events.subscribe_on_demand session.conn worker.we_console (fun ~enabled -> Protocol.Worker.update_subscription ~event:`Console ~enabled channel);
     channel.impl <- Worker worker;
-    channel.on_event <- handle_event worker
+    channel.on_event <- handle_event worker;
+    channel.on_lost <- (fun _ -> did_close worker)
 
 let url (worker : t) = worker.w_url
 

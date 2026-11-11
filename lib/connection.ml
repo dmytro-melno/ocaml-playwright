@@ -6,19 +6,33 @@
 
    Concurrency model: a single reader fiber decodes every incoming message and runs the object's
    event hook synchronously, so client-side state is always updated in protocol order.  Hooks must
-   not block; anything that may (user callbacks, follow-up commands) is forked with {!fork}. *)
+   not block; anything that may (user callbacks, follow-up commands) is forked with {!fork}.
+
+   Lifetime: a connection ends exactly once, in {!close}, whatever the cause: the program closing
+   it, the driver going away, a transport failure or a message that cannot be understood.  Ending
+   it is one step that does not block: the commands in flight fail, every object that still
+   exists is told that it is lost and settles its own state (see [on_lost]), and the tables are
+   emptied.  No fiber is left waiting on a connection that has ended. *)
 
 open Eio.Std
 
+(* Where the fibers that serve a Playwright instance run: the readers of its connections, the
+   handlers of its events and the work that follows from them.  It exists for as long as the
+   connection to the driver runs, and is shared with the connections made through that one to
+   Playwright servers, so that a handler lives as long as the instance and no longer. *)
+type scope = { mutable switch : Switch.t option }
+
 type t = {
     transport : Transport.t;
-    sw : Switch.t;
+    scope : scope;
+    owns_scope : bool;
     clock : float Eio.Time.clock_ty r;
     objects : (string, channel) Hashtbl.t;
     pending : (string, (Json.t, Error.t) result Promise.u) Hashtbl.t;
     outbox : Json.t Eio.Stream.t;
     id_prefix : string;
     mutable last_id : int;
+    mutable last_object : int;
     mutable closed : Error.t option;
     closed_promise : Error.t Promise.t;
     closed_resolver : Error.t Promise.u;
@@ -34,11 +48,15 @@ and channel = {
     conn : t;
     guid : string;
     type_ : string;
+    order : int;  (* of creation, within the connection *)
     mutable initializer_ : Json.t;  (* [`Null] once a client object has been built from it *)
     mutable parent : channel option;
     children : (string, channel) Hashtbl.t;
     mutable impl : impl;
     mutable on_event : string -> Json.t -> unit;
+    (* Called when the connection ends while the object exists, with the reason.  The object is
+       gone with it: this is where it settles what the driver can no longer tell it to. *)
+    mutable on_lost : Error.t -> unit;
     mutable disposed : bool;
     mutable collected : bool;  (* disposed by the driver's garbage collector while still referenced *)
 }
@@ -49,9 +67,10 @@ and impl = ..
 type impl += No_impl
 
 let make_channel conn ~parent ~guid ~type_ ~initializer_ =
+    conn.last_object <- conn.last_object + 1;
     let channel =
-        { conn; guid; type_; initializer_; parent; children = Hashtbl.create 4; impl = No_impl;
-          on_event = (fun _ _ -> ()); disposed = false; collected = false }
+        { conn; guid; type_; order = conn.last_object; initializer_; parent; children = Hashtbl.create 4; impl = No_impl;
+          on_event = (fun _ _ -> ()); on_lost = ignore; disposed = false; collected = false }
     in
     Hashtbl.replace conn.objects guid channel;
     Option.iter (fun (p : channel) -> Hashtbl.replace p.children guid channel) parent;
@@ -61,49 +80,97 @@ let random_prefix () =
     let state = Random.State.make_self_init () in
     String.init 4 (fun _ -> Char.chr (Char.code 'a' + Random.State.int state 26))
 
-let create ~sw ~clock ~report ?trace ~render_value transport =
+let make ~scope ~owns_scope ~clock ~report ~trace ~render_value transport =
     let closed_promise, closed_resolver = Promise.create () in
     let stopped_promise, stopped_resolver = Promise.create () in
     let conn =
-        { transport; sw; clock = (clock :> float Eio.Time.clock_ty r); objects = Hashtbl.create 256; pending = Hashtbl.create 64;
-          outbox = Eio.Stream.create max_int; id_prefix = random_prefix (); last_id = 0; closed = None;
-          closed_promise; closed_resolver; stopped_promise; stopped_resolver; factory = (fun _ -> ()); report; trace; render_value }
+        { transport; scope; owns_scope; clock; objects = Hashtbl.create 256; pending = Hashtbl.create 64; outbox = Eio.Stream.create max_int;
+          id_prefix = random_prefix (); last_id = 0; last_object = 0; closed = None; closed_promise; closed_resolver; stopped_promise;
+          stopped_resolver; factory = (fun _ -> ()); report; trace; render_value }
     in
     ignore (make_channel conn ~parent:None ~guid:"" ~type_:"Root" ~initializer_:(`Assoc []));
     conn
 
-let root conn = Hashtbl.find conn.objects ""
+(* The connection to a driver.  Running it makes the scope of the instance. *)
+let create ~clock ~report ?trace ~render_value transport =
+    make ~scope:{ switch = None } ~owns_scope:true ~clock:(clock :> float Eio.Time.clock_ty r) ~report ~trace ~render_value transport
+
+(* A connection that is relayed by [parent], which lends it its scope and settings. *)
+let create_relayed (parent : t) transport =
+    make ~scope:parent.scope ~owns_scope:false ~clock:parent.clock ~report:parent.report ~trace:parent.trace ~render_value:parent.render_value
+        transport
+
+let root conn =
+    match Hashtbl.find_opt conn.objects "" with
+    | Some root -> root
+    | None -> raise (Error.E (Option.value conn.closed ~default:(Error.target_closed ())))
+
 let find conn guid = Hashtbl.find_opt conn.objects guid
 let is_closed conn = conn.closed <> None
 let closed conn = conn.closed_promise
 let stopped conn = conn.stopped_promise
 
-let is_cancellation = function Eio.Cancel.Cancelled _ -> true | _ -> false
+let is_cancellation = Fibers.is_cancellation
 
-(* Runs [f], which is user code or internal follow-up work, in its own fiber.  The fiber starts
-   immediately and runs until it first blocks, so callbacks begin in event order.  It does not
-   keep the switch alive: callbacks still running when the program is done are cancelled. *)
+(* Runs [f], which is user code or internal follow-up work, in a fiber of its own in the scope
+   of the instance.  The fiber starts immediately and runs until it first blocks, so callbacks
+   begin in event order.  It is cancelled when the instance is closed, and nothing is started
+   once the scope is gone. *)
 let fork conn what f =
-    if conn.closed = None then
-        try
-            Fiber.fork_daemon ~sw:conn.sw (fun () ->
+    match conn.scope.switch with
+    | None -> ()
+    | Some sw ->
+        (try
+            Fiber.fork_daemon ~sw (fun () ->
                 (try f () with ex when not (is_cancellation ex) -> conn.report what ex (Printexc.get_raw_backtrace ()));
                 `Stop_daemon)
-        with ex when is_cancellation ex -> ()
+         with ex when is_cancellation ex -> ())
 
-(* The single state transition to closed: every pending and future command fails with [error]. *)
+(* Every object of the connection, each after the objects below it, those in the order in which
+   they were created: a page comes after its frames and workers, a context after its pages. *)
+let objects_bottom_up conn =
+    (* [visited] is in reverse. *)
+    let rec visit visited (channel : channel) =
+        let children = Hashtbl.fold (fun _ child acc -> child :: acc) channel.children [] in
+        let children = List.sort (fun (a : channel) (b : channel) -> Int.compare a.order b.order) children in
+        channel :: List.fold_left visit visited children
+    in
+    match Hashtbl.find_opt conn.objects "" with
+    | Some root -> List.rev (visit [] root)
+    | None -> []
+
+(* The single transition to closed.  It does not block, and may be made from any fiber:
+   - every command in flight, and every later one, fails with [error];
+   - every object is told that it is lost, which is when the close and disconnect events that
+     the driver did not get to send are emitted; their handlers start right away;
+   - the tables are emptied, so that a closed connection retains nothing. *)
 let close conn error =
     if conn.closed = None then begin
         conn.closed <- Some error;
         let pending = Hashtbl.fold (fun _ resolver acc -> resolver :: acc) conn.pending [] in
         Hashtbl.reset conn.pending;
         List.iter (fun resolver -> Promise.resolve resolver (Error error)) pending;
+        let objects = objects_bottom_up conn in
+        List.iter
+            (fun (channel : channel) ->
+                try channel.on_lost error with ex when not (is_cancellation ex) -> conn.report "closing the connection" ex (Printexc.get_raw_backtrace ()))
+            objects;
+        List.iter
+            (fun (channel : channel) ->
+                channel.disposed <- true;
+                channel.on_event <- (fun _ _ -> ());
+                channel.on_lost <- ignore;
+                Hashtbl.reset channel.children)
+            objects;
+        Hashtbl.reset conn.objects;
         Promise.resolve conn.closed_resolver error
     end
 
 let enqueue conn (message : Json.t) =
-    Option.iter (fun trace -> trace ("SEND> " ^ Json.to_string message)) conn.trace;
-    Eio.Stream.add conn.outbox message
+    if conn.closed = None then begin
+        Option.iter (fun trace -> trace ("SEND> " ^ Json.to_string message)) conn.trace;
+        Eio.Stream.add conn.outbox message
+    end
 
 (* Sends a command and waits for its reply.  [timeout] is in milliseconds and enforced by the
    driver; [0.] disables it.  If the calling fiber is cancelled the driver is asked to abort the
@@ -124,10 +191,9 @@ let call ?(timeout = 0.) (channel : channel) method_ (params : Json.t) : Json.t 
     | exception ex ->
         if Hashtbl.mem conn.pending id then begin
             Hashtbl.remove conn.pending id;
-            if conn.closed = None then
-                enqueue conn
-                    (`Assoc [ "guid", `String channel.guid; "method", `String "__abort__";
-                              "params", `Assoc [ "id", `String id; "reason", `String "Cancelled by the client" ] ])
+            enqueue conn
+                (`Assoc [ "guid", `String channel.guid; "method", `String "__abort__";
+                          "params", `Assoc [ "id", `String id; "reason", `String "Cancelled by the client" ] ])
         end;
         raise ex
 
@@ -150,6 +216,8 @@ let rec parent_of_type (channel : channel) type_ =
     | Some p -> parent_of_type p type_
     | None -> None
 
+(* Whatever goes wrong in here means that the two sides no longer agree on the protocol or on the
+   state of the objects, and ends the connection: see {!run}. *)
 let dispatch conn (message : Json.t) =
     let module D = Json.Decode in
     match D.member "id" message with
@@ -159,7 +227,8 @@ let dispatch conn (message : Json.t) =
         (match Hashtbl.find_opt conn.pending id with
         | None -> ()
         | Some resolver ->
-            Hashtbl.remove conn.pending id;
+            (* The caller is released only by what is taken out of the table here, so the reply is
+               decoded first: a failure leaves the entry to be failed with the connection. *)
             let result =
                 match D.member "error" message with
                 | Some error when D.member "result" message = None ->
@@ -168,6 +237,7 @@ let dispatch conn (message : Json.t) =
                     Error (Error.of_wire ~log ~details ~render_value:conn.render_value error)
                 | _ -> Ok (Option.value (D.member "result" message) ~default:(`Assoc []))
             in
+            Hashtbl.remove conn.pending id;
             Promise.resolve resolver result)
     | None ->
         let guid = D.req "guid" D.string message in
@@ -195,7 +265,15 @@ let dispatch conn (message : Json.t) =
             | "__dispose__" -> dispose channel ~collected:(D.opt "reason" D.string params = Some "gc")
             | event -> channel.on_event event params))
 
-(* Reads and dispatches messages until the transport ends or the connection is closed.
+let describe_failure = function
+    | Json.Decode_error reason | Transport.Violation reason -> reason
+    | Error.E error -> error.message
+    | ex -> Printexc.to_string ex
+
+(* Reads and dispatches messages until the transport ends or the connection is closed, and
+   returns once nothing of the connection runs any more: for the connection to a driver, that
+   includes the handlers of its instance, which are cancelled.
+
    [end_message] describes the end of the transport to the calls that it interrupts. *)
 let run ?(end_message = fun () -> "The Playwright driver closed the connection") conn =
     let write () =
@@ -210,20 +288,26 @@ let run ?(end_message = fun () -> "The Playwright driver closed the connection")
             | Some message ->
                 Option.iter (fun trace -> trace ("<RECV " ^ Json.to_string message)) conn.trace;
                 (try dispatch conn message
-                 with ex when not (is_cancellation ex) -> conn.report "protocol message" ex (Printexc.get_raw_backtrace ()))
+                 with ex when not (is_cancellation ex) ->
+                     conn.report "protocol message" ex (Printexc.get_raw_backtrace ());
+                     close conn (Error.target_closed ~message:("The Playwright connection was closed after a protocol error: " ^ describe_failure ex) ()))
         done
+    in
+    let serve () =
+        try Fiber.first (fun () -> Fiber.first read write) (fun () -> ignore (Promise.await conn.closed_promise))
+        with ex ->
+            let bt = Printexc.get_raw_backtrace () in
+            close conn (Error.target_closed ~message:("The Playwright connection failed: " ^ describe_failure ex) ());
+            if is_cancellation ex then Printexc.raise_with_backtrace ex bt
     in
     Fun.protect
         ~finally:(fun () -> Promise.resolve conn.stopped_resolver ())
         (fun () ->
-            try
-                Fiber.first
-                    (fun () -> Fiber.first read write)
-                    (fun () -> ignore (Promise.await conn.closed_promise))
-            with ex ->
-                let bt = Printexc.get_raw_backtrace () in
-                close conn (Error.target_closed ~message:("The Playwright connection failed: " ^ Printexc.to_string ex) ());
-                if is_cancellation ex then Printexc.raise_with_backtrace ex bt)
+            if conn.owns_scope then
+                Switch.run (fun sw ->
+                    conn.scope.switch <- Some sw;
+                    Fun.protect ~finally:(fun () -> conn.scope.switch <- None) serve)
+            else serve ())
 
 (* Fails with a {!Error.Timeout} error unless [f] finishes within [timeout] milliseconds;
    [0.] waits forever. *)
