@@ -18,9 +18,9 @@
 
     {1 Conventions}
 
-    - Every Playwright class is a module with the same name ([Page], [BrowserContext], [Locator], ...) and methods
-      are functions in [snake_case]. A name that is an OCaml keyword gets a trailing underscore ([type_],
-      [method_]).
+    - Every Playwright class is a module with the same name ([Page], [BrowserContext], [Locator], ...), its objects
+      are of the type [t] of that module ([Page.t]), and its methods are functions in [snake_case]. A name that is an
+      OCaml keyword gets a trailing underscore ([type_], [method_]).
     - The object a function operates on comes {e last}, so calls compose with [|>]. Required arguments are
       positional and precede it; everything optional is an optional labelled argument.
     - All functions block the calling fiber until the browser has answered. Run them in separate
@@ -66,41 +66,6 @@ end
 exception Error of Error.t
 (** Raised by every function of this library that fails. A printer is registered with [Printexc]. *)
 
-(** {1 Objects}
-
-    The types of the Playwright objects. Each of them is used through the module of the same name, for example
-    {!Page} for [page], which also provides it as [Page.t]. *)
-
-type browser_type
-type browser
-type browser_context
-type page
-type frame
-type locator
-type frame_locator
-type js_handle
-type element_handle
-type keyboard
-type mouse
-type touchscreen
-type request
-type response
-type route
-type web_socket
-type web_socket_route
-type worker
-type dialog
-type console_message
-type download
-type file_chooser
-type web_error
-type video
-type web_storage
-type tracing
-type api_request_context
-type api_response
-type cdp_session
-
 (** {1 Values} *)
 
 type rect = { x : float; y : float; width : float; height : float }
@@ -138,9 +103,6 @@ type timing = {
     response_end : float;
 }
 
-type binding_source = { context : browser_context; page : page; frame : frame }
-(** Where a call of an exposed binding came from. *)
-
 type aria_role =
     [ `Alert | `Alertdialog | `Application | `Article | `Banner | `Blockquote | `Button | `Caption | `Cell | `Checkbox | `Code
     | `Columnheader | `Combobox | `Complementary | `Contentinfo | `Definition | `Deletion | `Dialog | `Directory | `Document
@@ -150,80 +112,6 @@ type aria_role =
     | `Radiogroup | `Region | `Row | `Rowgroup | `Rowheader | `Scrollbar | `Search | `Searchbox | `Separator | `Slider
     | `Spinbutton | `Status | `Strong | `Subscript | `Superscript | `Switch | `Tab | `Table | `Tablist | `Tabpanel | `Term
     | `Textbox | `Time | `Timer | `Toolbar | `Tooltip | `Tree | `Treegrid | `Treeitem ]
-
-(** JavaScript values, as they are passed to and returned from code evaluated in a page.
-
-    Unlike JSON this covers everything that Playwright can transfer: [undefined], [NaN] and the infinities, dates,
-    big integers, regular expressions, errors, typed arrays and, in arguments, handles to objects living in the page.
-
-    A value is a tree. An object that occurs at several places of a result is repeated at each of them, and a
-    structure that contains itself is cut off with [Undefined] at the place where it comes round. *)
-module Js : sig
-    type typed_array_kind = [ `I8 | `Ui8 | `Ui8c | `I16 | `Ui16 | `I32 | `Ui32 | `F32 | `F64 | `Bi64 | `Bui64 ]
-
-    type t =
-        | Undefined
-        | Null
-        | Bool of bool
-        | Number of float
-        | String of string
-        | Bigint of string  (** In decimal notation. *)
-        | Date of string  (** In ISO 8601 format, as produced by [Date.prototype.toJSON]. *)
-        | Url of string
-        | Regexp of { source : string; flags : string }
-        | Error of { name : string; message : string; stack : string }
-        | Array of t list
-        | Object of (string * t) list
-        | Typed_array of { kind : typed_array_kind; bytes : string }  (** [bytes] is the content of the underlying buffer. *)
-        | Handle of js_handle  (** Only in arguments: the object that the handle refers to. *)
-
-    (** {2 Constructing} *)
-
-    val undefined : t
-    val null : t
-    val bool : bool -> t
-    val int : int -> t
-    val float : float -> t
-    val string : string -> t
-    val list : ('a -> t) -> 'a list -> t
-    val obj : (string * t) list -> t
-
-    val option : ('a -> t) -> 'a option -> t
-    (** [None] becomes [Null]. *)
-
-    val of_json : Yojson.Safe.t -> t
-
-    (** {2 Inspecting}
-
-        The [to_...] functions raise {!exception-Playwright.Error} when the value is of another kind. *)
-
-    val to_string : t -> string
-    val to_bool : t -> bool
-    val to_float : t -> float
-
-    val to_int : t -> int
-    (** Fails for numbers that are not integers. *)
-
-    val to_list : (t -> 'a) -> t -> 'a list
-    val to_assoc : t -> (string * t) list
-
-    val to_option : (t -> 'a) -> t -> 'a option
-    (** [None] for [Null] and [Undefined]. *)
-
-    val is_nullish : t -> bool
-
-    val member : string -> t -> t
-    (** The property of an [Object]; [Undefined] when it has no such property. *)
-
-    val to_json : t -> Yojson.Safe.t
-    (** Converts the way [JSON.stringify] does where it can: [Undefined] and non-finite numbers become [`Null],
-        dates and URLs become strings. Integral numbers become [`Int]. Fails for handles. *)
-
-    val show : t -> string
-    (** A JavaScript-like rendering, for messages and debugging. *)
-
-    val pp : Format.formatter -> t -> unit
-end
 
 (** {1 Options} *)
 
@@ -364,23 +252,11 @@ type 'a with_launch_options =
     - [timeout] is the time the browser has to start, 180 seconds by default.
     - [slow_mo] delays every operation by that many milliseconds. *)
 
-type 'a with_screenshot_options =
-    ?timeout:float ->
-    ?path:string ->
-    ?type_:[ `Png | `Jpeg | `Webp ] ->
-    ?quality:int ->
-    ?omit_background:bool ->
-    ?caret:[ `Hide | `Initial ] ->
-    ?animations:[ `Allow | `Disabled ] ->
-    ?scale:[ `Css | `Device ] ->
-    ?mask:locator list ->
-    ?mask_color:string ->
-    ?style:string ->
-    'a
-(** The options for taking a screenshot. [path] also saves the image to a file, and determines [type_] from the
-    extension unless that is given. [quality] is 0-100 and applies to JPEG and WebP only. *)
+(** {1 Playwright}
 
-(** {1 Playwright} *)
+    Everything starts with a running driver, a value of type {!t}. Browsers are launched from one of its three
+    engines, {!chromium}, {!firefox} and {!webkit}; these and the other things that a driver gives access to are
+    declared {{!section-roots} after the objects} that they return. *)
 
 type t
 (** A running Playwright driver and everything that was created through it. *)
@@ -429,10 +305,6 @@ val run :
 (** [run ~env f] calls [f] with a new driver, which it stops once [f] returns or raises. The optional arguments are
     those of {!create}. *)
 
-val chromium : t -> browser_type
-val firefox : t -> browser_type
-val webkit : t -> browser_type
-
 val devices : t -> Device.t list
 
 val device : string -> t -> Device.t option
@@ -465,6 +337,9 @@ end
     The [..._regex] variants take a JavaScript regular expression literal such as ["/^total: \\d+$/i"]. *)
 module type Locator_queries = sig
     type t
+
+    type locator
+    (** Stands for {!Locator.t}, which is declared further down. *)
 
     val get_by_role :
         ?checked:bool -> ?disabled:bool -> ?selected:bool -> ?expanded:bool -> ?include_hidden:bool -> ?level:int -> ?name:string ->
@@ -503,6 +378,14 @@ end
 module type Frame_operations = sig
     type t
 
+    (** The following types stand for {!Js.t}, {!JSHandle.t}, {!ElementHandle.t} and {!Response.t}, which are declared
+        further down. *)
+
+    type js_value
+    type js_handle
+    type element_handle
+    type response
+
     (** {2 Navigation} *)
 
     val goto : ?timeout:float -> ?wait_until:lifecycle_event -> ?referer:string -> string -> t -> response option
@@ -533,7 +416,7 @@ module type Frame_operations = sig
 
     (** {2 Evaluating JavaScript} *)
 
-    val evaluate : ?arg:Js.t -> string -> t -> Js.t
+    val evaluate : ?arg:js_value -> string -> t -> js_value
     (** [evaluate expression] evaluates a JavaScript expression in the frame and returns its value; a promise is
         awaited first. If the expression evaluates to a function, that function is called with [arg].
 
@@ -543,10 +426,10 @@ module type Frame_operations = sig
           Printf.printf "%s: %d\n" title sum
         ]} *)
 
-    val evaluate_handle : ?arg:Js.t -> string -> t -> js_handle
+    val evaluate_handle : ?arg:js_value -> string -> t -> js_handle
     (** Like {!evaluate}, but returns a handle to the resulting object instead of a copy of it. *)
 
-    val wait_for_function : ?timeout:float -> ?polling:float -> ?arg:Js.t -> string -> t -> js_handle
+    val wait_for_function : ?timeout:float -> ?polling:float -> ?arg:js_value -> string -> t -> js_handle
     (** Waits until the expression evaluates to a truthy value, and returns that. It is evaluated on every animation
         frame, or every [polling] milliseconds. *)
 
@@ -561,11 +444,11 @@ module type Frame_operations = sig
     val wait_for_selector : ?timeout:float -> ?strict:bool -> ?state:element_state -> string -> t -> element_handle option
     (** Waits for an element to reach [state], [`Visible] by default. [None] when waiting for [`Hidden] or [`Detached]. *)
 
-    val eval_on_selector : ?strict:bool -> ?arg:Js.t -> string -> string -> t -> Js.t
+    val eval_on_selector : ?strict:bool -> ?arg:js_value -> string -> string -> t -> js_value
     (** [eval_on_selector selector expression] calls the function that [expression] evaluates to with the element. *)
 
-    val eval_on_selector_all : ?arg:Js.t -> string -> string -> t -> Js.t
-    val dispatch_event : ?timeout:float -> ?strict:bool -> ?event_init:Js.t -> string -> string -> t -> unit
+    val eval_on_selector_all : ?arg:js_value -> string -> string -> t -> js_value
+    val dispatch_event : ?timeout:float -> ?strict:bool -> ?event_init:js_value -> string -> string -> t -> unit
 
     val click :
         ?timeout:float -> ?strict:bool -> ?force:bool -> ?no_wait_after:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float ->
@@ -621,11 +504,90 @@ module type Frame_operations = sig
     val is_visible : ?strict:bool -> string -> t -> bool
 end
 
+(** {1 JavaScript values}
+
+    From here to {!CDPSession}, the modules are declared as one recursive group, [module rec ... and ...], for the
+    only reason that their types refer to one another. *)
+
+(** JavaScript values, as they are passed to and returned from code evaluated in a page.
+
+    Unlike JSON this covers everything that Playwright can transfer: [undefined], [NaN] and the infinities, dates,
+    big integers, regular expressions, errors, typed arrays and, in arguments, handles to objects living in the page.
+
+    A value is a tree. An object that occurs at several places of a result is repeated at each of them, and a
+    structure that contains itself is cut off with [Undefined] at the place where it comes round. *)
+module rec Js : sig
+    type typed_array_kind = [ `I8 | `Ui8 | `Ui8c | `I16 | `Ui16 | `I32 | `Ui32 | `F32 | `F64 | `Bi64 | `Bui64 ]
+
+    type t =
+        | Undefined
+        | Null
+        | Bool of bool
+        | Number of float
+        | String of string
+        | Bigint of string  (** In decimal notation. *)
+        | Date of string  (** In ISO 8601 format, as produced by [Date.prototype.toJSON]. *)
+        | Url of string
+        | Regexp of { source : string; flags : string }
+        | Error of { name : string; message : string; stack : string }
+        | Array of t list
+        | Object of (string * t) list
+        | Typed_array of { kind : typed_array_kind; bytes : string }  (** [bytes] is the content of the underlying buffer. *)
+        | Handle of JSHandle.t  (** Only in arguments: the object that the handle refers to. *)
+
+    (** {2 Constructing} *)
+
+    val undefined : t
+    val null : t
+    val bool : bool -> t
+    val int : int -> t
+    val float : float -> t
+    val string : string -> t
+    val list : ('a -> t) -> 'a list -> t
+    val obj : (string * t) list -> t
+
+    val option : ('a -> t) -> 'a option -> t
+    (** [None] becomes [Null]. *)
+
+    val of_json : Yojson.Safe.t -> t
+
+    (** {2 Inspecting}
+
+        The [to_...] functions raise {!exception-Playwright.Error} when the value is of another kind. *)
+
+    val to_string : t -> string
+    val to_bool : t -> bool
+    val to_float : t -> float
+
+    val to_int : t -> int
+    (** Fails for numbers that are not integers. *)
+
+    val to_list : (t -> 'a) -> t -> 'a list
+    val to_assoc : t -> (string * t) list
+
+    val to_option : (t -> 'a) -> t -> 'a option
+    (** [None] for [Null] and [Undefined]. *)
+
+    val is_nullish : t -> bool
+
+    val member : string -> t -> t
+    (** The property of an [Object]; [Undefined] when it has no such property. *)
+
+    val to_json : t -> Yojson.Safe.t
+    (** Converts the way [JSON.stringify] does where it can: [Undefined] and non-finite numbers become [`Null],
+        dates and URLs become strings. Integral numbers become [`Int]. Fails for handles. *)
+
+    val show : t -> string
+    (** A JavaScript-like rendering, for messages and debugging. *)
+
+    val pp : Format.formatter -> t -> unit
+end
+
 (** {1 Browsers} *)
 
 (** A kind of browser: Chromium, Firefox or WebKit. Obtained from {!chromium}, {!firefox} and {!webkit}. *)
-module BrowserType : sig
-    type t = browser_type
+and BrowserType : sig
+    type t
 
     val name : t -> string
     (** ["chromium"], ["firefox"] or ["webkit"]. *)
@@ -633,41 +595,41 @@ module BrowserType : sig
     val executable_path : t -> string
     (** Where Playwright expects to find the browser that it installs. *)
 
-    val launch : (t -> browser) with_launch_options
+    val launch : (t -> Browser.t) with_launch_options
     (** Starts a browser.
 
         {[
           BrowserType.launch ~headless:false ~args:[ "--start-maximized" ] (Playwright.chromium pw)
         ]} *)
 
-    val launch_persistent_context : (string -> (t -> browser_context) with_context_options) with_launch_options
+    val launch_persistent_context : (string -> (t -> BrowserContext.t) with_context_options) with_launch_options
     (** [launch_persistent_context user_data_dir] starts a browser that keeps its profile in the given directory, and
         returns its only context. An empty string stands for a temporary directory. Closing the context closes the
         browser. *)
 
-    val connect : ?timeout:float -> ?headers:(string * string) list -> ?slow_mo:float -> ?expose_network:string -> string -> t -> browser
+    val connect : ?timeout:float -> ?headers:(string * string) list -> ?slow_mo:float -> ?expose_network:string -> string -> t -> Browser.t
     (** [connect ws_endpoint] attaches to a browser that is served by a Playwright server, as started with
         [ocaml-playwright run-server] or [browserType.launchServer]. The server must run the same version of
         Playwright. Closing the browser, or stopping this driver, disconnects from it. *)
 
-    val connect_over_cdp : ?timeout:float -> ?headers:(string * string) list -> ?slow_mo:float -> string -> t -> browser
+    val connect_over_cdp : ?timeout:float -> ?headers:(string * string) list -> ?slow_mo:float -> string -> t -> Browser.t
     (** [connect_over_cdp endpoint] attaches to a running Chromium-based browser through the Chrome DevTools Protocol,
         given an HTTP endpoint such as ["http://localhost:9222"] or a WebSocket URL. The contexts and pages that are
         open already are available from {!Browser.contexts}. *)
 end
 
 (** A running browser. *)
-module Browser : sig
-    type t = browser
+and Browser : sig
+    type t
 
-    val new_context : ?proxy:Proxy.t -> (t -> browser_context) with_context_options
+    val new_context : ?proxy:Proxy.t -> (t -> BrowserContext.t) with_context_options
     (** Creates an isolated browser context, comparable to a fresh incognito profile. *)
 
-    val new_page : ?proxy:Proxy.t -> (t -> page) with_context_options
+    val new_page : ?proxy:Proxy.t -> (t -> Page.t) with_context_options
     (** Creates a page in a new context of its own, which is closed together with the page. *)
 
-    val contexts : t -> browser_context list
-    val browser_type : t -> browser_type
+    val contexts : t -> BrowserContext.t list
+    val browser_type : t -> BrowserType.t
 
     val version : t -> string
     (** The version of the browser. *)
@@ -680,7 +642,7 @@ module Browser : sig
 
     val off_disconnected : (t -> unit) -> t -> unit
 
-    val new_browser_cdp_session : t -> cdp_session
+    val new_browser_cdp_session : t -> CDPSession.t
     (** A Chrome DevTools Protocol session with the browser itself. Chromium only. *)
 
     val close : ?reason:string -> t -> unit
@@ -690,13 +652,13 @@ end
 
 (** An isolated browser session: pages of the same context share cookies, storage, permissions and settings, and
     those of different contexts do not. *)
-module BrowserContext : sig
-    type t = browser_context
+and BrowserContext : sig
+    type t
 
-    val new_page : t -> page
-    val pages : t -> page list
+    val new_page : t -> Page.t
+    val pages : t -> Page.t list
 
-    val browser : t -> browser option
+    val browser : t -> Browser.t option
     (** [None] for a persistent context. *)
 
     val close : ?reason:string -> t -> unit
@@ -713,15 +675,15 @@ module BrowserContext : sig
 
     type _ event =
         | Close : t event
-        | Console : console_message event
-        | Dialog : dialog event
-        | Page : page event  (** A page was created in the context, by {!new_page} or as a popup. *)
-        | Web_error : web_error event  (** An exception was not handled in one of the pages. *)
-        | Request : request event
-        | Request_failed : request event
-        | Request_finished : request event
-        | Response : response event
-        | Service_worker : worker event
+        | Console : ConsoleMessage.t event
+        | Dialog : Dialog.t event
+        | Page : Page.t event  (** A page was created in the context, by {!new_page} or as a popup. *)
+        | Web_error : WebError.t event  (** An exception was not handled in one of the pages. *)
+        | Request : Request.t event
+        | Request_failed : Request.t event
+        | Request_finished : Request.t event
+        | Response : Response.t event
+        | Service_worker : Worker.t event
 
     val on : 'a event -> ('a -> unit) -> t -> unit
     (** Registers a listener. Each call of a listener runs in a fiber of its own, so a listener may block and may
@@ -738,17 +700,17 @@ module BrowserContext : sig
         event that is emitted before the action returns. *)
 
     val wait_for_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> t -> 'a
-    val expect_page : ?timeout:float -> ?predicate:(page -> bool) -> (unit -> unit) -> t -> page
+    val expect_page : ?timeout:float -> ?predicate:(Page.t -> bool) -> (unit -> unit) -> t -> Page.t
 
     (** {1 Network} *)
 
-    val route : ?times:int -> string -> (route -> unit) -> t -> unit
+    val route : ?times:int -> string -> (Route.t -> unit) -> t -> unit
     (** [route glob handler] intercepts the requests of all pages of the context whose URL matches the glob pattern.
         The handler has to {!Route.fulfill}, {!Route.continue}, {!Route.fallback} or {!Route.abort} each of them.
         Handlers registered later take precedence, and those of a page take precedence over those of its context.
         With [times], the handler is used for that many requests only. *)
 
-    val route_matching : ?times:int -> (string -> bool) -> (route -> unit) -> t -> unit
+    val route_matching : ?times:int -> (string -> bool) -> (Route.t -> unit) -> t -> unit
 
     val unroute : string -> t -> unit
     (** Removes the handlers that were registered for this glob pattern. *)
@@ -773,14 +735,14 @@ module BrowserContext : sig
         With [~update:true] nothing is intercepted: instead the traffic is recorded, and written to the file when
         the context is closed. *)
 
-    val route_web_socket : string -> (web_socket_route -> unit) -> t -> unit
+    val route_web_socket : string -> (WebSocketRoute.t -> unit) -> t -> unit
     (** Intercepts the WebSocket connections that pages open to matching URLs, see {!WebSocketRoute}. *)
 
-    val route_web_socket_matching : (string -> bool) -> (web_socket_route -> unit) -> t -> unit
+    val route_web_socket_matching : (string -> bool) -> (WebSocketRoute.t -> unit) -> t -> unit
     val set_extra_http_headers : (string * string) list -> t -> unit
     val set_offline : bool -> t -> unit
 
-    val request : t -> api_request_context
+    val request : t -> APIRequestContext.t
     (** For sending HTTP requests that share the cookies of the context. *)
 
     (** {1 State} *)
@@ -810,70 +772,79 @@ module BrowserContext : sig
     (** [expose_function name f] makes [f] available to all pages as [window.name]. Calling it in the page returns a
         promise of the result of [f]; if [f] raises, the promise is rejected. *)
 
+    type binding_source = { context : t; page : Page.t; frame : Frame.t }
+    (** Where a call of an exposed binding came from. *)
+
     val expose_binding : string -> (binding_source -> Js.t list -> Js.t) -> t -> unit
     (** Like {!expose_function}, for a function that also wants to know which page and frame called it. *)
 
-    val service_workers : t -> worker list
-    val tracing : t -> tracing
+    val service_workers : t -> Worker.t list
+    val tracing : t -> Tracing.t
 
-    val new_cdp_session : page -> t -> cdp_session
+    val new_cdp_session : Page.t -> t -> CDPSession.t
     (** A Chrome DevTools Protocol session with a page. Chromium only. *)
 
-    val new_cdp_session_for_frame : frame -> t -> cdp_session
+    val new_cdp_session_for_frame : Frame.t -> t -> CDPSession.t
 end
 
 (** {1 Pages} *)
 
 (** A tab or a popup window. *)
-module Page : sig
-    type t = page
+and Page : sig
+    type t
 
     (** {1 Locators} *)
 
     val locator :
-        ?has_text:string -> ?has_text_regex:string -> ?has_not_text:string -> ?has_not_text_regex:string -> ?has:locator -> ?has_not:locator ->
-        string -> t -> locator
+        ?has_text:string -> ?has_text_regex:string -> ?has_not_text:string -> ?has_not_text_regex:string -> ?has:Locator.t -> ?has_not:Locator.t ->
+        string -> t -> Locator.t
     (** The elements matching a {{:https://playwright.dev/docs/other-locators} selector}, CSS or XPath for instance,
         optionally filtered as by {!Locator.filter}. *)
 
-    include Locator_queries with type t := t
+    include Locator_queries with type t := t and type locator := Locator.t
 
-    val frame_locator : string -> t -> frame_locator
+    val frame_locator : string -> t -> FrameLocator.t
     (** The content of the [<iframe>] that the selector matches. *)
 
     (** {1 Navigation, JavaScript and operations by selector} *)
 
-    include Frame_operations with type t := t
+    include
+        Frame_operations
+            with type t := t
+             and type js_value := Js.t
+             and type js_handle := JSHandle.t
+             and type element_handle := ElementHandle.t
+             and type response := Response.t
 
-    val reload : ?timeout:float -> ?wait_until:lifecycle_event -> t -> response option
-    val go_back : ?timeout:float -> ?wait_until:lifecycle_event -> t -> response option
+    val reload : ?timeout:float -> ?wait_until:lifecycle_event -> t -> Response.t option
+    val go_back : ?timeout:float -> ?wait_until:lifecycle_event -> t -> Response.t option
     (** [None] if there is no previous page in the history. *)
 
-    val go_forward : ?timeout:float -> ?wait_until:lifecycle_event -> t -> response option
+    val go_forward : ?timeout:float -> ?wait_until:lifecycle_event -> t -> Response.t option
     val url : t -> string
 
     (** {1 The page} *)
 
-    val context : t -> browser_context
+    val context : t -> BrowserContext.t
 
     val opener : t -> t option
     (** The page that opened this popup, unless that is closed. *)
 
-    val main_frame : t -> frame
-    val frames : t -> frame list
+    val main_frame : t -> Frame.t
+    val frames : t -> Frame.t list
 
-    val frame : ?name:string -> ?url:string -> t -> frame option
+    val frame : ?name:string -> ?url:string -> t -> Frame.t option
     (** The frame with the given [name] attribute or whose URL matches the glob pattern. *)
 
-    val workers : t -> worker list
-    val keyboard : t -> keyboard
-    val mouse : t -> mouse
-    val touchscreen : t -> touchscreen
+    val workers : t -> Worker.t list
+    val keyboard : t -> Keyboard.t
+    val mouse : t -> Mouse.t
+    val touchscreen : t -> Touchscreen.t
 
-    val request : t -> api_request_context
+    val request : t -> APIRequestContext.t
     (** The same as {!BrowserContext.request} of the page's context. *)
 
-    val video : t -> video option
+    val video : t -> Video.t option
     (** The video recording of the page, when the context was created with [record_video_dir]. *)
 
     val close : ?run_before_unload:bool -> ?reason:string -> t -> unit
@@ -892,26 +863,26 @@ module Page : sig
 
     type _ event =
         | Close : t event
-        | Console : console_message event
+        | Console : ConsoleMessage.t event
         | Crash : t event
-        | Dialog : dialog event
+        | Dialog : Dialog.t event
               (** A JavaScript dialog opened. It must be accepted or dismissed, or the page stays blocked; dialogs
                   are dismissed automatically while there is no listener for this event. *)
         | Dom_content_loaded : t event
-        | Download : download event
-        | File_chooser : file_chooser event
-        | Frame_attached : frame event
-        | Frame_detached : frame event
-        | Frame_navigated : frame event
+        | Download : Download.t event
+        | File_chooser : FileChooser.t event
+        | Frame_attached : Frame.t event
+        | Frame_detached : Frame.t event
+        | Frame_navigated : Frame.t event
         | Load : t event
         | Page_error : Error.t event  (** An exception was not handled in the page. *)
         | Popup : t event
-        | Request : request event
-        | Request_failed : request event
-        | Request_finished : request event
-        | Response : response event
-        | Web_socket : web_socket event
-        | Worker : worker event
+        | Request : Request.t event
+        | Request_failed : Request.t event
+        | Request_finished : Request.t event
+        | Response : Response.t event
+        | Web_socket : WebSocket.t event
+        | Worker : Worker.t event
 
     val on : 'a event -> ('a -> unit) -> t -> unit
     (** See {!BrowserContext.on}. *)
@@ -929,24 +900,24 @@ module Page : sig
 
     val wait_for_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> t -> 'a
     val expect_popup : ?timeout:float -> ?predicate:(t -> bool) -> (unit -> unit) -> t -> t
-    val expect_download : ?timeout:float -> ?predicate:(download -> bool) -> (unit -> unit) -> t -> download
-    val expect_file_chooser : ?timeout:float -> ?predicate:(file_chooser -> bool) -> (unit -> unit) -> t -> file_chooser
-    val expect_console_message : ?timeout:float -> ?predicate:(console_message -> bool) -> (unit -> unit) -> t -> console_message
-    val expect_web_socket : ?timeout:float -> ?predicate:(web_socket -> bool) -> (unit -> unit) -> t -> web_socket
-    val expect_worker : ?timeout:float -> ?predicate:(worker -> bool) -> (unit -> unit) -> t -> worker
+    val expect_download : ?timeout:float -> ?predicate:(Download.t -> bool) -> (unit -> unit) -> t -> Download.t
+    val expect_file_chooser : ?timeout:float -> ?predicate:(FileChooser.t -> bool) -> (unit -> unit) -> t -> FileChooser.t
+    val expect_console_message : ?timeout:float -> ?predicate:(ConsoleMessage.t -> bool) -> (unit -> unit) -> t -> ConsoleMessage.t
+    val expect_web_socket : ?timeout:float -> ?predicate:(WebSocket.t -> bool) -> (unit -> unit) -> t -> WebSocket.t
+    val expect_worker : ?timeout:float -> ?predicate:(Worker.t -> bool) -> (unit -> unit) -> t -> Worker.t
 
-    val expect_request : ?timeout:float -> ?url:string -> ?predicate:(request -> bool) -> (unit -> unit) -> t -> request
+    val expect_request : ?timeout:float -> ?url:string -> ?predicate:(Request.t -> bool) -> (unit -> unit) -> t -> Request.t
     (** Runs the action and returns the first request made from then on whose URL matches the glob pattern [url] and
         that satisfies [predicate]. *)
 
-    val expect_request_finished : ?timeout:float -> ?url:string -> ?predicate:(request -> bool) -> (unit -> unit) -> t -> request
-    val expect_response : ?timeout:float -> ?url:string -> ?predicate:(response -> bool) -> (unit -> unit) -> t -> response
-    val wait_for_request : ?timeout:float -> ?url:string -> ?predicate:(request -> bool) -> t -> request
-    val wait_for_response : ?timeout:float -> ?url:string -> ?predicate:(response -> bool) -> t -> response
+    val expect_request_finished : ?timeout:float -> ?url:string -> ?predicate:(Request.t -> bool) -> (unit -> unit) -> t -> Request.t
+    val expect_response : ?timeout:float -> ?url:string -> ?predicate:(Response.t -> bool) -> (unit -> unit) -> t -> Response.t
+    val wait_for_request : ?timeout:float -> ?url:string -> ?predicate:(Request.t -> bool) -> t -> Request.t
+    val wait_for_response : ?timeout:float -> ?url:string -> ?predicate:(Response.t -> bool) -> t -> Response.t
 
     (** {1 Network} *)
 
-    val route : ?times:int -> string -> (route -> unit) -> t -> unit
+    val route : ?times:int -> string -> (Route.t -> unit) -> t -> unit
     (** Intercepts the requests of this page, see {!BrowserContext.route}.
 
         {[
@@ -954,7 +925,7 @@ module Page : sig
           Page.route "**/*.{png,jpg}" Route.abort page
         ]} *)
 
-    val route_matching : ?times:int -> (string -> bool) -> (route -> unit) -> t -> unit
+    val route_matching : ?times:int -> (string -> bool) -> (Route.t -> unit) -> t -> unit
     val unroute : string -> t -> unit
     val unroute_all : t -> unit
 
@@ -969,11 +940,11 @@ module Page : sig
         unit
     (** Answers the requests of this page from a HAR file, see {!BrowserContext.route_from_har}. *)
 
-    val route_web_socket : string -> (web_socket_route -> unit) -> t -> unit
-    val route_web_socket_matching : (string -> bool) -> (web_socket_route -> unit) -> t -> unit
+    val route_web_socket : string -> (WebSocketRoute.t -> unit) -> t -> unit
+    val route_web_socket_matching : (string -> bool) -> (WebSocketRoute.t -> unit) -> t -> unit
     val set_extra_http_headers : (string * string) list -> t -> unit
 
-    val requests : t -> request list
+    val requests : t -> Request.t list
     (** The most recent requests of the page, up to a limit set by the browser. *)
 
     (** {1 History}
@@ -981,7 +952,7 @@ module Page : sig
         What happened in the page before anyone listened: the browser keeps the most recent console messages and
         uncaught errors of every page. *)
 
-    val console_messages : ?filter:[ `All | `Since_navigation ] -> t -> console_message list
+    val console_messages : ?filter:[ `All | `Since_navigation ] -> t -> ConsoleMessage.t list
     (** The console messages of the page so far, the oldest first; with [`Since_navigation] only those of the
         document that it shows now. *)
 
@@ -994,28 +965,34 @@ module Page : sig
 
     (** {1 Storage} *)
 
-    val local_storage : t -> web_storage
+    val local_storage : t -> WebStorage.t
     (** The [localStorage] of the page for the origin that it shows, see {!WebStorage}. *)
 
-    val session_storage : t -> web_storage
+    val session_storage : t -> WebStorage.t
 
     (** {1 Scripting} *)
 
     val add_init_script : ?path:string -> ?script:string -> t -> unit
     val expose_function : string -> (Js.t list -> Js.t) -> t -> unit
-    val expose_binding : string -> (binding_source -> Js.t list -> Js.t) -> t -> unit
+    val expose_binding : string -> (BrowserContext.binding_source -> Js.t list -> Js.t) -> t -> unit
 
-    val add_locator_handler : ?times:int -> ?no_wait_after:bool -> locator -> (locator -> unit) -> t -> unit
+    val add_locator_handler : ?times:int -> ?no_wait_after:bool -> Locator.t -> (Locator.t -> unit) -> t -> unit
     (** [add_locator_handler locator handler] calls [handler] whenever an action is about to be performed while
         [locator] is visible, typically to dismiss an overlay that would be in the way. *)
 
-    val remove_locator_handler : locator -> t -> unit
+    val remove_locator_handler : Locator.t -> t -> unit
 
     (** {1 Rendering} *)
 
-    val screenshot : ?full_page:bool -> ?clip:rect -> (t -> string) with_screenshot_options
+    val screenshot :
+        ?full_page:bool -> ?clip:rect ->
+        ?timeout:float -> ?path:string -> ?type_:[ `Png | `Jpeg | `Webp ] -> ?quality:int -> ?omit_background:bool ->
+        ?caret:[ `Hide | `Initial ] -> ?animations:[ `Allow | `Disabled ] -> ?scale:[ `Css | `Device ] -> ?mask:Locator.t list ->
+        ?mask_color:string -> ?style:string -> t -> string
     (** Takes a screenshot of the viewport, of the whole scrollable page with [full_page], or of the area [clip].
-        Returns the image data. *)
+        Returns the image data. [path] also saves the image to a file, and determines [type_] from the extension unless
+        that is given. [quality] is 0-100 and applies to JPEG and WebP only. The elements in [mask] are covered with
+        boxes of [mask_color], and [style] is a style sheet that is applied while the screenshot is taken. *)
 
     val pdf :
         ?path:string -> ?scale:float -> ?display_header_footer:bool -> ?header_template:string -> ?footer_template:string ->
@@ -1039,20 +1016,26 @@ module Page : sig
 end
 
 (** A frame of a page: its main frame or the content of an [<iframe>]. *)
-module Frame : sig
-    type t = frame
+and Frame : sig
+    type t
 
     val locator :
-        ?has_text:string -> ?has_text_regex:string -> ?has_not_text:string -> ?has_not_text_regex:string -> ?has:locator -> ?has_not:locator ->
-        string -> t -> locator
+        ?has_text:string -> ?has_text_regex:string -> ?has_not_text:string -> ?has_not_text_regex:string -> ?has:Locator.t -> ?has_not:Locator.t ->
+        string -> t -> Locator.t
 
-    include Locator_queries with type t := t
+    include Locator_queries with type t := t and type locator := Locator.t
 
-    val frame_locator : string -> t -> frame_locator
+    val frame_locator : string -> t -> FrameLocator.t
 
-    include Frame_operations with type t := t
+    include
+        Frame_operations
+            with type t := t
+             and type js_value := Js.t
+             and type js_handle := JSHandle.t
+             and type element_handle := ElementHandle.t
+             and type response := Response.t
 
-    val page : t -> page
+    val page : t -> Page.t
     val url : t -> string
 
     val name : t -> string
@@ -1062,7 +1045,7 @@ module Frame : sig
     val child_frames : t -> t list
     val is_detached : t -> bool
 
-    val frame_element : t -> element_handle
+    val frame_element : t -> ElementHandle.t
     (** The [<iframe>] or [<frame>] element that holds the frame. *)
 end
 
@@ -1078,8 +1061,8 @@ end
       Locator.get_by_role `Button ~name:"Edit" row |> Locator.click;
       Page.get_by_label "Name" page |> Locator.fill "Ada King"
     ]} *)
-module Locator : sig
-    type t = locator
+and Locator : sig
+    type t
 
     (** {1 Narrowing down} *)
 
@@ -1087,7 +1070,7 @@ module Locator : sig
         ?has_text:string -> ?has_text_regex:string -> ?has_not_text:string -> ?has_not_text_regex:string -> ?has:t -> ?has_not:t -> string -> t -> t
     (** The descendants of the located elements that match the selector. *)
 
-    include Locator_queries with type t := t
+    include Locator_queries with type t := t and type locator := t
 
     val filter :
         ?has_text:string -> ?has_text_regex:string -> ?has_not_text:string -> ?has_not_text_regex:string -> ?has:t -> ?has_not:t ->
@@ -1112,13 +1095,13 @@ module Locator : sig
     val describe : string -> t -> t
     (** Gives the locator a name to show in traces and error messages. *)
 
-    val frame_locator : string -> t -> frame_locator
+    val frame_locator : string -> t -> FrameLocator.t
 
-    val content_frame : t -> frame_locator
+    val content_frame : t -> FrameLocator.t
     (** For a locator of an [<iframe>]: the content of that frame. *)
 
-    val page : t -> page
-    val frame : t -> frame
+    val page : t -> Page.t
+    val frame : t -> Frame.t
 
     val to_string : t -> string
     (** The selector that the locator stands for. *)
@@ -1223,7 +1206,11 @@ module Locator : sig
     (** The accessibility tree of the element as YAML, see
         {{:https://playwright.dev/docs/aria-snapshots} ARIA snapshots}. *)
 
-    val screenshot : (t -> string) with_screenshot_options
+    val screenshot :
+        ?timeout:float -> ?path:string -> ?type_:[ `Png | `Jpeg | `Webp ] -> ?quality:int -> ?omit_background:bool ->
+        ?caret:[ `Hide | `Initial ] -> ?animations:[ `Allow | `Disabled ] -> ?scale:[ `Css | `Device ] -> ?mask:t list ->
+        ?mask_color:string -> ?style:string -> t -> string
+    (** A screenshot of the element, with the options of {!Page.screenshot}. *)
 
     val wait_for : ?timeout:float -> ?state:element_state -> t -> unit
     (** Waits until the element is in the given state, [`Visible] by default. *)
@@ -1234,29 +1221,29 @@ module Locator : sig
     (** Calls the function that the expression evaluates to with the element and [arg]:
         [Locator.evaluate "element => element.scrollTop" locator]. *)
 
-    val evaluate_handle : ?timeout:float -> ?arg:Js.t -> string -> t -> js_handle
+    val evaluate_handle : ?timeout:float -> ?arg:Js.t -> string -> t -> JSHandle.t
 
     val evaluate_all : ?arg:Js.t -> string -> t -> Js.t
     (** Calls the function with the array of all elements that match right now. *)
 
-    val element_handle : ?timeout:float -> t -> element_handle
-    val element_handles : t -> element_handle list
+    val element_handle : ?timeout:float -> t -> ElementHandle.t
+    val element_handles : t -> ElementHandle.t list
 end
 
 (** The content of an [<iframe>], for locating elements inside it:
     [Page.frame_locator "#payment" page |> FrameLocator.get_by_label "Card number" |> Locator.fill "4242..."]. *)
-module FrameLocator : sig
-    type t = frame_locator
+and FrameLocator : sig
+    type t
 
     val locator :
-        ?has_text:string -> ?has_text_regex:string -> ?has_not_text:string -> ?has_not_text_regex:string -> ?has:locator -> ?has_not:locator ->
-        string -> t -> locator
+        ?has_text:string -> ?has_text_regex:string -> ?has_not_text:string -> ?has_not_text_regex:string -> ?has:Locator.t -> ?has_not:Locator.t ->
+        string -> t -> Locator.t
 
-    include Locator_queries with type t := t
+    include Locator_queries with type t := t and type locator := Locator.t
 
     val frame_locator : string -> t -> t
 
-    val owner : t -> locator
+    val owner : t -> Locator.t
     (** The [<iframe>] element itself. *)
 
     val first : t -> t
@@ -1264,126 +1251,12 @@ module FrameLocator : sig
     val nth : int -> t -> t
 end
 
-(** {1 Assertions} *)
-
-(** Assertions that wait: each of them checks its condition repeatedly until it holds, and fails with an {!exception-Error} of
-    kind [Assertion_failed] when it does not come to hold within the timeout, 5 seconds by default. The error
-    message says what was expected, what was found instead, and includes the call log.
-
-    {[
-      Expect.to_be_visible (Page.get_by_role `Heading ~name:"Welcome" page);
-      Expect.to_have_text "3 items" (Page.get_by_test_id "cart-count" page);
-      Expect.Not.to_be_checked (Page.get_by_label "Subscribe" page);
-      Expect.to_have_url_regex "/\\/checkout$/" page
-    ]} *)
-module Expect : sig
-    module type Assertions = sig
-        (** {2 Locators} *)
-
-        val to_be_attached : ?timeout:float -> locator -> unit
-        (** An element matching the locator is in the document. *)
-
-        val to_be_detached : ?timeout:float -> locator -> unit
-        val to_be_visible : ?timeout:float -> locator -> unit
-        val to_be_hidden : ?timeout:float -> locator -> unit
-        val to_be_enabled : ?timeout:float -> locator -> unit
-        val to_be_disabled : ?timeout:float -> locator -> unit
-        val to_be_editable : ?timeout:float -> locator -> unit
-        val to_be_read_only : ?timeout:float -> locator -> unit
-
-        val to_be_empty : ?timeout:float -> locator -> unit
-        (** An editable element has no value, or another element has no text. *)
-
-        val to_be_focused : ?timeout:float -> locator -> unit
-        val to_be_checked : ?timeout:float -> ?checked:bool -> locator -> unit
-        val to_be_indeterminate : ?timeout:float -> locator -> unit
-
-        val to_be_in_viewport : ?timeout:float -> ?ratio:float -> locator -> unit
-        (** At least the fraction [ratio] of the element intersects the viewport; any part of it by default. *)
-
-        val to_have_text : ?timeout:float -> ?ignore_case:bool -> ?use_inner_text:bool -> string -> locator -> unit
-        (** The text of the element is the given one, with whitespace normalised. *)
-
-        val to_have_text_regex : ?timeout:float -> ?use_inner_text:bool -> string -> locator -> unit
-
-        val to_contain_text : ?timeout:float -> ?ignore_case:bool -> ?use_inner_text:bool -> string -> locator -> unit
-        (** The text of the element contains the given one. *)
-
-        val to_have_texts : ?timeout:float -> ?ignore_case:bool -> ?use_inner_text:bool -> string list -> locator -> unit
-        (** The locator matches as many elements as there are texts, and they have these texts in this order. *)
-
-        val to_contain_texts : ?timeout:float -> ?ignore_case:bool -> ?use_inner_text:bool -> string list -> locator -> unit
-
-        val to_have_attribute : ?timeout:float -> ?ignore_case:bool -> string -> string -> locator -> unit
-        (** [to_have_attribute name value]. *)
-
-        val to_have_attribute_regex : ?timeout:float -> string -> string -> locator -> unit
-
-        val to_have_attribute_present : ?timeout:float -> string -> locator -> unit
-        (** The element has the attribute, with whatever value. *)
-
-        val to_have_class : ?timeout:float -> string -> locator -> unit
-        (** The [class] attribute is exactly the given string. *)
-
-        val to_have_class_regex : ?timeout:float -> string -> locator -> unit
-
-        val to_contain_class : ?timeout:float -> string -> locator -> unit
-        (** The element has all of the given space-separated classes. *)
-
-        val to_have_id : ?timeout:float -> string -> locator -> unit
-        val to_have_role : ?timeout:float -> aria_role -> locator -> unit
-        val to_have_value : ?timeout:float -> string -> locator -> unit
-        val to_have_value_regex : ?timeout:float -> string -> locator -> unit
-
-        val to_have_values : ?timeout:float -> string list -> locator -> unit
-        (** The selected options of a [<select multiple>]. *)
-
-        val to_have_css : ?timeout:float -> ?pseudo:[ `Before | `After ] -> string -> string -> locator -> unit
-        (** [to_have_css property value] compares against the computed style of the element. *)
-
-        val to_have_js_property : ?timeout:float -> string -> Js.t -> locator -> unit
-        val to_have_count : ?timeout:float -> int -> locator -> unit
-        val to_have_accessible_name : ?timeout:float -> ?ignore_case:bool -> string -> locator -> unit
-        val to_have_accessible_name_regex : ?timeout:float -> string -> locator -> unit
-        val to_have_accessible_description : ?timeout:float -> ?ignore_case:bool -> string -> locator -> unit
-        val to_have_accessible_description_regex : ?timeout:float -> string -> locator -> unit
-
-        val to_match_aria_snapshot : ?timeout:float -> string -> locator -> unit
-        (** The accessibility tree of the element matches the given
-            {{:https://playwright.dev/docs/aria-snapshots} ARIA snapshot} template. *)
-
-        (** {2 Pages} *)
-
-        val to_have_title : ?timeout:float -> string -> page -> unit
-        val to_have_title_regex : ?timeout:float -> string -> page -> unit
-
-        val to_have_url : ?timeout:float -> ?ignore_case:bool -> string -> page -> unit
-        (** The URL of the page is the given one. A relative URL is resolved against the [base_url] of the context.
-            This is a comparison of strings, not of patterns; for those there is {!to_have_url_regex}. *)
-
-        val to_have_url_regex : ?timeout:float -> string -> page -> unit
-
-        (** {2 Responses} *)
-
-        val to_be_ok : api_response -> unit
-        (** The status is in the range 200-299. This one does not wait. *)
-    end
-
-    include Assertions
-
-    (** The opposite assertions: [Expect.Not.to_be_visible locator] waits for the element to be hidden. *)
-    module Not : Assertions
-
-    val set_default_timeout : float -> unit
-    (** Sets the timeout of the assertions that are not given one, for the whole program. *)
-end
-
 (** {1 Handles and input devices} *)
 
 (** A reference to a JavaScript object in a page. Handles keep their objects alive until they are disposed of or the
     page navigates. *)
-module JSHandle : sig
-    type t = js_handle
+and JSHandle : sig
+    type t
 
     val evaluate : ?arg:Js.t -> string -> t -> Js.t
     (** Calls the function that the expression evaluates to with the object and [arg]. *)
@@ -1395,7 +1268,7 @@ module JSHandle : sig
     val json_value : t -> Js.t
     (** A copy of the object. *)
 
-    val as_element : t -> element_handle option
+    val as_element : t -> ElementHandle.t option
     (** The handle as an element handle, if the object is a DOM element. *)
 
     val to_string : t -> string
@@ -1404,18 +1277,18 @@ end
 
 (** A reference to a DOM element in a page. {!Locator}s are the better tool for nearly everything: an element
     handle refers to one particular element, which the page may replace at any time. *)
-module ElementHandle : sig
-    type t = element_handle
+and ElementHandle : sig
+    type t
 
-    val as_js_handle : t -> js_handle
+    val as_js_handle : t -> JSHandle.t
     val evaluate : ?arg:Js.t -> string -> t -> Js.t
-    val evaluate_handle : ?arg:Js.t -> string -> t -> js_handle
+    val evaluate_handle : ?arg:Js.t -> string -> t -> JSHandle.t
     val dispose : t -> unit
 
-    val owner_frame : t -> frame option
+    val owner_frame : t -> Frame.t option
     (** The frame whose document the element is in. *)
 
-    val content_frame : t -> frame option
+    val content_frame : t -> Frame.t option
     (** For an [<iframe>] element: the frame that it holds. *)
 
     val query_selector : string -> t -> t option
@@ -1436,7 +1309,13 @@ module ElementHandle : sig
     val is_hidden : t -> bool
     val is_visible : t -> bool
     val bounding_box : t -> rect option
-    val screenshot : (t -> string) with_screenshot_options
+
+    val screenshot :
+        ?timeout:float -> ?path:string -> ?type_:[ `Png | `Jpeg | `Webp ] -> ?quality:int -> ?omit_background:bool ->
+        ?caret:[ `Hide | `Initial ] -> ?animations:[ `Allow | `Disabled ] -> ?scale:[ `Css | `Device ] -> ?mask:Locator.t list ->
+        ?mask_color:string -> ?style:string -> t -> string
+    (** A screenshot of the element, with the options of {!Page.screenshot}. *)
+
     val scroll_into_view_if_needed : ?timeout:float -> t -> unit
     val dispatch_event : ?event_init:Js.t -> string -> t -> unit
 
@@ -1466,8 +1345,8 @@ end
 (** The keyboard of a page, see {!Page.keyboard}. Keys are named as in
     {{:https://playwright.dev/docs/api/class-keyboard#keyboard-press} [keyboard.press]}: ["a"], ["Enter"],
     ["ArrowLeft"], or a combination such as ["Shift+Tab"] or ["ControlOrMeta+C"]. *)
-module Keyboard : sig
-    type t = keyboard
+and Keyboard : sig
+    type t
 
     val press : ?delay:float -> string -> t -> unit
 
@@ -1483,8 +1362,8 @@ end
 
 (** The mouse of a page, see {!Page.mouse}. Coordinates are in CSS pixels relative to the top left corner of the
     viewport. *)
-module Mouse : sig
-    type t = mouse
+and Mouse : sig
+    type t
 
     val move : ?steps:int -> float -> float -> t -> unit
     val down : ?button:mouse_button -> ?click_count:int -> t -> unit
@@ -1496,8 +1375,8 @@ module Mouse : sig
     (** [wheel delta_x delta_y] scrolls. *)
 end
 
-module Touchscreen : sig
-    type t = touchscreen
+and Touchscreen : sig
+    type t
 
     val tap : float -> float -> t -> unit
 end
@@ -1505,8 +1384,8 @@ end
 (** {1 Network} *)
 
 (** A request made by a page. *)
-module Request : sig
-    type t = request
+and Request : sig
+    type t
 
     type sizes = { request_body_size : int; request_headers_size : int; response_body_size : int; response_headers_size : int }
 
@@ -1530,16 +1409,16 @@ module Request : sig
     val post_data : t -> string option
     val post_data_json : t -> Yojson.Safe.t option
 
-    val response : t -> response option
+    val response : t -> Response.t option
     (** Waits for the response. [None] if the request failed. *)
 
-    val existing_response : t -> response option
+    val existing_response : t -> Response.t option
     (** The response if it has been received already. Does not wait. *)
 
-    val frame : t -> frame
+    val frame : t -> Frame.t
     (** The frame that made the request. Fails for requests of service workers. *)
 
-    val service_worker : t -> worker option
+    val service_worker : t -> Worker.t option
     val is_navigation_request : t -> bool
 
     val redirected_from : t -> t option
@@ -1557,8 +1436,8 @@ module Request : sig
 end
 
 (** The response to a {!Request}. *)
-module Response : sig
-    type t = response
+and Response : sig
+    type t
 
     type server_addr = { ip_address : string; port : int }
 
@@ -1594,8 +1473,8 @@ module Response : sig
     val finished : t -> unit
     (** Waits until the body has been received in full; fails if the request fails before that. *)
 
-    val request : t -> request
-    val frame : t -> frame
+    val request : t -> Request.t
+    val frame : t -> Frame.t
     val from_service_worker : t -> bool
     val http_version : t -> string
     val server_addr : t -> server_addr option
@@ -1603,14 +1482,14 @@ module Response : sig
 end
 
 (** An intercepted request, see {!Page.route}. A handler has to conclude each route in exactly one way. *)
-module Route : sig
-    type t = route
+and Route : sig
+    type t
 
-    val request : t -> request
+    val request : t -> Request.t
 
     val fulfill :
         ?status:int -> ?headers:(string * string) list -> ?content_type:string -> ?body:string -> ?json:Yojson.Safe.t -> ?path:string ->
-        ?response:api_response -> t -> unit
+        ?response:APIResponse.t -> t -> unit
     (** Answers the request without sending it: with [body], [json] or the file at [path], or with a [response] that
         was obtained from {!fetch}, of which the other arguments override parts. The status defaults to 200. *)
 
@@ -1627,14 +1506,14 @@ module Route : sig
 
     val fetch :
         ?timeout:float -> ?url:string -> ?method_:string -> ?headers:(string * string) list -> ?post_data:string -> ?max_redirects:int ->
-        ?max_retries:int -> t -> api_response
+        ?max_retries:int -> t -> APIResponse.t
     (** Performs the request and returns the response without passing it to the page, so that it can be inspected
         and modified before {!fulfill}. *)
 end
 
 (** A WebSocket connection opened by a page. *)
-module WebSocket : sig
-    type t = web_socket
+and WebSocket : sig
+    type t
 
     val url : t -> string
     val is_closed : t -> bool
@@ -1661,8 +1540,8 @@ end
     [connect_to_server] opens the connection to the actual server and returns the server's side of it. Messages are
     then forwarded in both directions, except that a side with an {!on_message} handler has its messages given to
     that handler instead, which may pass them on with {!send} to the other side. *)
-module WebSocketRoute : sig
-    type t = web_socket_route
+and WebSocketRoute : sig
+    type t
 
     val url : t -> string
     val protocols : t -> string list
@@ -1684,21 +1563,21 @@ end
 (** {1 Things that pages report} *)
 
 (** A JavaScript dialog: [alert], [confirm], [prompt] or [beforeunload]. See {!Page.Dialog}. *)
-module Dialog : sig
-    type t = dialog
+and Dialog : sig
+    type t
 
     val type_ : t -> string
     (** ["alert"], ["confirm"], ["prompt"] or ["beforeunload"]. *)
 
     val message : t -> string
     val default_value : t -> string
-    val page : t -> page option
+    val page : t -> Page.t option
     val accept : ?prompt_text:string -> t -> unit
     val dismiss : t -> unit
 end
 
-module ConsoleMessage : sig
-    type t = console_message
+and ConsoleMessage : sig
+    type t
 
     type location = { url : string; line_number : int; column_number : int }
 
@@ -1706,10 +1585,10 @@ module ConsoleMessage : sig
     (** ["log"], ["debug"], ["info"], ["error"], ["warning"], ["dir"], ["trace"], ["assert"], ... *)
 
     val text : t -> string
-    val args : t -> js_handle list
+    val args : t -> JSHandle.t list
     val location : t -> location
-    val page : t -> page option
-    val worker : t -> worker option
+    val page : t -> Page.t option
+    val worker : t -> Worker.t option
 
     val timestamp : t -> float
     (** Milliseconds since the Unix epoch. *)
@@ -1717,12 +1596,12 @@ end
 
 (** A file that a page downloads. Downloads are stored in a temporary directory and deleted when the context is
     closed; use {!save_as} to keep one. *)
-module Download : sig
-    type t = download
+and Download : sig
+    type t
 
     val url : t -> string
     val suggested_filename : t -> string
-    val page : t -> page
+    val page : t -> Page.t
 
     val path : t -> string
     (** Waits for the download to finish and returns where it was stored. *)
@@ -1738,33 +1617,33 @@ module Download : sig
 end
 
 (** A file chooser that a page opened, see {!Page.expect_file_chooser}. *)
-module FileChooser : sig
-    type t = file_chooser
+and FileChooser : sig
+    type t
 
-    val page : t -> page
-    val element : t -> element_handle
+    val page : t -> Page.t
+    val element : t -> ElementHandle.t
     val is_multiple : t -> bool
     val set_files : ?timeout:float -> string list -> t -> unit
     val set_payloads : ?timeout:float -> file_payload list -> t -> unit
 end
 
 (** An exception that was not handled in a page, see {!BrowserContext.Web_error}. *)
-module WebError : sig
-    type t = web_error
+and WebError : sig
+    type t
 
-    val page : t -> page option
+    val page : t -> Page.t option
     val error : t -> Error.t
 end
 
 (** A web worker or a service worker. *)
-module Worker : sig
-    type t = worker
+and Worker : sig
+    type t
 
     val url : t -> string
     val evaluate : ?arg:Js.t -> string -> t -> Js.t
-    val evaluate_handle : ?arg:Js.t -> string -> t -> js_handle
+    val evaluate_handle : ?arg:Js.t -> string -> t -> JSHandle.t
 
-    type _ event = Close : t event | Console : console_message event
+    type _ event = Close : t event | Console : ConsoleMessage.t event
 
     val on : 'a event -> ('a -> unit) -> t -> unit
     val once : 'a event -> ('a -> unit) -> t -> unit
@@ -1775,8 +1654,8 @@ end
 
 (** The [localStorage] or [sessionStorage] of a page, see {!Page.local_storage}. It always is the storage of the
     origin that the page shows at the time of the call. *)
-module WebStorage : sig
-    type t = web_storage
+and WebStorage : sig
+    type t
 
     val items : t -> (string * string) list
     val get_item : string -> t -> string option
@@ -1786,8 +1665,8 @@ module WebStorage : sig
 end
 
 (** The video recording of a page. The file is complete once the page has been closed. *)
-module Video : sig
-    type t = video
+and Video : sig
+    type t
 
     val path : t -> string
     (** Where the video is, or will be, stored. *)
@@ -1809,8 +1688,8 @@ end
       (* ... *)
       Tracing.stop ~path:"trace.zip" tracing
     ]} *)
-module Tracing : sig
-    type t = tracing
+and Tracing : sig
+    type t
 
     val start : ?name:string -> ?title:string -> ?snapshots:bool -> ?screenshots:bool -> ?sources:bool -> ?live:bool -> t -> unit
 
@@ -1833,31 +1712,9 @@ module Tracing : sig
     val stop_har : t -> unit
 end
 
-(** Control over the time that the pages of a context see: [Date], [setTimeout], [requestAnimationFrame] and the
-    like. Points in time are in milliseconds since the Unix epoch, durations in milliseconds. *)
-module Clock : sig
-    val install : ?time:float -> browser_context -> unit
-    (** Replaces the native clock with a fake one, optionally set to [time]. Required before the functions that move
-        the clock: {!fast_forward}, {!run_for}, {!pause_at} and {!resume}. *)
-
-    val fast_forward : float -> browser_context -> unit
-    (** Jumps ahead, firing due timers at most once, as when a laptop is opened again after a while. *)
-
-    val run_for : float -> browser_context -> unit
-    (** Advances the clock, firing all timers that become due on the way. *)
-
-    val pause_at : float -> browser_context -> unit
-    val resume : browser_context -> unit
-
-    val set_fixed_time : float -> browser_context -> unit
-    (** Makes [Date.now] return this time forever, while timers keep running. *)
-
-    val set_system_time : float -> browser_context -> unit
-end
-
 (** The response to a request made with {!APIRequestContext}. *)
-module APIResponse : sig
-    type t = api_response
+and APIResponse : sig
+    type t
 
     val url : t -> string
     val status : t -> int
@@ -1876,8 +1733,8 @@ end
 
 (** Sending HTTP requests without a page, for instance to prepare the state of a server or to check on it. Requests
     made with {!BrowserContext.request} share the cookies of that browser context, in both directions. *)
-module APIRequestContext : sig
-    type t = api_request_context
+and APIRequestContext : sig
+    type t
 
     type multipart_value = [ `Text of string | `File of file_payload ]
 
@@ -1898,14 +1755,14 @@ module APIRequestContext : sig
         content type [application/json], [form] encoded as [application/x-www-form-urlencoded], or [multipart]
         encoded as [multipart/form-data]. With [fail_on_status_code], a status outside of 200-399 is an error. *)
 
-    val get : (string -> t -> api_response) with_request_options
-    val post : (string -> t -> api_response) with_request_options
-    val put : (string -> t -> api_response) with_request_options
-    val patch : (string -> t -> api_response) with_request_options
-    val delete : (string -> t -> api_response) with_request_options
-    val head : (string -> t -> api_response) with_request_options
+    val get : (string -> t -> APIResponse.t) with_request_options
+    val post : (string -> t -> APIResponse.t) with_request_options
+    val put : (string -> t -> APIResponse.t) with_request_options
+    val patch : (string -> t -> APIResponse.t) with_request_options
+    val delete : (string -> t -> APIResponse.t) with_request_options
+    val head : (string -> t -> APIResponse.t) with_request_options
 
-    val fetch : ?method_:string -> (string -> t -> api_response) with_request_options
+    val fetch : ?method_:string -> (string -> t -> APIResponse.t) with_request_options
     (** A request with any method, [GET] by default. *)
 
     val storage_state : ?path:string -> ?indexed_db:bool -> t -> Yojson.Safe.t
@@ -1921,15 +1778,6 @@ module APIRequestContext : sig
     (** Frees the context and all responses that it holds. Only for contexts made with {!APIRequest.new_context}. *)
 end
 
-module APIRequest : sig
-    val new_context :
-        ?base_url:string -> ?user_agent:string -> ?ignore_https_errors:bool -> ?extra_http_headers:(string * string) list ->
-        ?fail_on_status_code:bool -> ?max_redirects:int -> ?http_credentials:Http_credentials.t -> ?proxy:Proxy.t ->
-        ?storage_state:Yojson.Safe.t -> ?timeout:float -> t -> api_request_context
-    (** Creates a request context that is independent of any browser. [timeout] is the default timeout of its
-        requests. *)
-end
-
 (** A raw {{:https://chromedevtools.github.io/devtools-protocol/} Chrome DevTools Protocol} session. Chromium only.
     See {!BrowserContext.new_cdp_session}.
 
@@ -1940,8 +1788,8 @@ end
           ~params:(`Assoc [ "offline", `Bool true; "latency", `Int 0; "downloadThroughput", `Int 0; "uploadThroughput", `Int 0 ])
       |> ignore
     ]} *)
-module CDPSession : sig
-    type t = cdp_session
+and CDPSession : sig
+    type t
 
     val send : ?params:Yojson.Safe.t -> string -> t -> Yojson.Safe.t
     (** [send method_] calls a method of the protocol and returns its result. *)
@@ -1952,6 +1800,160 @@ module CDPSession : sig
     val off_event : (string -> Yojson.Safe.t -> unit) -> t -> unit
     val on_close : (t -> unit) -> t -> unit
     val detach : t -> unit
+end
+
+(** Control over the time that the pages of a context see: [Date], [setTimeout], [requestAnimationFrame] and the
+    like. Points in time are in milliseconds since the Unix epoch, durations in milliseconds. *)
+module Clock : sig
+    val install : ?time:float -> BrowserContext.t -> unit
+    (** Replaces the native clock with a fake one, optionally set to [time]. Required before the functions that move
+        the clock: {!fast_forward}, {!run_for}, {!pause_at} and {!resume}. *)
+
+    val fast_forward : float -> BrowserContext.t -> unit
+    (** Jumps ahead, firing due timers at most once, as when a laptop is opened again after a while. *)
+
+    val run_for : float -> BrowserContext.t -> unit
+    (** Advances the clock, firing all timers that become due on the way. *)
+
+    val pause_at : float -> BrowserContext.t -> unit
+    val resume : BrowserContext.t -> unit
+
+    val set_fixed_time : float -> BrowserContext.t -> unit
+    (** Makes [Date.now] return this time forever, while timers keep running. *)
+
+    val set_system_time : float -> BrowserContext.t -> unit
+end
+
+(** {1 Assertions} *)
+
+(** Assertions that wait: each of them checks its condition repeatedly until it holds, and fails with an {!exception-Error} of
+    kind [Assertion_failed] when it does not come to hold within the timeout, 5 seconds by default. The error
+    message says what was expected, what was found instead, and includes the call log.
+
+    {[
+      Expect.to_be_visible (Page.get_by_role `Heading ~name:"Welcome" page);
+      Expect.to_have_text "3 items" (Page.get_by_test_id "cart-count" page);
+      Expect.Not.to_be_checked (Page.get_by_label "Subscribe" page);
+      Expect.to_have_url_regex "/\\/checkout$/" page
+    ]} *)
+module Expect : sig
+    module type Assertions = sig
+        (** {2 Locators} *)
+
+        val to_be_attached : ?timeout:float -> Locator.t -> unit
+        (** An element matching the locator is in the document. *)
+
+        val to_be_detached : ?timeout:float -> Locator.t -> unit
+        val to_be_visible : ?timeout:float -> Locator.t -> unit
+        val to_be_hidden : ?timeout:float -> Locator.t -> unit
+        val to_be_enabled : ?timeout:float -> Locator.t -> unit
+        val to_be_disabled : ?timeout:float -> Locator.t -> unit
+        val to_be_editable : ?timeout:float -> Locator.t -> unit
+        val to_be_read_only : ?timeout:float -> Locator.t -> unit
+
+        val to_be_empty : ?timeout:float -> Locator.t -> unit
+        (** An editable element has no value, or another element has no text. *)
+
+        val to_be_focused : ?timeout:float -> Locator.t -> unit
+        val to_be_checked : ?timeout:float -> ?checked:bool -> Locator.t -> unit
+        val to_be_indeterminate : ?timeout:float -> Locator.t -> unit
+
+        val to_be_in_viewport : ?timeout:float -> ?ratio:float -> Locator.t -> unit
+        (** At least the fraction [ratio] of the element intersects the viewport; any part of it by default. *)
+
+        val to_have_text : ?timeout:float -> ?ignore_case:bool -> ?use_inner_text:bool -> string -> Locator.t -> unit
+        (** The text of the element is the given one, with whitespace normalised. *)
+
+        val to_have_text_regex : ?timeout:float -> ?use_inner_text:bool -> string -> Locator.t -> unit
+
+        val to_contain_text : ?timeout:float -> ?ignore_case:bool -> ?use_inner_text:bool -> string -> Locator.t -> unit
+        (** The text of the element contains the given one. *)
+
+        val to_have_texts : ?timeout:float -> ?ignore_case:bool -> ?use_inner_text:bool -> string list -> Locator.t -> unit
+        (** The locator matches as many elements as there are texts, and they have these texts in this order. *)
+
+        val to_contain_texts : ?timeout:float -> ?ignore_case:bool -> ?use_inner_text:bool -> string list -> Locator.t -> unit
+
+        val to_have_attribute : ?timeout:float -> ?ignore_case:bool -> string -> string -> Locator.t -> unit
+        (** [to_have_attribute name value]. *)
+
+        val to_have_attribute_regex : ?timeout:float -> string -> string -> Locator.t -> unit
+
+        val to_have_attribute_present : ?timeout:float -> string -> Locator.t -> unit
+        (** The element has the attribute, with whatever value. *)
+
+        val to_have_class : ?timeout:float -> string -> Locator.t -> unit
+        (** The [class] attribute is exactly the given string. *)
+
+        val to_have_class_regex : ?timeout:float -> string -> Locator.t -> unit
+
+        val to_contain_class : ?timeout:float -> string -> Locator.t -> unit
+        (** The element has all of the given space-separated classes. *)
+
+        val to_have_id : ?timeout:float -> string -> Locator.t -> unit
+        val to_have_role : ?timeout:float -> aria_role -> Locator.t -> unit
+        val to_have_value : ?timeout:float -> string -> Locator.t -> unit
+        val to_have_value_regex : ?timeout:float -> string -> Locator.t -> unit
+
+        val to_have_values : ?timeout:float -> string list -> Locator.t -> unit
+        (** The selected options of a [<select multiple>]. *)
+
+        val to_have_css : ?timeout:float -> ?pseudo:[ `Before | `After ] -> string -> string -> Locator.t -> unit
+        (** [to_have_css property value] compares against the computed style of the element. *)
+
+        val to_have_js_property : ?timeout:float -> string -> Js.t -> Locator.t -> unit
+        val to_have_count : ?timeout:float -> int -> Locator.t -> unit
+        val to_have_accessible_name : ?timeout:float -> ?ignore_case:bool -> string -> Locator.t -> unit
+        val to_have_accessible_name_regex : ?timeout:float -> string -> Locator.t -> unit
+        val to_have_accessible_description : ?timeout:float -> ?ignore_case:bool -> string -> Locator.t -> unit
+        val to_have_accessible_description_regex : ?timeout:float -> string -> Locator.t -> unit
+
+        val to_match_aria_snapshot : ?timeout:float -> string -> Locator.t -> unit
+        (** The accessibility tree of the element matches the given
+            {{:https://playwright.dev/docs/aria-snapshots} ARIA snapshot} template. *)
+
+        (** {2 Pages} *)
+
+        val to_have_title : ?timeout:float -> string -> Page.t -> unit
+        val to_have_title_regex : ?timeout:float -> string -> Page.t -> unit
+
+        val to_have_url : ?timeout:float -> ?ignore_case:bool -> string -> Page.t -> unit
+        (** The URL of the page is the given one. A relative URL is resolved against the [base_url] of the context.
+            This is a comparison of strings, not of patterns; for those there is {!to_have_url_regex}. *)
+
+        val to_have_url_regex : ?timeout:float -> string -> Page.t -> unit
+
+        (** {2 Responses} *)
+
+        val to_be_ok : APIResponse.t -> unit
+        (** The status is in the range 200-299. This one does not wait. *)
+    end
+
+    include Assertions
+
+    (** The opposite assertions: [Expect.Not.to_be_visible locator] waits for the element to be hidden. *)
+    module Not : Assertions
+
+    val set_default_timeout : float -> unit
+    (** Sets the timeout of the assertions that are not given one, for the whole program. *)
+end
+
+(** {1:roots What a driver gives access to} *)
+
+val chromium : t -> BrowserType.t
+(** The three browser engines. Browsers are launched from them: [BrowserType.launch (chromium pw)]. *)
+
+val firefox : t -> BrowserType.t
+val webkit : t -> BrowserType.t
+
+(** Request contexts that are independent of any browser, see {!APIRequestContext}. *)
+module APIRequest : sig
+    val new_context :
+        ?base_url:string -> ?user_agent:string -> ?ignore_https_errors:bool -> ?extra_http_headers:(string * string) list ->
+        ?fail_on_status_code:bool -> ?max_redirects:int -> ?http_credentials:Http_credentials.t -> ?proxy:Proxy.t ->
+        ?storage_state:Yojson.Safe.t -> ?timeout:float -> t -> APIRequestContext.t
+    (** Creates a request context that is independent of any browser. [timeout] is the default timeout of its
+        requests. *)
 end
 
 (** Custom selector engines and the attribute used by [get_by_test_id]. The settings apply to all browser contexts

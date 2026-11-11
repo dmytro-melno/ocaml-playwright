@@ -98,16 +98,28 @@ module Make (Polarity : sig
     val is_not : bool
 end) =
 struct
-    let is_not = Polarity.is_not
+    (* What the assertions are made of. It is opened rather than defined, which keeps it out of the signature of the
+       result: that one has to be the module type [Assertions] of the interface, no more and no less. *)
+    open struct
+        let is_not = Polarity.is_not
 
-    let locator ?timeout ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text expression ~condition (l : locator) =
-        let timeout = Option.value timeout ~default:!timeout_setting in
-        Locator.expect ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not ~timeout expression l
-        |> verdict ~is_not ~subject:"Locator" ~condition
+        let locator ?timeout ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text expression ~condition (l : locator) =
+            let timeout = Option.value timeout ~default:!timeout_setting in
+            Locator.expect ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not ~timeout expression l
+            |> verdict ~is_not ~subject:"Locator" ~condition
 
-    let page ?timeout ?expected_text expression ~condition (p : page) =
-        let timeout = Option.value timeout ~default:!timeout_setting in
-        Frame.expect ?expected_text ~is_not ~timeout expression p.main_frame |> verdict ~is_not ~subject:"Page" ~condition
+        let page ?timeout ?expected_text expression ~condition (p : page) =
+            let timeout = Option.value timeout ~default:!timeout_setting in
+            Frame.expect ?expected_text ~is_not ~timeout expression p.main_frame |> verdict ~is_not ~subject:"Page" ~condition
+
+        let have_text ?timeout ?ignore_case ?use_inner_text text l =
+            locator ?timeout ~expected_text:(text_values ~normalize_white_space:true ?ignore_case [ text ]) ?use_inner_text "to.have.text"
+                ~condition:("to have text " ^ show_text text) l
+
+        let simple_text expression what ?timeout ?ignore_case ?normalize_white_space ?expression_arg text l =
+            locator ?timeout ?expression_arg ~expected_text:(text_values ?ignore_case ?normalize_white_space [ text ]) expression
+                ~condition:(Printf.sprintf "to have %s %s" what (show_text text)) l
+    end
 
     (* {1 State} *)
 
@@ -133,10 +145,6 @@ struct
 
     (* {1 Text} *)
 
-    let have_text ?timeout ?ignore_case ?use_inner_text text l =
-        locator ?timeout ~expected_text:(text_values ~normalize_white_space:true ?ignore_case [ text ]) ?use_inner_text "to.have.text"
-            ~condition:("to have text " ^ show_text text) l
-
     let to_have_text ?timeout ?ignore_case ?use_inner_text text l = have_text ?timeout ?ignore_case ?use_inner_text (Text text) l
     let to_have_text_regex ?timeout ?use_inner_text regex l = have_text ?timeout ?use_inner_text (Regex regex) l
 
@@ -156,10 +164,6 @@ struct
             "to.contain.text.array" ~condition:("to contain texts " ^ show_texts texts) l
 
     (* {1 Attributes and properties} *)
-
-    let simple_text expression what ?timeout ?ignore_case ?normalize_white_space ?expression_arg text l =
-        locator ?timeout ?expression_arg ~expected_text:(text_values ?ignore_case ?normalize_white_space [ text ]) expression
-            ~condition:(Printf.sprintf "to have %s %s" what (show_text text)) l
 
     let to_have_attribute ?timeout ?ignore_case name value l =
         simple_text "to.have.attribute.value" ("attribute " ^ name) ?timeout ?ignore_case ~expression_arg:(`String name) (Text value) l
@@ -185,17 +189,13 @@ struct
         let values = List.map (fun value -> Selector.Text value) values in
         locator ?timeout ~expected_text:(text_values values) "to.have.values" ~condition:("to have values " ^ show_texts values) l
 
-    let to_have_css ?timeout ?pseudo name value l =
+    let to_have_css ?timeout ?(pseudo : [ `Before | `After ] option) name value l =
         locator ?timeout ?pseudo ~expression_arg:(`String name) ~expected_text:(text_values [ Text value ]) "to.have.css"
             ~condition:(Printf.sprintf "to have CSS property %s %S" name value) l
 
     let to_have_js_property ?timeout name value l =
         locator ?timeout ~expression_arg:(`String name) ~expected_value:value "to.have.property"
             ~condition:(Printf.sprintf "to have JavaScript property %s %s" name (Js.show value)) l
-
-    let to_match_aria_snapshot ?timeout snapshot l =
-        let snapshot = unindent snapshot in
-        locator ?timeout ~expected_value:(Js.String snapshot) "to.match.aria" ~condition:("to match the ARIA snapshot\n" ^ snapshot) l
 
     let to_have_count ?timeout count l =
         locator ?timeout ~expected_number:(float_of_int count) "to.have.count" ~condition:(Printf.sprintf "to have count %d" count) l
@@ -211,6 +211,10 @@ struct
 
     let to_have_accessible_description_regex ?timeout regex l =
         simple_text "to.have.accessible.description" "accessible description" ?timeout ~normalize_white_space:true (Regex regex) l
+
+    let to_match_aria_snapshot ?timeout snapshot l =
+        let snapshot = unindent snapshot in
+        locator ?timeout ~expected_value:(Js.String snapshot) "to.match.aria" ~condition:("to match the ARIA snapshot\n" ^ snapshot) l
 
     (* {1 Pages} *)
 

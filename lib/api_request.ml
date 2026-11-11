@@ -120,3 +120,28 @@ module Response = struct
                 Protocol.Api_request_context.dispose_api_response ~fetch_uid:r.ar_init.fetch_uid context.a_channel)
         with Error.E { kind = Target_closed; _ } -> ()
 end
+
+(* A request context that is independent of any browser. *)
+let new_context ?base_url ?user_agent ?ignore_https_errors ?extra_http_headers ?fail_on_status_code ?max_redirects
+    ?(http_credentials : Context_options.Http_credentials.t option) ?(proxy : Context_options.Proxy.t option) ?(storage_state : Yojson.Safe.t option)
+    ?timeout (t : playwright) =
+    let conn = t.session.conn in
+    let context =
+        Protocol.Playwright.new_request ?base_url ?user_agent ?ignore_https_errors ?extra_http_headers:(Option.map Network.name_values extra_http_headers)
+            ?fail_on_status_code ?max_redirects
+            ?http_credentials:
+                (Option.map
+                     (fun (c : Context_options.Http_credentials.t) : Protocol.Http_credentials.t list ->
+                         [ { username = c.username; password = c.password; origin = c.origin; send = None } ])
+                     http_credentials)
+            ?proxy:
+                (Option.map
+                     (fun (p : Context_options.Proxy.t) : Protocol.Playwright.New_request_proxy.t ->
+                         { server = p.server; bypass = p.bypass; username = p.username; password = p.password })
+                     proxy)
+            ?storage_state:(Option.map (Protocol.Playwright.New_request_storage_state.of_json conn) storage_state)
+            t.pw_channel
+        |> Types.api_request_context
+    in
+    Option.iter (Timeouts.set_default context.a_timeouts) timeout;
+    context

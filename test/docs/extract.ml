@@ -51,8 +51,8 @@ let print index block =
         print_endline "end\n")
     else (
         print_endline "let _ =";
-        print_endline "    fun (env : Eio_unix.Stdenv.base) (pw : Playwright.t) (browser : Playwright.browser) (context : Playwright.browser_context)";
-        print_endline "        (page : Playwright.page) (frame : Playwright.frame) (locator : Playwright.locator) ->";
+        print_endline "    fun (env : Eio_unix.Stdenv.base) (pw : Playwright.t) (browser : Playwright.Browser.t) (context : Playwright.BrowserContext.t)";
+        print_endline "        (page : Playwright.Page.t) (frame : Playwright.Frame.t) (locator : Playwright.Locator.t) ->";
         print_endline "    let open Playwright in";
         print_endline "    ignore (";
         code ();

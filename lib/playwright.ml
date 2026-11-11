@@ -3,41 +3,13 @@ module Error = Error
 
 exception Error = Error.E
 
-(* {1 Types}
+(* {1 What the interface defines}
 
-   The interface makes the object types abstract.  The type abbreviations and module types below
-   have to be spelled out a second time here; the compiler checks them against the interface. *)
+   A type or a module type that an interface defines has to be defined by the implementation as well. Those of
+   [playwright.mli] are therefore stated a second time here, without their documentation; the compiler checks that
+   the two agree. The types of the objects are not among them: the interface declares each of them in its module. *)
 
 type t = Types.playwright
-type browser_type = Types.browser_type
-type browser = Types.browser
-type browser_context = Types.browser_context
-type page = Types.page
-type frame = Types.frame
-type locator = Types.locator
-type frame_locator = Types.frame_locator
-type js_handle = Types.js_handle
-type element_handle = Types.js_handle
-type keyboard = Types.page
-type mouse = Types.page
-type touchscreen = Types.page
-type request = Types.request
-type response = Types.response
-type route = Types.route
-type web_socket = Types.web_socket
-type web_socket_route = Types.web_socket_route
-type worker = Types.worker
-type dialog = Types.dialog
-type console_message = Types.console_message
-type download = Types.download
-type file_chooser = Types.file_chooser
-type web_error = Types.web_error
-type video = Types.page
-type web_storage = Page.Web_storage.t
-type tracing = Types.tracing
-type api_request_context = Types.api_request_context
-type api_response = Types.api_response
-type cdp_session = Types.cdp_session
 type rect = Protocol.Rect.t = { x : float; y : float; width : float; height : float }
 type mouse_button = [ `Left | `Middle | `Right ]
 type keyboard_modifier = [ `Alt | `Control | `Control_or_meta | `Meta | `Shift ]
@@ -63,12 +35,7 @@ type timing = Types.timing = {
     response_end : float;
 }
 
-type binding_source = { context : browser_context; page : page; frame : frame }
 type aria_role = Locator.role
-
-let binding f : Types.binding = fun source args -> f { context = source.bs_context; page = source.bs_page; frame = source.bs_frame } args
-
-module Js = Js
 
 module Device = struct
     type t = Types.device
@@ -143,23 +110,10 @@ type 'a with_launch_options =
     ?firefox_user_prefs:(string * Yojson.Safe.t) list ->
     ?slow_mo:float ->
     'a
-
-type 'a with_screenshot_options =
-    ?timeout:float ->
-    ?path:string ->
-    ?type_:[ `Png | `Jpeg | `Webp ] ->
-    ?quality:int ->
-    ?omit_background:bool ->
-    ?caret:[ `Hide | `Initial ] ->
-    ?animations:[ `Allow | `Disabled ] ->
-    ?scale:[ `Css | `Device ] ->
-    ?mask:locator list ->
-    ?mask_color:string ->
-    ?style:string ->
-    'a
-
 module type Locator_queries = sig
     type t
+    type locator
+
     val get_by_role :
         ?checked:bool -> ?disabled:bool -> ?selected:bool -> ?expanded:bool -> ?include_hidden:bool -> ?level:int -> ?name:string ->
         ?name_regex:string -> ?description:string -> ?description_regex:string -> ?exact:bool -> ?pressed:bool -> aria_role -> t -> locator
@@ -179,6 +133,11 @@ end
 
 module type Frame_operations = sig
     type t
+    type js_value
+    type js_handle
+    type element_handle
+    type response
+
     val goto : ?timeout:float -> ?wait_until:lifecycle_event -> ?referer:string -> string -> t -> response option
     val set_content : ?timeout:float -> ?wait_until:lifecycle_event -> string -> t -> unit
     val content : t -> string
@@ -189,17 +148,17 @@ module type Frame_operations = sig
     val expect_navigation :
         ?timeout:float -> ?wait_until:lifecycle_event -> ?url:string -> ?url_matching:(string -> bool) -> (unit -> unit) -> t -> response option
     val wait_for_timeout : float -> t -> unit
-    val evaluate : ?arg:Js.t -> string -> t -> Js.t
-    val evaluate_handle : ?arg:Js.t -> string -> t -> js_handle
-    val wait_for_function : ?timeout:float -> ?polling:float -> ?arg:Js.t -> string -> t -> js_handle
+    val evaluate : ?arg:js_value -> string -> t -> js_value
+    val evaluate_handle : ?arg:js_value -> string -> t -> js_handle
+    val wait_for_function : ?timeout:float -> ?polling:float -> ?arg:js_value -> string -> t -> js_handle
     val add_script_tag : ?url:string -> ?path:string -> ?content:string -> ?type_:string -> t -> element_handle
     val add_style_tag : ?url:string -> ?path:string -> ?content:string -> t -> element_handle
     val query_selector : ?strict:bool -> string -> t -> element_handle option
     val query_selector_all : string -> t -> element_handle list
     val wait_for_selector : ?timeout:float -> ?strict:bool -> ?state:element_state -> string -> t -> element_handle option
-    val eval_on_selector : ?strict:bool -> ?arg:Js.t -> string -> string -> t -> Js.t
-    val eval_on_selector_all : ?arg:Js.t -> string -> string -> t -> Js.t
-    val dispatch_event : ?timeout:float -> ?strict:bool -> ?event_init:Js.t -> string -> string -> t -> unit
+    val eval_on_selector : ?strict:bool -> ?arg:js_value -> string -> string -> t -> js_value
+    val eval_on_selector_all : ?arg:js_value -> string -> string -> t -> js_value
+    val dispatch_event : ?timeout:float -> ?strict:bool -> ?event_init:js_value -> string -> string -> t -> unit
     val click :
         ?timeout:float -> ?strict:bool -> ?force:bool -> ?no_wait_after:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float ->
         ?delay:float -> ?button:mouse_button -> ?click_count:int -> ?trial:bool -> ?steps:int -> string -> t -> unit
@@ -241,6 +200,8 @@ end
 
 (* {1 Objects} *)
 
+module Js = Js
+
 module BrowserType = struct
     include Browser_type
 
@@ -251,6 +212,9 @@ module Browser = Browser
 module BrowserContext = struct
     include Browser_context
 
+    type binding_source = { context : Types.browser_context; page : Types.page; frame : Types.frame }
+
+    let binding f : Types.binding = fun source args -> f { context = source.bs_context; page = source.bs_page; frame = source.bs_frame } args
     let expose_binding name f context = Browser_context.expose_binding name (binding f) context
     let new_cdp_session = new_cdp_session_for_page
 end
@@ -274,61 +238,19 @@ end
 module Page = struct
     include Page
 
-    let keyboard (page : t) : keyboard = page
-    let mouse (page : t) : mouse = page
-    let touchscreen (page : t) : touchscreen = page
+    let keyboard (page : t) : Keyboard.t = page
+    let mouse (page : t) : Mouse.t = page
+    let touchscreen (page : t) : Touchscreen.t = page
     let request (page : t) = Browser_context.request (context page)
-    let expose_binding name f page = Page.expose_binding name (binding f) page
+    let expose_binding name f page = Page.expose_binding name (BrowserContext.binding f) page
 end
 
 module Locator = Locator
 module FrameLocator = Frame_locator
 
 module Expect = struct
-    module type Assertions = sig
-        val to_be_attached : ?timeout:float -> locator -> unit
-        val to_be_detached : ?timeout:float -> locator -> unit
-        val to_be_visible : ?timeout:float -> locator -> unit
-        val to_be_hidden : ?timeout:float -> locator -> unit
-        val to_be_enabled : ?timeout:float -> locator -> unit
-        val to_be_disabled : ?timeout:float -> locator -> unit
-        val to_be_editable : ?timeout:float -> locator -> unit
-        val to_be_read_only : ?timeout:float -> locator -> unit
-        val to_be_empty : ?timeout:float -> locator -> unit
-        val to_be_focused : ?timeout:float -> locator -> unit
-        val to_be_checked : ?timeout:float -> ?checked:bool -> locator -> unit
-        val to_be_indeterminate : ?timeout:float -> locator -> unit
-        val to_be_in_viewport : ?timeout:float -> ?ratio:float -> locator -> unit
-        val to_have_text : ?timeout:float -> ?ignore_case:bool -> ?use_inner_text:bool -> string -> locator -> unit
-        val to_have_text_regex : ?timeout:float -> ?use_inner_text:bool -> string -> locator -> unit
-        val to_contain_text : ?timeout:float -> ?ignore_case:bool -> ?use_inner_text:bool -> string -> locator -> unit
-        val to_have_texts : ?timeout:float -> ?ignore_case:bool -> ?use_inner_text:bool -> string list -> locator -> unit
-        val to_contain_texts : ?timeout:float -> ?ignore_case:bool -> ?use_inner_text:bool -> string list -> locator -> unit
-        val to_have_attribute : ?timeout:float -> ?ignore_case:bool -> string -> string -> locator -> unit
-        val to_have_attribute_regex : ?timeout:float -> string -> string -> locator -> unit
-        val to_have_attribute_present : ?timeout:float -> string -> locator -> unit
-        val to_have_class : ?timeout:float -> string -> locator -> unit
-        val to_have_class_regex : ?timeout:float -> string -> locator -> unit
-        val to_contain_class : ?timeout:float -> string -> locator -> unit
-        val to_have_id : ?timeout:float -> string -> locator -> unit
-        val to_have_role : ?timeout:float -> aria_role -> locator -> unit
-        val to_have_value : ?timeout:float -> string -> locator -> unit
-        val to_have_value_regex : ?timeout:float -> string -> locator -> unit
-        val to_have_values : ?timeout:float -> string list -> locator -> unit
-        val to_have_css : ?timeout:float -> ?pseudo:[ `Before | `After ] -> string -> string -> locator -> unit
-        val to_have_js_property : ?timeout:float -> string -> Js.t -> locator -> unit
-        val to_have_count : ?timeout:float -> int -> locator -> unit
-        val to_have_accessible_name : ?timeout:float -> ?ignore_case:bool -> string -> locator -> unit
-        val to_have_accessible_name_regex : ?timeout:float -> string -> locator -> unit
-        val to_have_accessible_description : ?timeout:float -> ?ignore_case:bool -> string -> locator -> unit
-        val to_have_accessible_description_regex : ?timeout:float -> string -> locator -> unit
-        val to_match_aria_snapshot : ?timeout:float -> string -> locator -> unit
-        val to_have_title : ?timeout:float -> string -> page -> unit
-        val to_have_title_regex : ?timeout:float -> string -> page -> unit
-        val to_have_url : ?timeout:float -> ?ignore_case:bool -> string -> page -> unit
-        val to_have_url_regex : ?timeout:float -> string -> page -> unit
-        val to_be_ok : api_response -> unit
-    end
+    (* The functor that makes the assertions returns exactly what the interface asks for. *)
+    module type Assertions = module type of Expect.Not
 
     include Expect
 end
@@ -424,32 +346,11 @@ let devices (t : t) = t.session.devices
 let device name (t : t) = List.find_opt (fun (device : Device.t) -> device.device_name = name) t.session.devices
 
 module APIRequest = struct
-    (* Creates a request context that is independent of any browser. *)
-    let new_context ?base_url ?user_agent ?ignore_https_errors ?extra_http_headers ?fail_on_status_code ?max_redirects
-        ?(http_credentials : Http_credentials.t option) ?(proxy : Proxy.t option) ?(storage_state : Yojson.Safe.t option) ?timeout (t : t) =
-        let conn = t.session.conn in
-        let context =
-            Protocol.Playwright.new_request ?base_url ?user_agent ?ignore_https_errors
-                ?extra_http_headers:(Option.map Network.name_values extra_http_headers) ?fail_on_status_code ?max_redirects
-                ?http_credentials:
-                    (Option.map
-                         (fun (c : Http_credentials.t) : Protocol.Http_credentials.t list ->
-                             [ { username = c.username; password = c.password; origin = c.origin; send = None } ])
-                         http_credentials)
-                ?proxy:
-                    (Option.map
-                         (fun (p : Proxy.t) : Protocol.Playwright.New_request_proxy.t ->
-                             { server = p.server; bypass = p.bypass; username = p.username; password = p.password })
-                         proxy)
-                ?storage_state:(Option.map (Protocol.Playwright.New_request_storage_state.of_json conn) storage_state)
-                t.pw_channel
-            |> Types.api_request_context
-        in
-        Option.iter (Timeouts.set_default context.a_timeouts) timeout;
-        context
+    let new_context = Api_request.new_context
 end
 
 module Driver = struct
     let command = Driver.command
     let run = Driver.run_command
 end
+
