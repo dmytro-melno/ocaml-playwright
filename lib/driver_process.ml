@@ -22,19 +22,73 @@ type process = {
     release : unit -> unit;  (* frees what is left, once the driver is gone *)
 }
 
+(* The driver's standard error is not ours.  Node makes the pipes and sockets it is given
+   non-blocking, and that is a property of the open file, not of the descriptor: a driver that
+   inherited our standard error would change it for us as well, and the program's own writes to
+   it would fail whenever its reader is slow.  So the driver gets a pipe of its own, and what
+   comes out of it is copied to our standard error for as long as anybody holds the other end.
+   A system thread does that, because it has to go on while fibers are busy or being cancelled,
+   and while the driver says its last words. *)
+module Errors = struct
+    let copy input =
+        let buffer = Bytes.create 4096 in
+        let rec write offset length =
+            if length > 0 then
+                match Unix.write Unix.stderr buffer offset length with
+                | n -> write (offset + n) (length - n)
+                | exception Unix.Unix_error (Unix.EINTR, _, _) -> write offset length
+                | exception Unix.Unix_error ((Unix.EAGAIN | Unix.EWOULDBLOCK), _, _) ->
+                    (* Somebody else has made it non-blocking. *)
+                    (try ignore (Unix.select [] [ Unix.stderr ] [] 1.) with Unix.Unix_error _ -> Thread.delay 0.01);
+                    write offset length
+                | exception Unix.Unix_error _ -> ()  (* nobody listens, which is no reason to hold the driver back *)
+        in
+        let rec loop () =
+            match Unix.read input buffer 0 (Bytes.length buffer) with
+            | 0 -> ()
+            | n ->
+                write 0 n;
+                loop ()
+            | exception Unix.Unix_error (Unix.EINTR, _, _) -> loop ()
+            | exception Unix.Unix_error _ -> ()
+        in
+        loop ()
+
+    (* The descriptor to give to the driver, which the caller closes once that is done, and a
+       promise that is resolved when all the driver had to say has been copied. *)
+    let relay () =
+        let close fd = try Unix.close fd with Unix.Unix_error _ -> () in
+        let input, output = Unix.pipe ~cloexec:true () in
+        let copied, resolver = Promise.create () in
+        let run () =
+            Fun.protect (fun () -> copy input) ~finally:(fun () ->
+                close input;
+                Promise.resolve resolver ())
+        in
+        match Thread.create run () with
+        | (_ : Thread.t) -> (output, copied)
+        | exception ex ->
+            close input;
+            close output;
+            raise ex
+end
+
 module Native = struct
-    let spawn ~sw ~(env : Eio_unix.Stdenv.base) executable args =
+    let spawn ~sw ~(env : Eio_unix.Stdenv.base) ~stderr executable args =
         let mgr = Eio.Stdenv.process_mgr env in
         let quietly f = try f () with Eio.Io _ | Invalid_argument _ -> () in
-        let child_stdin, stdin = Eio.Process.pipe ~sw mgr in
-        let stdout, child_stdout = Eio.Process.pipe ~sw mgr in
+        let child_stdin, stdin = Eio_unix.pipe sw in
+        let stdout, child_stdout = Eio_unix.pipe sw in
+        let child_stderr = Eio_unix.Fd.of_unix ~sw ~blocking:true ~close_unix:false stderr in
         let process =
             Fun.protect
                 ~finally:(fun () ->
                     Eio.Flow.close child_stdin;
-                    Eio.Flow.close child_stdout)
+                    Eio.Flow.close child_stdout;
+                    Eio_unix.Fd.close child_stderr)
                 (fun () ->
-                    try Eio.Process.spawn ~sw mgr ~stdin:child_stdin ~stdout:child_stdout ~executable (executable :: args)
+                    let fds = [ (0, Eio_unix.Resource.fd child_stdin, `Blocking); (1, Eio_unix.Resource.fd child_stdout, `Blocking); (2, child_stderr, `Blocking) ] in
+                    try Eio_unix.Process.spawn_unix ~sw mgr ~fds ~executable (executable :: args)
                     with ex ->
                         quietly (fun () -> Eio.Flow.close stdin);
                         quietly (fun () -> Eio.Flow.close stdout);
@@ -153,7 +207,7 @@ module Threads = struct
         if not (submit writer (Write (Cstruct.copyv buffers, resolver))) then raise (Unix.Unix_error (Unix.EPIPE, "write", ""));
         match Promise.await written with Ok () -> () | Error ex -> raise ex
 
-    let spawn executable args =
+    let spawn ~stderr executable args =
         let close fd = try Unix.close fd with Unix.Unix_error _ -> () in
         let child_stdin, stdin = Unix.pipe ~cloexec:true () in
         let stdout, child_stdout =
@@ -169,7 +223,7 @@ module Threads = struct
                     close child_stdin;
                     close child_stdout)
                 (fun () ->
-                    try Unix.create_process executable (Array.of_list (executable :: args)) child_stdin child_stdout Unix.stderr
+                    try Unix.create_process executable (Array.of_list (executable :: args)) child_stdin child_stdout stderr
                     with ex ->
                         close stdin;
                         close stdout;
@@ -212,8 +266,9 @@ end
 
 (* Closing its input asks the driver to close every browser and exit.  Its remaining output is
    discarded meanwhile, so that it cannot block on a full pipe.  A driver that has not exited
-   after [grace_period] seconds is killed. *)
-let shut_down ~clock ~grace_period process =
+   after [grace_period] seconds is killed.  What it wrote to its standard error before it went
+   is in the pipe by then, and is waited for: an explanation of why it went may be among it. *)
+let shut_down ~clock ~grace_period ~errors_copied process =
     process.close_input ();
     let drain () =
         let buffer = Cstruct.create 65536 in
@@ -229,15 +284,21 @@ let shut_down ~clock ~grace_period process =
     | Error `Timeout ->
         process.kill ();
         process.await_exit ());
-    process.release ()
+    process.release ();
+    (* Not for long, though: something that outlives the driver may hold its standard error. *)
+    ignore (Eio.Time.with_timeout clock 1. (fun () -> Ok (Promise.await errors_copied)) : (unit, [ `Timeout ]) result)
 
 (* The threads implementation also works on Unix, where this setting selects it for testing. *)
 let use_threads () = Sys.win32 || Sys.getenv_opt "PLAYWRIGHT_OCAML_DRIVER_IO" = Some "threads"
 
 let spawn_command ?(threads = use_threads ()) ?(grace_period = 10.) ~sw ~(env : Eio_unix.Stdenv.base) executable args =
-    let process =
-        try if threads then Threads.spawn executable args else Native.spawn ~sw ~env executable args
-        with (Eio.Io _ | Unix.Unix_error _) as ex -> Error.raise_ "Could not start the Playwright driver (%s): %s" executable (Printexc.to_string ex)
+    let process, errors_copied =
+        try
+            let stderr, errors_copied = Errors.relay () in
+            Fun.protect
+                ~finally:(fun () -> try Unix.close stderr with Unix.Unix_error _ -> ())
+                (fun () -> ((if threads then Threads.spawn ~stderr executable args else Native.spawn ~sw ~env ~stderr executable args), errors_copied))
+        with (Eio.Io _ | Unix.Unix_error _ | Sys_error _) as ex -> Error.raise_ "Could not start the Playwright driver (%s): %s" executable (Printexc.to_string ex)
     in
     let clock = Eio.Stdenv.clock env in
     let stopped = ref None in
@@ -250,7 +311,7 @@ let spawn_command ?(threads = use_threads ()) ?(grace_period = 10.) ~sw ~(env : 
             | None ->
                 let promise, resolver = Promise.create () in
                 stopped := Some promise;
-                Fun.protect ~finally:(Promise.resolve resolver) (fun () -> shut_down ~clock ~grace_period process))
+                Fun.protect ~finally:(Promise.resolve resolver) (fun () -> shut_down ~clock ~grace_period ~errors_copied process))
     in
     (* Whatever happens to the session, the driver does not outlive its switch. *)
     Switch.on_release sw stop;

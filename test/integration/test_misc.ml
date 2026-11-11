@@ -407,6 +407,61 @@ let test_instance_end t () =
         check_instance_end t "driver killed" ~create ~obtain:launch (fun _ _ -> Unix.kill !driver Sys.sigkill)
     end
 
+(* Runs [f] with standard error going to a file, and returns what was written there. *)
+let capturing_stderr t f =
+    let path = scratch_file t "stderr.txt" in
+    let file = Unix.openfile path [ O_WRONLY; O_CREAT; O_TRUNC; O_CLOEXEC ] 0o600 in
+    let saved = Unix.dup ~cloexec:true Unix.stderr in
+    flush stderr;
+    Unix.dup2 file Unix.stderr;
+    Unix.close file;
+    Fun.protect f ~finally:(fun () ->
+        flush stderr;
+        Unix.dup2 saved Unix.stderr;
+        Unix.close saved);
+    read_file path
+
+(* The error hook is told what failed where there was nobody to raise it in, with the backtrace
+   at hand.  When the hook fails as well, both failures go to standard error and the instance
+   carries on. *)
+let test_error_hook t () =
+    Server.page t.server "/blank" "<title>Blank</title>";
+    let calls = ref [] in
+    let on_error what ex =
+        calls := (what, Printexc.to_string ex, Printexc.raw_backtrace_to_string (Printexc.get_raw_backtrace ())) :: !calls;
+        failwith "the hook fails as well"
+    in
+    let recording = Printexc.backtrace_status () in
+    Printexc.record_backtrace true;
+    let pw = Playwright.create ~sw:t.sw ~env:t.env ~on_error () in
+    let output =
+        Fun.protect
+            ~finally:(fun () ->
+                Printexc.record_backtrace recording;
+                Playwright.close pw)
+            (fun () ->
+                let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
+                let page = Browser.new_page browser in
+                (* Not in tail position, or there would be no trace of this file. *)
+                Page.on Page.Console (fun _ -> ignore (failwith "the listener fails" : int)) page;
+                let output =
+                    capturing_stderr t (fun () ->
+                        ignore (Page.evaluate "console.log('one'); console.log('two')" page);
+                        eventually t "both failures reach the hook" (fun () -> List.length !calls = 2))
+                in
+                ignore (Page.goto (Server.url t.server "/blank") page);
+                Alcotest.(check string) "the instance carries on" "Blank" (Page.title page);
+                output)
+    in
+    List.iter
+        (fun (what, ex, backtrace) ->
+            Alcotest.(check string) "where it comes from" "event listener" what;
+            check_contains "what it is" ~sub:"the listener fails" ex;
+            check_contains "its backtrace" ~sub:"test_misc.ml" backtrace)
+        !calls;
+    check_contains "the failure of the hook is printed" ~sub:"the hook fails as well" output;
+    check_contains "with the failure it was called for" ~sub:"the listener fails" output
+
 let test_second_driver t () =
     Server.page t.server "/blank" "<title>Blank</title>";
     let title =
@@ -439,4 +494,5 @@ let tests t =
         case t "connect over CDP" (test_connect_over_cdp t);
         case t "connect to a server" (test_connect t);
         case t "several drivers" (test_second_driver t);
+        case t "a failing error hook" (test_error_hook t);
         case t "the end of an instance" (test_instance_end t) ] ]

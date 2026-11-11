@@ -401,7 +401,11 @@ val create :
     [ocaml-playwright install], or an installed one is used through [executable_path] or [channel].
 
     [on_error what exn] is called for exceptions that have no caller to be raised in, namely those escaping from
-    event listeners and route handlers. The default prints them to standard error.
+    event listeners and route handlers; [what] says where [exn] comes from. The default prints them to standard
+    error. The function is called in a handler of [exn], so [Printexc.get_raw_backtrace ()] is its backtrace. It
+    runs in the fiber where the failure was noticed, which goes on once the function returns, so it should not
+    take long. It should not raise: an exception that escapes from it is printed to standard error together with
+    the one it was called for, and otherwise ignored.
 
     [handler_concurrency] and [handler_backlog] bound what events may cost. Every call of a handler (an event
     listener, a route handler, an exposed function) runs in a fiber of its own, and events arrive at the pace of the

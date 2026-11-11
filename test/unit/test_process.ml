@@ -98,6 +98,83 @@ let test_exit ~threads () =
         Alcotest.(check bool) "the stream ends" true (process.transport.receive () = None);
         process.stop ())
 
+(* Runs [f] with our standard error going to a pipe that is read meanwhile, and returns what
+   arrived there as well.  [f] is given a function that tells what has arrived so far. *)
+let capturing_stderr f =
+    let output, input = Unix.pipe ~cloexec:true () in
+    let saved = Unix.dup ~cloexec:true Unix.stderr in
+    flush stderr;
+    Unix.dup2 input Unix.stderr;
+    Unix.close input;
+    let captured = Buffer.create 4096 in
+    let lock = Mutex.create () in
+    let reader =
+        Thread.create
+            (fun () ->
+                let buffer = Bytes.create 4096 in
+                let rec read () =
+                    match Unix.read output buffer 0 (Bytes.length buffer) with
+                    | 0 -> ()
+                    | n ->
+                        Mutex.protect lock (fun () -> Buffer.add_subbytes captured buffer 0 n);
+                        read ()
+                in
+                read ())
+            ()
+    in
+    let finish () =
+        flush stderr;
+        Unix.dup2 saved Unix.stderr;
+        Unix.close saved;
+        Thread.join reader;
+        Unix.close output
+    in
+    let result = Fun.protect ~finally:finish (fun () -> f (fun () -> Mutex.protect lock (fun () -> Buffer.contents captured))) in
+    (result, Buffer.contents captured)
+
+(* What the driver writes to its standard error comes out of ours, and all of it has by the time
+   the driver is stopped: more than a pipe holds, and its last words, said while it finishes. *)
+let test_stderr_relay ~threads () =
+    let count = 3000 in
+    let script = Printf.sprintf "i=0; while [ $i -lt %d ]; do echo \"complaint $i of the driver\" >&2; i=$((i+1)); done; cat > /dev/null; echo \"last words\" >&2" count in
+    let (), text = capturing_stderr (fun _ -> run ~threads (program "sh") [ "-c"; script ] (fun _env (process : Driver_process.t) -> process.stop ())) in
+    let expected = String.concat "" (List.init count (Printf.sprintf "complaint %d of the driver\n")) ^ "last words\n" in
+    Alcotest.(check int) "length" (String.length expected) (String.length text);
+    Alcotest.(check bool) "content" true (String.equal expected text)
+
+(* Whether our standard error is in blocking mode, where the system tells. *)
+let stderr_is_blocking () =
+    match In_channel.with_open_text "/proc/self/fdinfo/2" In_channel.input_all with
+    | exception Sys_error _ -> None
+    | text ->
+        String.split_on_char '\n' text
+        |> List.find_map (fun line -> match String.split_on_char '\t' line with [ "flags:"; flags ] -> int_of_string_opt ("0o" ^ String.trim flags) | _ -> None)
+        |> Option.map (fun flags -> flags land 0o4000 = 0)
+
+(* Node makes the pipes it is given non-blocking.  That is a property of the open file and not of
+   the descriptor, so with a shared standard error it would become true of ours as well, and
+   the program's own writes to it would start to fail whenever its reader is slow. *)
+let test_stderr_mode ~threads () =
+    let node = program "node" in
+    if stderr_is_blocking () = None then Alcotest.skip ();
+    let blocking, text =
+        capturing_stderr (fun captured ->
+            run ~threads node [ "-e"; "process.stderr.write('the driver speaks\\n'); process.stdin.resume()" ] (fun _env (process : Driver_process.t) ->
+                (* Node puts things back as they were when it exits, so this is to be seen while it runs. *)
+                let rec await attempts =
+                    if captured () = "" && attempts > 0 then begin
+                        Eio_unix.sleep 0.01;
+                        await (attempts - 1)
+                    end
+                in
+                await 1000;
+                let blocking = stderr_is_blocking () in
+                process.stop ();
+                blocking))
+    in
+    check_contains "relayed" ~sub:"the driver speaks" text;
+    Alcotest.(check (option bool)) "our standard error still blocks" (Some true) blocking
+
 let test_missing_program () =
     let error =
         failure "spawning a missing program" (fun () ->
@@ -113,5 +190,6 @@ let tests =
         in
         [ ( "driver process",
             both "echo" test_echo @ both "graceful stop" test_graceful_stop @ both "forced stop" test_forced_stop
-            @ both "cancellation" test_cancellation @ both "exit" test_exit
+            @ both "cancellation" test_cancellation @ both "exit" test_exit @ both "standard error" test_stderr_relay
+            @ both "standard error stays ours" test_stderr_mode
             @ [ Alcotest.test_case "missing program" `Quick test_missing_program ] ) ]
