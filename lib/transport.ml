@@ -1,5 +1,11 @@
 (* Message transport to the Playwright driver: each message is a JSON document preceded by its
-   byte length as a 32-bit little-endian integer. *)
+   byte length as a 32-bit little-endian integer.
+
+   A message is copied once on its way in, from the buffer it was read into to the string that
+   is parsed, and once on its way out.  Reading into the string and writing from it would save
+   those copies, but they are not what a message costs: measured, a copy takes between 2 % (a
+   call, a screenshot) and 10 % (a file of several megabytes) of the time that parsing or
+   printing the same message takes. *)
 
 type t = {
     send : Json.t -> unit;  (* Sends one message. Must not be called concurrently. *)
