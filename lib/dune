@@ -1,33 +1,28 @@
 (library
  (name playwright)
  (public_name playwright)
- (libraries yojson eio eio.unix unix cstruct mtime.clock.os base64
-  cohttp-eio http uri tls tls-eio ca-certs mirage-crypto-rng mirage-crypto-rng.unix
-  domain-name tar tar.gz tar-eio)
- (foreign_stubs
-  (language c)
-  (names driver_process_stubs))
- (preprocess
-  (pps ppx_deriving_yojson)))
+ (libraries eio eio.unix yojson base64 unix))
+
+; [protocol.ml] is generated from protocol/ but checked in, so that building the library needs
+; neither the generator nor its dependencies.  [dune build @gen --auto-promote] refreshes it and
+; [dune runtest] fails when it is stale.
 
 (rule
- (targets api.mli api.ml)
- (deps toolchain.checked ../protocol/protocol.yml ../protocol/provenance.json)
+ (targets protocol.ml.gen)
+ (deps
+  %{project_root}/protocol/manifest.json
+  (glob_files %{project_root}/protocol/spec/*.yml))
  (action
-  (progn
-    (run %{exe:../tools/verify_protocol.exe} check ../protocol/protocol.yml ../protocol/provenance.json)
-    (with-stdout-to api.mli (run %{exe:../tools/generate_api_v2.exe} mli ../protocol/protocol.yml))
-    (with-stdout-to api.ml (run %{exe:../tools/generate_api_v2.exe} ml ../protocol/protocol.yml)))))
+  (with-stdout-to
+   %{targets}
+   (run %{exe:../tools/gen_protocol/gen_protocol.exe} %{project_root}/protocol/manifest.json %{project_root}/protocol/spec))))
 
 (rule
- (target protocol_version.ml)
- (deps toolchain.checked ../protocol/protocol.yml ../protocol/provenance.json)
+ (alias gen)
  (action
-  (with-stdout-to %{target}
-   (run %{exe:../tools/verify_protocol.exe} ml ../protocol/protocol.yml ../protocol/provenance.json))))
+  (diff protocol.ml protocol.ml.gen)))
 
 (rule
- (target toolchain.checked)
+ (alias runtest)
  (action
-  (with-stdout-to %{target}
-   (run %{exe:../tools/check_toolchain.exe} %{context_name} %{ocaml-config:os_type}))))
+  (diff protocol.ml protocol.ml.gen)))

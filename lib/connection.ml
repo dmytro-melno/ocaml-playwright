@@ -1,369 +1,223 @@
+(* The client side of the Playwright RPC connection.
+
+   The driver owns a tree of remote objects.  It announces each one with [__create__], moves it
+   with [__adopt__] and retires it (and its whole subtree) with [__dispose__].  The client mirrors
+   that tree as {!channel} values, sends commands addressed to them and receives their events.
+
+   Concurrency model: a single reader fiber decodes every incoming message and runs the object's
+   event hook synchronously, so client-side state is always updated in protocol order.  Hooks must
+   not block; anything that may (user callbacks, follow-up commands) is forked with {!fork}. *)
+
 open Eio.Std
-open Option.Syntax
-
-exception Closed of string
-
-type event_error = {
-    guid : string;
-    event : string;
-    exception_ : exn;
-    backtrace : Printexc.raw_backtrace;
-}
-
-type callback = (Yojson.Safe.t, string) result Promise.u
-type state = Open | Closed_state of string
 
 type t = {
-    objects : (string, channel_owner) Hashtbl.t;
-    callbacks : (int, callback) Hashtbl.t;
+    transport : Transport.t;
+    sw : Switch.t;
+    clock : float Eio.Time.clock_ty r;
+    objects : (string, channel) Hashtbl.t;
+    pending : (string, (Json.t, Error.t) result Promise.u) Hashtbl.t;
+    outbox : string Eio.Stream.t;
+    id_prefix : string;
     mutable last_id : int;
-    transport_r : Eio.Flow.source_ty Eio.Resource.t;
-    transport_w : Eio.Flow.sink_ty Eio.Resource.t;
-    write_lock : Eio.Mutex.t;
-    mutable state : state;
-    closed : string Promise.t;
-    closed_u : string Promise.u;
-    event_queue : (string * string * listener * Yojson.Safe.t) Queue.t;
-    event_ready : Eio.Condition.t;
-    max_event_tasks : int;
-    mutable event_tasks : int;
-    on_event_error : event_error -> unit;
-    mutable running : bool;
-    mutable await_cleanup : (unit -> unit) option;
+    mutable closed : Error.t option;
+    closed_promise : Error.t Promise.t;
+    closed_resolver : Error.t Promise.u;
+    mutable factory : channel -> unit;
+    report : string -> exn -> Printexc.raw_backtrace -> unit;
+    trace : (string -> unit) option;
+    render_value : Json.t -> string;
 }
 
-and channel_owner = {
+and channel = {
+    conn : t;
     guid : string;
-    connection : t;
-    obj_type : string;
-    mutable parent : channel_owner option;
-    initializer_ : Yojson.Safe.t;
-    context_guid : string option;
-    mutable test_id_attribute_name : string option;
-    events : (string, listener list) Hashtbl.t;
+    type_ : string;
+    initializer_ : Json.t;
+    mutable parent : channel option;
+    children : (string, channel) Hashtbl.t;
+    mutable impl : impl;
+    mutable on_event : string -> Json.t -> unit;
+    mutable disposed : bool;
+    mutable collected : bool;  (* disposed by the driver's garbage collector while still referenced *)
 }
 
-and listener = {
-    id : int;
-    mutable active : bool;
-    callback : Yojson.Safe.t -> unit;
-    mutable tasks : (int * Eio.Cancel.t) list;
-}
+(* The client object attached to a channel.  Extended by [Types]. *)
+and impl = ..
 
-let current_connection_key : t Eio.Fiber.key = Eio.Fiber.create_key ()
-(* Only a marker is needed. Fiber locals are inherited: storing the connection
-   here would retain A in B's supervisor if a callback in A creates session B. *)
-let callback_context_key : unit Eio.Fiber.key = Eio.Fiber.create_key ()
+type impl += No_impl
 
-let default_event_error (e : event_error) =
-    Printf.eprintf "Playwright event %s.%s: %s\n%s%!" e.guid e.event (Printexc.to_string e.exception_) (Printexc.raw_backtrace_to_string e.backtrace)
-
-let create ?(max_event_tasks = 1024) ?(on_event_error = default_event_error) transport_r transport_w =
-    if max_event_tasks < 1 then invalid_arg "max_event_tasks must be positive";
-    let closed, closed_u = Promise.create () in
-    {
-        objects = Hashtbl.create 100;
-        callbacks = Hashtbl.create 100;
-        last_id = 0;
-        transport_r = (transport_r :> Eio.Flow.source_ty Eio.Resource.t);
-        transport_w = (transport_w :> Eio.Flow.sink_ty Eio.Resource.t);
-        write_lock = Eio.Mutex.create ();
-        state = Open;
-        closed; closed_u;
-        event_queue = Queue.create ();
-        event_ready = Eio.Condition.create ();
-        max_event_tasks;
-        event_tasks = 0;
-        on_event_error;
-        running = false;
-        await_cleanup = None;
-    }
-
-let closed_reason t = match t.state with Open -> None | Closed_state reason -> Some reason
-let check_open t    = match t.state with Open -> () | Closed_state reason -> raise (Closed reason)
-
-(* One non-suspending transition. Physical cleanup is owned by the runtime, not
-   by whichever reader, caller, or callback first observes the failure. *)
-let close t reason =
-    match t.state with
-    | Closed_state _ -> ()
-    | Open ->
-        t.state <- Closed_state reason;
-        Hashtbl.iter (fun _ resolver -> Promise.resolve resolver (Error reason)) t.callbacks;
-        Hashtbl.clear t.callbacks;
-        Hashtbl.iter (fun _ obj ->
-            Hashtbl.iter (fun _ listeners ->
-                List.iter (fun listener -> listener.active <- false) listeners) obj.events;
-            Hashtbl.clear obj.events) t.objects;
-        Hashtbl.clear t.objects;
-        t.event_tasks <- t.event_tasks - Queue.length t.event_queue;
-        Queue.clear t.event_queue;
-        Promise.resolve t.closed_u reason;
-        Eio.Condition.broadcast t.event_ready
-
-let destroy t =
-    close t "Playwright instance destroyed";
-    (* A callback cannot join its own scope. This also avoids cyclic joins when
-       callbacks in two sessions destroy one another. In callback context, destroy
-       initiates closure; an ordinary caller can subsequently join the cleanup. *)
-    match Eio.Fiber.get callback_context_key with
-    | Some _ -> ()
-    | None -> Eio.Cancel.protect (fun () -> Option.iter (fun await -> await ()) t.await_cleanup)
-
-(* [on_cancel] is reserved for callers that must consume a resource-bearing
-   response even after cancellation. It runs in the caller, never the reader,
-   only after a complete frame was sent. It must bound recovery itself and
-   consume/dispose any returned resource before re-raising cancellation. *)
-let send_message ?on_cancel t ~guid ~method_ ~params =
-    let open Result.Syntax in
-    let* () = match closed_reason t with Some reason -> Error reason | None -> Ok () in
-    t.last_id <- t.last_id + 1;
-    let id = t.last_id in
-    (* Serialization can fail locally. No request has been registered yet. *)
-    let message = `Assoc [
-        "id", `Int id; "guid", `String guid; "method", `String method_;
-        "params", params; "metadata", `Assoc [];
-    ] |> Yojson.Safe.to_string in
-    let promise, resolver = Promise.create () in
-    Hashtbl.add t.callbacks id resolver;
-    let sent = ref false in
-    Fun.protect ~finally:(fun () -> Hashtbl.remove t.callbacks id) (fun () ->
-        try Fiber.first
-            (fun () ->
-                Eio.Mutex.lock t.write_lock;
-                Fun.protect ~finally:(fun () -> Eio.Mutex.unlock t.write_lock) (fun () ->
-                    match closed_reason t with
-                    | Some _ -> ()
-                    | None ->
-                        (* Interruption during a frame can corrupt the stream. Cancellation
-                           while queued for the lock, or awaiting a reply, is only local. *)
-                        try
-                            Transport.write_message t.transport_w message;
-                            sent := true
-                        with ex ->
-                            let bt = Printexc.get_raw_backtrace () in
-                            close t ("Playwright transport write failed: " ^ Printexc.to_string ex);
-                            if Fiber.is_cancelled () then Printexc.raise_with_backtrace ex bt);
-                Promise.await promise)
-            (fun () -> Error (Promise.await t.closed))
-        with ex ->
-            let bt = Printexc.get_raw_backtrace () in
-            match on_cancel with
-            | Some recover when !sent && Fiber.is_cancelled () ->
-                (* Fiber.first may lose a response/cancellation race even when
-                   the promise has already settled. Retain and consume that
-                   same promise, not a replacement request. The entry stays
-                   registered until recovery finishes or close clears it. *)
-                recover (fun () -> Promise.await promise)
-            | _ -> Printexc.raise_with_backtrace ex bt)
-
-let register_listener conn guid event_name callback =
-    check_open conn;
-    match Hashtbl.find_opt conn.objects guid with
-    | None -> invalid_arg ("Cannot add event listener to unknown object " ^ guid)
-    | Some obj ->
-        conn.last_id <- conn.last_id + 1;
-        let id        = conn.last_id in
-        let listeners = Hashtbl.find_opt obj.events event_name |? [] in
-        let listener  = { id; active = true; callback; tasks = [] } in
-        Hashtbl.replace obj.events event_name (listeners @ [listener]);
-        listener
-
-let add_listener conn guid event_name callback =
-    (register_listener conn guid event_name callback).id
-
-let deactivate_listener listener =
-    listener.active <- false;
-    List.iter (fun (_, cc) -> Eio.Cancel.cancel cc Exit) listener.tasks
-
-let remove_listener conn guid event_name id =
-    match Hashtbl.find_opt conn.objects guid with
-    | None -> ()
-    | Some obj ->
-        let listeners = Hashtbl.find_opt obj.events event_name |? [] in
-        let keep listener =
-            if listener.id <> id then true
-            else begin
-                deactivate_listener listener;
-                false
-            end
-        in
-        let remaining = List.filter keep listeners in
-        if remaining = [] then Hashtbl.remove obj.events event_name
-        else Hashtbl.replace obj.events event_name remaining
-
-(* Decode and predicate both run as owned event tasks, never in the reader.
-   First successful completion wins; concurrent predicate evaluations may overlap. *)
-let wait_for_event conn guid event_name ~decode ?(predicate = fun _ -> true) () =
-    let result, resolve = Promise.create () in
-    let settled         = ref false in
-    let settle value =
-        if not !settled then begin
-            settled := true;
-            Promise.resolve resolve value
-        end
+let make_channel conn ~parent ~guid ~type_ ~initializer_ =
+    let channel =
+        { conn; guid; type_; initializer_; parent; children = Hashtbl.create 4; impl = No_impl;
+          on_event = (fun _ _ -> ()); disposed = false; collected = false }
     in
-    let listener = register_listener conn guid event_name (fun params ->
-        try
-            let value = decode params in
-            if predicate value then settle (Ok value)
-        with ex ->
-            let bt = Printexc.get_raw_backtrace () in
-            if Fiber.is_cancelled () then Printexc.raise_with_backtrace ex bt;
-            settle (Error (ex, bt)))
-    in
-    let cleanup () =
-        (* Retain the listener itself: __dispose__ may have removed its owner from
-           the object table while an already-started predicate was suspended. *)
-        deactivate_listener listener;
-        remove_listener conn guid event_name listener.id
-    in
-    Fun.protect ~finally:cleanup (fun () ->
-        let outcome = Fiber.first
-            (fun () -> Promise.await result)
-            (fun () ->
-                let reason = Promise.await conn.closed in
-                Error (Closed reason, Printexc.get_callstack 10))
-        in
-        match outcome with
-        | Ok value -> value
-        | Error (ex, bt) -> Printexc.raise_with_backtrace ex bt)
+    Hashtbl.replace conn.objects guid channel;
+    Option.iter (fun (p : channel) -> Hashtbl.replace p.children guid channel) parent;
+    channel
 
-let protocol_error error =
-    let open Yojson.Safe.Util in
-    match member "error" error with
-    | `Assoc fields ->
-        (match List.assoc_opt "name" fields, List.assoc_opt "message" fields with
-        | Some (`String name), Some (`String message) ->
-            let stack = match List.assoc_opt "stack" fields with | Some (`String stack) -> stack | _ -> "" in
-            Printf.sprintf "%s: %s\n%s" name message stack
-        | _ -> Yojson.Safe.to_string error)
-    | _ -> Yojson.Safe.to_string error
+let random_prefix () =
+    let state = Random.State.make_self_init () in
+    String.init 4 (fun _ -> Char.chr (Char.code 'a' + Random.State.int state 26))
 
-let dispatch t msg =
-    if t.state = Open then begin
-        let open Yojson.Safe.Util in
-        match member "id" msg |> to_int_option with
-        | Some id ->
-            (match Hashtbl.find_opt t.callbacks id with
-            | None -> () (* Canceled request or late response. *)
-            | Some resolver ->
-                let error  = member "error" msg in
-                let result = if error = `Null then Ok (member "result" msg) else Error (protocol_error error) in
-                Hashtbl.remove t.callbacks id;
-                Promise.resolve resolver result)
-        | None ->
-            match member "method" msg |> to_string_option, member "guid" msg |> to_string_option with
-            | Some "__create__", Some parent_guid ->
-                let params = member "params" msg in
-                let guid   = member "guid" params |> to_string in
-                let obj_type = member "type" params |> to_string in
-                (* A small context association for selector configuration, not
-                   channel ownership/adoption (C04 remains separate work). *)
-                let context_guid =
-                    if obj_type = "BrowserContext" then Some guid
-                    else Option.bind (Hashtbl.find_opt t.objects parent_guid) (fun parent -> parent.context_guid)
-                in
-                let test_id_attribute_name =
-                    if obj_type = "BrowserContext" then
-                        member "initializer" params |> member "options" |> member "testIdAttributeName" |> to_string_option
-                    else None
-                in
-                let obj    = {
-                    guid; connection = t;
-                    obj_type = member "type" params |> to_string;
-                    parent = None;
-                    initializer_ = member "initializer" params;
-                    context_guid; test_id_attribute_name;
-                    events = Hashtbl.create 5;
-                } in
-                Hashtbl.replace t.objects guid obj
-            | Some "__dispose__", Some guid -> Hashtbl.remove t.objects guid
-            | Some event, Some guid ->
-                (match Hashtbl.find_opt t.objects guid with
-                | None -> ()
-                | Some obj ->
-                    let listeners = Hashtbl.find_opt obj.events event |? [] in
-                    List.iter (fun listener ->
-                        if listener.active && t.state = Open then
-                            if t.event_tasks >= t.max_event_tasks then
-                                close t (Printf.sprintf "Playwright event task limit (%d) exceeded at %s.%s" t.max_event_tasks guid event)
-                            else begin
-                                t.event_tasks <- t.event_tasks + 1;
-                                Queue.add (guid, event, listener, member "params" msg) t.event_queue;
-                                Eio.Condition.broadcast t.event_ready
-                            end) listeners)
-            | _ -> ()
-    end
+let create ~sw ~clock ~report ?trace ~render_value transport =
+    let closed_promise, closed_resolver = Promise.create () in
+    let conn =
+        { transport; sw; clock = (clock :> float Eio.Time.clock_ty r); objects = Hashtbl.create 256; pending = Hashtbl.create 64;
+          outbox = Eio.Stream.create max_int; id_prefix = random_prefix (); last_id = 0; closed = None;
+          closed_promise; closed_resolver; factory = (fun _ -> ()); report; trace; render_value }
+    in
+    ignore (make_channel conn ~parent:None ~guid:"" ~type_:"Root" ~initializer_:(`Assoc []));
+    conn
+
+let root conn = Hashtbl.find conn.objects ""
+let find conn guid = Hashtbl.find_opt conn.objects guid
+let is_closed conn = conn.closed <> None
+let closed conn = conn.closed_promise
 
 let is_cancellation = function Eio.Cancel.Cancelled _ -> true | _ -> false
 
-let report_event_error t guid event ex bt =
-    let error = { guid; event; exception_ = ex; backtrace = bt } in
-    if Fiber.is_cancelled () then
-        (* A finalizer can raise a real error during cancellation. It must neither
-           disappear nor replace the scope's original failure. A potentially
-           suspending user reporter cannot safely run in this canceled context. *)
-        default_event_error error
-    else
-        try t.on_event_error error with report_ex ->
-            let report_bt = Printexc.get_raw_backtrace () in
-            if Fiber.is_cancelled () && is_cancellation report_ex then Printexc.raise_with_backtrace report_ex report_bt;
-            default_event_error error;
-            default_event_error { guid; event = event ^ " (error reporter)"; exception_ = report_ex; backtrace = report_bt };
-            close t ("Playwright event error reporter failed: " ^ Printexc.to_string report_ex)
+(* Runs [f], which is user code or internal follow-up work, in its own fiber.  The fiber starts
+   immediately and runs until it first blocks, so callbacks begin in event order. *)
+let fork conn what f =
+    if conn.closed = None then
+        try
+            Fiber.fork ~sw:conn.sw (fun () ->
+                try f () with ex when not (is_cancellation ex) -> conn.report what ex (Printexc.get_raw_backtrace ()))
+        with ex when is_cancellation ex -> ()
 
-let run_events t =
-    Switch.run (fun sw ->
+(* The single state transition to closed: every pending and future command fails with [error]. *)
+let close conn error =
+    if conn.closed = None then begin
+        conn.closed <- Some error;
+        let pending = Hashtbl.fold (fun _ resolver acc -> resolver :: acc) conn.pending [] in
+        Hashtbl.reset conn.pending;
+        List.iter (fun resolver -> Promise.resolve resolver (Error error)) pending;
+        Promise.resolve conn.closed_resolver error
+    end
+
+let enqueue conn (message : Json.t) =
+    let text = Json.to_string message in
+    Option.iter (fun trace -> trace ("SEND> " ^ text)) conn.trace;
+    Eio.Stream.add conn.outbox text
+
+(* Sends a command and waits for its reply.  [timeout] is in milliseconds and enforced by the
+   driver; [0.] disables it.  If the calling fiber is cancelled the driver is asked to abort the
+   command, and a reply that still arrives is dropped. *)
+let call ?(timeout = 0.) (channel : channel) method_ (params : Json.t) : Json.t =
+    let conn = channel.conn in
+    Option.iter (fun error -> raise (Error.E error)) conn.closed;
+    if channel.collected then Error.raise_ "The object has been collected to prevent unbounded heap growth.";
+    conn.last_id <- conn.last_id + 1;
+    let id = Printf.sprintf "%s@%d" conn.id_prefix conn.last_id in
+    let metadata = if timeout > 0. then `Assoc [ "timeout", Json.float timeout ] else `Assoc [] in
+    let promise, resolver = Promise.create () in
+    Hashtbl.replace conn.pending id resolver;
+    enqueue conn (`Assoc [ "id", `String id; "guid", `String channel.guid; "method", `String method_; "params", params; "metadata", metadata ]);
+    match Promise.await promise with
+    | Ok result -> result
+    | Error error -> raise (Error.E error)
+    | exception ex ->
+        if Hashtbl.mem conn.pending id then begin
+            Hashtbl.remove conn.pending id;
+            if conn.closed = None then
+                enqueue conn
+                    (`Assoc [ "guid", `String channel.guid; "method", `String "__abort__";
+                              "params", `Assoc [ "id", `String id; "reason", `String "Cancelled by the client" ] ])
+        end;
+        raise ex
+
+let rec dispose (channel : channel) ~collected =
+    Option.iter (fun (p : channel) -> Hashtbl.remove p.children channel.guid) channel.parent;
+    Hashtbl.remove channel.conn.objects channel.guid;
+    channel.disposed <- true;
+    channel.collected <- collected;
+    let children = Hashtbl.fold (fun _ child acc -> child :: acc) channel.children [] in
+    List.iter (fun child -> dispose child ~collected) children
+
+let adopt (parent : channel) (child : channel) =
+    Option.iter (fun (p : channel) -> Hashtbl.remove p.children child.guid) child.parent;
+    Hashtbl.replace parent.children child.guid child;
+    child.parent <- Some parent
+
+let rec parent_of_type (channel : channel) type_ =
+    match channel.parent with
+    | Some p when p.type_ = type_ -> Some p
+    | Some p -> parent_of_type p type_
+    | None -> None
+
+let dispatch conn (message : Json.t) =
+    let module D = Json.Decode in
+    match D.member "id" message with
+    | Some id ->
+        let id = match id with `String s -> s | `Int i -> string_of_int i | j -> D.expected "a call id" j in
+        (* A missing entry is the reply to a cancelled command. *)
+        (match Hashtbl.find_opt conn.pending id with
+        | None -> ()
+        | Some resolver ->
+            Hashtbl.remove conn.pending id;
+            let result =
+                match D.member "error" message with
+                | Some error when D.member "result" message = None ->
+                    let log = Option.value (D.opt "log" (D.list D.string) message) ~default:[] in
+                    let details = Option.value (D.member "errorDetails" message) ~default:`Null in
+                    Error (Error.of_wire ~log ~details ~render_value:conn.render_value error)
+                | _ -> Ok (Option.value (D.member "result" message) ~default:(`Assoc []))
+            in
+            Promise.resolve resolver result)
+    | None ->
+        let guid = D.req "guid" D.string message in
+        let method_ = D.req "method" D.string message in
+        let params = Option.value (D.member "params" message) ~default:(`Assoc []) in
+        (match find conn guid with
+        | None -> Json.decode_error "%s for unknown object %S" method_ guid
+        | Some channel ->
+            (match method_ with
+            | "__create__" ->
+                let initializer_ = Option.value (D.member "initializer" params) ~default:(`Assoc []) in
+                let child =
+                    make_channel conn ~parent:(Some channel) ~guid:(D.req "guid" D.string params)
+                        ~type_:(D.req "type" D.string params) ~initializer_
+                in
+                conn.factory child
+            | "__adopt__" ->
+                let child_guid = D.req "guid" D.string params in
+                (match find conn child_guid with
+                | Some child -> adopt channel child
+                | None -> Json.decode_error "__adopt__ of unknown object %S" child_guid)
+            | "__dispose__" -> dispose channel ~collected:(D.opt "reason" D.string params = Some "gc")
+            | event -> channel.on_event event params))
+
+(* Reads and dispatches messages until the transport ends or the connection is closed. *)
+let run conn =
+    let write () =
         while true do
-            Fiber.check ();
-            while Queue.is_empty t.event_queue do
-                Eio.Condition.await_no_mutex t.event_ready
-            done;
-            let guid, event, listener, params = Queue.take t.event_queue in
-            Fiber.fork ~sw (fun () ->
-                Fun.protect ~finally:(fun () -> t.event_tasks <- t.event_tasks - 1) (fun () ->
-                    if listener.active then
-                        Fiber.with_binding callback_context_key () (fun () ->
-                            try
-                                Eio.Cancel.sub (fun cc ->
-                                    t.last_id <- t.last_id + 1;
-                                    let task_id = t.last_id in
-                                    listener.tasks <- (task_id, cc) :: listener.tasks;
-                                    Fun.protect
-                                        ~finally:(fun () -> listener.tasks <- List.filter (fun (id, _) -> id <> task_id) listener.tasks)
-                                        (fun () -> listener.callback params))
-                            with ex ->
-                                let bt = Printexc.get_raw_backtrace () in
-                                if is_cancellation ex && Fiber.is_cancelled () then Printexc.raise_with_backtrace ex bt;
-                                (* Only expected cancellation may be ignored after removal.
-                                   In particular, never swallow a failing user finalizer. *)
-                                if listener.active || not (is_cancellation ex) then report_event_error t guid event ex bt)))
-        done)
-
-let run_loop t =
-    if t.running then invalid_arg "Connection.run_loop already running";
-    t.running <- true;
-    let read_messages () =
-        try
-            while t.state = Open do
-                match Transport.read_message t.transport_r with
-                | None -> close t "Playwright transport EOF"
-                | Some message -> Yojson.Safe.from_string message |> dispatch t
-            done
-        with ex ->
-            let bt = Printexc.get_raw_backtrace () in
-            close t ("Playwright transport failed: " ^ Printexc.to_string ex);
-            if Fiber.is_cancelled () then Printexc.raise_with_backtrace ex bt
+            conn.transport.send (Eio.Stream.take conn.outbox)
+        done
     in
-    Fun.protect ~finally:(fun () -> t.running <- false) (fun () ->
-        try
-            Fiber.any [
-                read_messages;
-                (fun () -> run_events t);
-                (fun () -> ignore (Promise.await t.closed));
-            ]
-        with ex ->
-            let bt = Printexc.get_raw_backtrace () in
-            close t ("Playwright runtime stopped: " ^ Printexc.to_string ex);
-            Printexc.raise_with_backtrace ex bt)
+    let read () =
+        while conn.closed = None do
+            match conn.transport.receive () with
+            | None -> close conn (Error.target_closed ~message:"The Playwright driver closed the connection" ())
+            | Some text ->
+                Option.iter (fun trace -> trace ("<RECV " ^ text)) conn.trace;
+                (try dispatch conn (Json.of_string text)
+                 with ex when not (is_cancellation ex) -> conn.report "protocol message" ex (Printexc.get_raw_backtrace ()))
+        done
+    in
+    try
+        Fiber.first
+            (fun () -> Fiber.first read write)
+            (fun () -> ignore (Promise.await conn.closed_promise))
+    with ex ->
+        let bt = Printexc.get_raw_backtrace () in
+        close conn (Error.target_closed ~message:("The Playwright connection failed: " ^ Printexc.to_string ex) ());
+        if is_cancellation ex then Printexc.raise_with_backtrace ex bt
+
+(* Fails with a {!Error.Timeout} error unless [f] finishes within [timeout] milliseconds;
+   [0.] waits forever. *)
+let with_timeout conn ~timeout ~message f =
+    if timeout <= 0. then f ()
+    else
+        match Eio.Time.with_timeout conn.clock (timeout /. 1000.) (fun () -> Ok (f ())) with
+        | Ok value -> value
+        | Error `Timeout -> raise (Error.E (Error.make ~kind:Timeout (message ())))

@@ -1,0 +1,30 @@
+{
+  "version": "1.65.0",
+  "source": "https://github.com/microsoft/playwright/tree/v1.65.0/packages/protocol/spec",
+  "commit": "a1f35e1955976e84411f9c10358228a80b763ebe",
+  "driver": {
+    "tarball": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.65.0.tgz",
+    "integrity": "sha512-vNSKgH6YqtN7cdT/L334zo0a+YwkrpicyrHJlWWPIm/Q+Nn2SWInil01oT0mbu96U4GgoRtCYQD9CzJQgju+lA=="
+  },
+  "spec": {
+    "android.yml": "3afa4065680df2fb4f2a3877bb15395e828fa6bbe9f3a38e84e55e87257fb30e",
+    "api.yml": "9e5e5e259d2bbc772e7ee2d2f99d4c3d50dd695b3f1c7fdd6d95ffe5cc854ed7",
+    "artifact.yml": "be1f13c1d2ac989c8f23e04647be3b4c0006706dea226d85a71ccb76bda5f87d",
+    "browser.yml": "218e4ca6d059be0af93d8044c2bb4ec032ff4ff02b090cd96f672ee33cbdac3f",
+    "browserContext.yml": "7423f3b1ac0e47e299f0ba6f13072caa64e32cc64c6e95164d382e9a6657fe81",
+    "browserType.yml": "713c674d896e2ee7565898f9682f2d4665e037932e1d44f86e5928160abc4b19",
+    "core.yml": "b3091ad32708a467ae6c80848663e3d7acf58d8ae7ad812c194a7db5c16765cb",
+    "electron.yml": "47dd3ec930bccaa93321dcbbbe752a2b275fd569424f2bc3722917683d9687cc",
+    "frame.yml": "91af6c30f522c3a3fb8614477dff9c1d936824639dd460a7efb96cf12f6d3018",
+    "handles.yml": "4e19361ded0e91eedf3a2c9b43c0fea075a17d55d2f5fc79d03138b5ee0bc2a1",
+    "localUtils.yml": "9b34e3fa2259672bbd0df2f5342539714836cf2b59dd98387dbe479ee22378bb",
+    "mixins.yml": "5bf9e7e6b547912f8c427f7d6389e9cf70c44052f3f0a6e091075c2feffe41be",
+    "network.yml": "07711dc548bca4c99366febca2ec765f2f7fd862f00af4998cd0805ffe548b42",
+    "page.yml": "bdbe48aedaeb9fbc26874d6e08d007e867414d84b73f0a65b545b6316fefefbe",
+    "playwright.yml": "7c532cee515fb558c07d1c7c2c56dff15d98059a28d1c1165818cab4ea4440c1",
+    "serialized.yml": "25db90ae30687e86b9b98022f422b0475e5581589f6ae65ca22271c4fca6e7d3",
+    "structs.yml": "e54466afbd47c7df4f1404d973ca9e9010d5d0db36cf80a552a7c0f48cf5ff9e",
+    "tracing.yml": "6fb71a774a76f847204e5b843f9664af2b346cb2fcfeb262fe4d840f03ec6baf",
+    "worker.yml": "7e94d5e3ced1e132b57c080980c9b088335fb45da0800312adadeb8bf986bea0"
+  }
+}

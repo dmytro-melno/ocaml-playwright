@@ -1,39 +1,42 @@
 (lang dune 3.10)
+
 (name playwright)
+
 (generate_opam_files true)
 
 (source
  (github dmytro-melno/ocaml-playwright))
 
 (authors "Dmytro Melnychuk")
+
 (maintainers "Dmytro Melnychuk")
+
+(license MIT)
 
 (package
  (name playwright)
- (synopsis "OCaml bindings for Playwright")
- (description "OCaml bindings for Playwright generated from protocol.yml")
- (license MIT)
+ (synopsis "Browser automation with Playwright for OCaml")
+ (description
+  "A client for the Playwright browser automation driver, built on Eio.\nIt drives Chromium, Firefox and WebKit through the same API as the official Playwright\nlibraries: auto-waiting locators, network interception, tracing and more.")
  (depends
-  (ocaml (>= 5.2.0))
-  dune
-  (eio (>= 1.3))
-  mtime
-  (eio_main (and :with-test (>= 1.3)))
-  (yojson (>= 1.6.0))
-  (ppx_deriving_yojson (>= 3.10.0))
-  (yaml (>= 3.0.1))
-  digestif
-  (base64 (>= 3.0.0))
-  cstruct
-  (cohttp-eio (>= 6.3.0))
-  http
-  uri
-  (tls (>= 2.1.3))
-  (tls-eio (>= 2.1.3))
-  (ca-certs (>= 1.0.3))
-  (mirage-crypto-rng (>= 2.4.1))
-  domain-name
-  (tar (>= 3.5.0))
-  (tar-eio (>= 3.5.0))
-  (re (>= 1.9.0))
- ))
+  (ocaml
+   (>= 5.2.0))
+  (eio
+   (>= 1.0))
+  (yojson
+   (>= 2.0.0))
+  (base64
+   (>= 3.0.0))
+  (eio_main
+   (and
+    :with-test
+    (>= 1.0)))
+  (alcotest
+   (and
+    :with-test
+    (>= 1.7.0)))
+  (yaml
+   (and
+    :with-test
+    (>= 3.0.0)))
+  (digestif :with-test)))

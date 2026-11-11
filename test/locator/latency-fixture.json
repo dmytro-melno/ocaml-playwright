@@ -1,4 +1,0 @@
-{
-  "slowEngine": "({\n  query(root, selector) { return this.queryAll(root, selector)[0] || null; },\n  queryAll(root, selector) {\n    const end = Date.now() + 160;\n    while (Date.now() < end) {}\n    window.slowQueries = (window.slowQueries || 0) + 1;\n    return Array.from(root.querySelectorAll(selector));\n  }\n})",
-  "busyPage": "() => {\n  setTimeout(() => {\n    console.log('BUSY-START');\n    const end = Date.now() + 2200;\n    while (Date.now() < end) {}\n  }, 30);\n}"
-}
