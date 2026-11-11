@@ -67,8 +67,14 @@ let fulfill ?status ?headers ?content_type ?body ?json ?path ?(response : api_re
         let headers = match headers, response with Some headers, _ -> headers | None, Some response -> pairs response.ar_init.headers | None, None -> [] in
         let body = match body, json with Some _, _ -> body | None, Some json -> Some (Yojson.Safe.to_string json) | None, None -> None in
         let body = match body, path with None, Some path -> Some (Files.read path) | _ -> body in
-        (* A response fetched over this connection is replayed by the driver without a round trip. *)
-        let fetch_response_uid = match body, response with None, Some response -> Some response.ar_init.fetch_uid | _ -> None in
+        (* The driver that fetched a response still holds its body, and replays it when told which
+           one it is.  Another driver knows nothing of it and is sent the body. *)
+        let body, fetch_response_uid =
+            match body, response with
+            | None, Some response when Channel.conn response.ar_context.a_channel == Channel.conn route.rt_channel -> None, Some response.ar_init.fetch_uid
+            | None, Some response -> Some (Api_request.Response.body response), None
+            | _ -> body, None
+        in
         let headers = List.map (fun (name, value) -> String.lowercase_ascii name, value) headers in
         let set name value headers = (name, value) :: List.remove_assoc name headers in
         let headers =

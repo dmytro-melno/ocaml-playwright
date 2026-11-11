@@ -121,7 +121,12 @@ let test_modifying_responses t page =
     |> ignore;
     let response = fetch "/api/items" page in
     Alcotest.(check string) "modified body" {|{"items":[1,2,3]}|} (body response);
-    Alcotest.(check string) "other parts of the response are kept" "from the server" (field "test" response |> Js.to_string)
+    Alcotest.(check string) "other parts of the response are kept" "from the server" (field "test" response |> Js.to_string);
+    (* A response that is passed on as it is has its body replayed by the driver. *)
+    Page.route "**/api/items" (fun route -> Route.fulfill ~response:(Route.fetch route) ~headers:[ "x-test", "replayed" ] route) page |> ignore;
+    let response = fetch "/api/items" page in
+    Alcotest.(check string) "the body of the response" {|{"items":[1,2]}|} (body response);
+    Alcotest.(check string) "with headers of our own" "replayed" (field "test" response |> Js.to_string)
 
 let test_failing_handler t page =
     start t page;

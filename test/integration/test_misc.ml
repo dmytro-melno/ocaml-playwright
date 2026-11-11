@@ -341,6 +341,14 @@ let test_connect t () =
     Expect.to_have_title "Remote" page;
     Page.route "**/mocked" (Route.fulfill ~body:"mocked remotely") page |> ignore;
     Alcotest.(check string) "routes work through the server" "mocked remotely" (eval_string "fetch('/mocked').then(r => r.text())" page);
+    (* A response that the local driver fetched is not known to the server: its body is sent over. *)
+    Server.route t.server "/fetched-locally" (fun _ -> Server.respond ~headers:[ "x-origin", "local" ] "fetched by the local driver");
+    let request = APIRequest.new_context t.pw in
+    let response = APIRequestContext.get (Server.url t.server "/fetched-locally") request in
+    Page.route "**/replayed" (Route.fulfill ~response) page |> ignore;
+    Alcotest.(check string) "a response of another connection" "fetched by the local driver, local"
+        (eval_string "fetch('/replayed').then(async r => (await r.text()) + ', ' + r.headers.get('x-origin'))" page);
+    APIRequestContext.dispose request;
     (* Files cross the connection as streams, in both directions. *)
     let upload = scratch_file t "upload.txt" in
     write_file upload (String.make 100_000 'u');
