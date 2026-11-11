@@ -1,9 +1,11 @@
 (** Browser automation with {{:https://playwright.dev} Playwright}.
 
     This library drives Chromium, Firefox and WebKit through the Playwright driver, which it talks to over
-    Playwright's own client protocol. It follows the official Playwright API closely; the
-    {{:https://playwright.dev/docs/api/class-playwright} upstream documentation} applies almost verbatim once
-    the conventions below are taken into account.
+    Playwright's own client protocol. It follows the official Playwright API: a class is a module, a method is a
+    function, and what the {{:https://playwright.dev/docs/api/class-playwright} upstream documentation} says about
+    a method holds for the function of the same name, read with the conventions below. Where a function
+    deliberately behaves differently, its documentation here says so. The file [doc/parity.md] that comes with the
+    sources lists these differences, and the parts of Playwright that this library does not cover.
 
     {[
       let () =
@@ -18,6 +20,8 @@
 
     {1 Conventions}
 
+    {2 Names and arguments}
+
     - Every Playwright class is a module with the same name ([Page], [BrowserContext], [Locator], ...), its objects
       are of the type [t] of that module ([Page.t]), and its methods are functions in [snake_case]. A name that is an
       OCaml keyword gets a trailing underscore ([type_], [method_]).
@@ -25,12 +29,7 @@
       positional and precede it; everything optional is an optional labelled argument. Where two required
       arguments of the same type follow each other, a label tells them apart:
       [Page.fill "#name" ~value:"Ada" page], [Mouse.move ~x:10. ~y:20. mouse].
-    - All functions block the calling fiber until the browser has answered. Run them in separate
-      {{:https://github.com/ocaml-multicore/eio} Eio} fibers to work with several pages concurrently. Cancelling a
-      fiber cancels the call it is blocked in.
     - Timeouts and other durations are in milliseconds, as in Playwright. A timeout of [0.] disables the timeout.
-    - Failures are reported with the exception {!exception-Error}; [Invalid_argument] is reserved for misuse of the API
-      that no browser needs to be asked about.
     - JavaScript regular expressions are given as literals in a string, such as ["/sign (in|up)/i"], to the
       functions and arguments named [..._regex].
     - URL patterns are {{:https://playwright.dev/docs/network#glob-url-patterns} glob patterns}: [*] stands for
@@ -38,11 +37,42 @@
       literal. A pattern that does not start with [*] is resolved against the base URL of the context. Braces that
       are nested or not balanced raise [Invalid_argument]. Functions named [..._matching] take an OCaml predicate
       on the URL instead.
+
+    {2 Calls, failures and cancellation}
+
+    - All functions block the calling fiber until the browser has answered, and other fibers run meanwhile. Run
+      them in separate {{:https://github.com/ocaml-multicore/eio} Eio} fibers to work with several pages
+      concurrently; any number of fibers may use the same object. A driver and its objects are used from the
+      domain that started the driver, and no other.
+    - Failures are reported with the exception {!exception-Error}; [Invalid_argument] is reserved for misuse of the
+      API that no browser needs to be asked about.
+    - Cancelling a fiber cancels the call it is blocked in, and the driver is told to give the operation up.
+      [Eio.Time.with_timeout] thus puts a limit on anything. What a cancelled call was creating — a page, a
+      context, a browser — is closed as soon as it exists.
+    - The functions that release something ([close], [dispose], [detach], {!Disposable.dispose}) carry it out even
+      when the fiber that calls them is cancelled, which makes them safe to use in [Fun.protect ~finally] and
+      [Eio.Switch.on_release]. They do nothing for what is gone already, and when several fibers close the same
+      object, all of them wait for the one close.
+    - When the driver is closed, and when it dies, calls that are under way fail with a [Target_closed] error and
+      every object reports that it is closed: the [Close] and disconnection listeners are called, and [is_closed]
+      is true.
+
+    {2 Events and handlers}
+
     - Events are values of a GADT, which gives every event its payload type:
       [Page.on Page.Console (fun message -> ...) page].
     - What registers something for later — an event listener, a route, an init script, an exposed function —
       returns a {!Disposable.t} to take it back with. [ignore] it when the registration is to last as long as its
       page.
+    - Every call of a handler — an event listener, a route handler, an exposed function — runs in a fiber of its
+      own, so a handler may block and may call any function of this library. The calls start in the order of the
+      events. An exception that escapes from a listener or a route handler is passed to the [on_error] function
+      of {!create} and does not stop the program; one that escapes from an exposed function rejects the promise
+      that the page got. Handlers that are still running when the driver is closed are cancelled. {!create} also
+      tells how many calls may be in progress at a time.
+
+    {2 Identity}
+
     - Pages, frames, requests and the other objects have identity. Each of their modules has [equal], [compare] and
       [hash], see {!Identity}, which also makes it an argument for [Set.Make], [Map.Make] and [Hashtbl.Make]. The
       polymorphic [=], [compare] and [Hashtbl.hash] must not be used on objects: they look into values that are
@@ -337,8 +367,11 @@ val create :
     Raises [Invalid_argument] if [handler_concurrency] is less than 1 or [handler_backlog] is negative. *)
 
 val close : t -> unit
-(** Closes all browsers and stops the driver. Calls that are still running fail with a [Target_closed] error. Does
-    nothing when already closed. *)
+(** Closes all browsers and stops the driver, and returns when the driver has exited. Calls that are still running
+    fail with a [Target_closed] error, the listeners for [Close] and disconnection of every object are called,
+    and handlers that are still running are cancelled. Does nothing when already closed.
+
+    A handler may close the driver it is called by; being a handler, it is cancelled at that point. *)
 
 val run :
     ?on_error:(string -> exn -> unit) -> ?handler_concurrency:int -> ?handler_backlog:int -> env:Eio_unix.Stdenv.base -> (t -> 'a) -> 'a
@@ -719,7 +752,10 @@ and Browser : sig
 
     val close : ?reason:string -> t -> unit
     (** Closes the browser with all its contexts and pages; for a browser that was connected to, disconnects from it.
-        [reason] is reported by the operations that this interrupts. Does nothing if the browser is gone already. *)
+        [reason] is reported by the operations that this interrupts. Does nothing if the browser is gone already.
+
+        The browser is closed even if the calling fiber is cancelled meanwhile. Fibers that close the same browser at
+        the same time all wait for it to be closed, and a close that failed can be tried again. *)
 
     include Identity with type t := t
 end
@@ -737,9 +773,12 @@ and BrowserContext : sig
 
     val close : ?reason:string -> t -> unit
     (** Closes the context and its pages. This is also when recorded videos and HAR files are written. Does nothing if
-        the context is closed already. *)
+        the context is closed already. {!Browser.close} tells what happens on cancellation and when fibers close the
+        same context concurrently. *)
 
     val is_closed : t -> bool
+    (** Whether the context has been closed, or is being closed. *)
+
     val set_default_timeout : float -> t -> unit
 
     val set_default_navigation_timeout : float -> t -> unit
@@ -762,7 +801,11 @@ and BrowserContext : sig
     val on : 'a event -> ('a -> unit) -> t -> Disposable.t
     (** Registers a listener, which {!Disposable.dispose} removes again. Each call of a listener runs in a fiber of
         its own, so a listener may block and may call back into Playwright; events are nevertheless delivered to it
-        in order of arrival when it does not. *)
+        in order of arrival when it does not. A listener that has been removed is not called any more, not even for
+        events that arrived before it was removed.
+
+        An exception that escapes from a listener is passed to the [on_error] function of {!create}. {!create} also
+        tells how many calls of listeners may be in progress at a time, and what happens beyond that. *)
 
     val once : 'a event -> ('a -> unit) -> t -> Disposable.t
     (** Registers a listener for the next event only. *)
@@ -770,9 +813,23 @@ and BrowserContext : sig
     val expect_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> (unit -> unit) -> t -> 'a
     (** [expect_event event action] starts listening, runs [action], and returns the first [event] satisfying
         [predicate] that occurs from then on. Unlike calling {!wait_for_event} after the action, this cannot miss an
-        event that is emitted before the action returns. *)
+        event that is emitted before the action returns.
+
+        - [timeout] counts from before the action, and it limits when the event may {e arrive}: one that arrived in
+          time is returned however long [action] and [predicate] take, and without one a [Timeout] error is raised
+          once [action] has returned. The default is the timeout of the context, see {!set_default_timeout}.
+        - [action] is not interrupted when the time is up, and when it raises, its exception is the one that
+          [expect_event] raises.
+        - [predicate] is called for each event when it arrives, also while [action] is still running, for one event
+          at a time, until it returns [true]. It may block and may call back into Playwright. An exception that
+          escapes from it is raised by [expect_event].
+        - The wait ends with a [Target_closed] error when the object that would emit the event is closed.
+
+        The other [expect_...] functions of this library follow the same rules. *)
 
     val wait_for_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> t -> 'a
+    (** [expect_event] without an action: the first [event] satisfying [predicate] that arrives from now on. *)
+
     val expect_page : ?timeout:float -> ?predicate:(Page.t -> bool) -> (unit -> unit) -> t -> Page.t
 
     (** {1 Network} *)
@@ -931,7 +988,9 @@ and Page : sig
 
     val close : ?run_before_unload:bool -> ?reason:string -> t -> unit
     (** Closes the page. Does nothing if it is closed already. With [run_before_unload], the page's [beforeunload]
-        handlers run first and may keep it open, and the function does not wait for the page to close. *)
+        handlers run first and may keep it open, and the function does not wait for the page to close.
+
+        The page is closed even if the calling fiber is cancelled meanwhile. *)
 
     val is_closed : t -> bool
     val bring_to_front : t -> unit
