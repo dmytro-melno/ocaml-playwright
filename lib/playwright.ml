@@ -549,7 +549,7 @@ module APIRequest = struct
                 t.pw_channel
             |> Types.api_request_context
         in
-        Option.iter (fun timeout -> context.a_timeouts.default <- Some timeout) timeout;
+        Option.iter (Timeouts.set_default context.a_timeouts) timeout;
         context
 end
 

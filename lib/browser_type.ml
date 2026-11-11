@@ -71,10 +71,7 @@ let explain_missing_browser f =
         in
         raise (Error.E { error with message })
 
-let adopt (t : t) ?traces_dir (browser : browser) =
-    browser.browser_type <- Some t;
-    browser.b_traces_dir <- traces_dir;
-    List.iter (Browser.setup_context browser) browser.contexts
+let adopt (t : t) ?traces_dir (browser : browser) = Browser.adopt t ?traces_dir browser
 
 let launch =
     collect_launch_options (fun o (t : t) ->

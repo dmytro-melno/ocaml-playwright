@@ -134,6 +134,17 @@ module Request = struct
         let response_start = if r.timing.response_start = -1. then response_end else r.timing.response_start in
         r.timing <- { r.timing with response_end; response_start }
 
+    (* What a route handler has the request sent with, in place of what the page asked for. *)
+    let override (r : t) ?url ?method_ ?headers ?post_data () =
+        let keep fresh old = match fresh with Some _ -> fresh | None -> old in
+        r.overrides <-
+            { o_url = keep url r.overrides.o_url; o_method = keep method_ r.overrides.o_method; o_headers = keep headers r.overrides.o_headers;
+              o_post_data = keep post_data r.overrides.o_post_data }
+
+    let did_fail (r : t) ~failure_text ~response_end =
+        r.failure <- Some (Option.value failure_text ~default:"");
+        set_response_end r response_end
+
     (* The promise that resolves when whatever issued the request (a page or a worker) is gone. *)
     let target_gone (r : t) : Error.t Promise.t option =
         match service_worker r, safe_page r with
@@ -160,6 +171,9 @@ module Response = struct
               connect_start = t.connect_start; secure_connection_start = t.secure_connection_start; connect_end = t.connect_end;
               request_start = t.request_start; response_start = t.response_start };
         response
+
+    (* The request of the response is over, which leaves nothing more of it to arrive. *)
+    let did_finish (r : t) = if not (Promise.is_resolved r.rs_finished) then Promise.resolve r.rs_finished_resolver (Ok ())
 
     let url (r : t) = r.rs_init.url
     let status (r : t) = r.rs_init.status

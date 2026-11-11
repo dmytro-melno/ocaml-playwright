@@ -27,7 +27,7 @@ let connect ?(timeout = 0.) ?(headers = []) ?slow_mo ?expose_network endpoint (t
     let ended () = Error.target_closed ?message:pipe.close_reason () in
     (* Nothing more can arrive once the driver is gone, so there is no point in waiting for the
        reader to find out. *)
-    pipe.on_lost <- (fun _ -> Connection.close conn (ended ()));
+    Json_pipe.set_on_lost pipe (fun _ -> Connection.close conn (ended ()));
     ignore (Objects.new_session ~parent:local conn);
     Connection.fork local.conn "remote connection" (fun () -> Connection.run ~end_message:(fun () -> (ended ()).message) conn);
     let disconnect () =
@@ -45,7 +45,7 @@ let connect ?(timeout = 0.) ?(headers = []) ?slow_mo ?expose_network endpoint (t
     with
     | connected ->
         Browser_type.adopt t connected;
-        connected.disconnect <- Some disconnect;
+        Browser.set_disconnect connected disconnect;
         (* A browser that the server has closed leaves nothing to stay connected to. *)
         let (_ : unit -> unit) = Emitter.subscribe connected.e_disconnected (fun _ -> Connection.fork local.conn "disconnecting" disconnect) in
         connected

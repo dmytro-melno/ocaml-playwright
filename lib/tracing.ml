@@ -6,6 +6,9 @@ let create session (channel : Protocol.Tracing.t) : t =
     { t_channel = channel; t_session = session; include_sources = false; is_live = false; traces_dir = None; stacks_id = None; har_id = None;
       har_recorders = Hashtbl.create 1 }
 
+(* Where the traces of the browser that the context belongs to are kept. *)
+let set_traces_dir (t : t) traces_dir = t.traces_dir <- traces_dir
+
 let local_utils (t : t) = Url_match.local_utils t.t_session
 let is_zip path = Filename.check_suffix (String.lowercase_ascii path) ".zip"
 

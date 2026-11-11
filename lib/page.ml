@@ -92,7 +92,7 @@ let update_web_socket_interception (page : t) =
 
 (* The page's own handlers come first; what they leave goes to the context's. *)
 let on_route (page : t) (route : route) =
-    route.rt_context <- Some page.context;
+    Route.set_context route page.context;
     let settled =
         Route.Handler.dispatch
             ~handlers:(fun () -> page.p_routes)
@@ -133,7 +133,7 @@ let on_locator_handler_triggered (page : t) uid =
 let did_close (page : t) =
     if not page.closed then begin
         page.closed <- true;
-        page.context.pages <- List.filter (fun p -> p != page) page.context.pages;
+        Ownership.remove_page page;
         if not (Promise.is_resolved page.p_gone) then Promise.resolve page.p_gone_resolver (close_error page);
         emit page page.pe_close page
     end
@@ -155,17 +155,11 @@ let handle_event (page : t) (event : Protocol.Page.event) =
         emit page page.pe_file_chooser { fc_page = page; fc_element = Types.element element; is_multiple }
     | Frame_attached { frame } ->
         let frame = Types.frame frame in
-        frame.page <- Some page;
-        page.frames <- page.frames @ [ frame ];
-        Option.iter
-            (fun (parent : frame) -> if not (List.memq frame parent.child_frames) then parent.child_frames <- parent.child_frames @ [ frame ])
-            frame.parent_frame;
+        Ownership.add_frame page frame;
         emit page page.pe_frame_attached frame
     | Frame_detached { frame } ->
         let frame = Types.frame frame in
-        page.frames <- List.filter (fun f -> f != frame) page.frames;
-        frame.detached <- true;
-        Option.iter (fun (parent : frame) -> parent.child_frames <- List.filter (fun f -> f != frame) parent.child_frames) frame.parent_frame;
+        Ownership.remove_frame page frame;
         emit page page.pe_frame_detached frame
     | Locator_handler_triggered { uid } -> handle "locator handler" (fun () -> on_locator_handler_triggered page uid)
     | Route { route } -> handle "route" (fun () -> on_route page (Types.route route))
@@ -174,8 +168,7 @@ let handle_event (page : t) (event : Protocol.Page.event) =
     | Web_socket { web_socket } -> emit page page.pe_web_socket (Types.web_socket web_socket)
     | Worker { worker } ->
         let worker = Types.worker worker in
-        worker.w_page <- Some page;
-        page.workers <- page.workers @ [ worker ];
+        Ownership.add_worker page worker;
         emit page page.pe_worker worker
     | Screencast_frame _ -> ()
 
@@ -189,7 +182,7 @@ let create (channel : Protocol.Page.t) : t =
     let main_frame = Types.frame init.main_frame in
     let p_gone, p_gone_resolver = Promise.create () in
     let page =
-        { p_channel = channel; context; main_frame; frames = [ main_frame ]; workers = []; closed = init.is_closed; close_was_called = false;
+        { p_channel = channel; context; main_frame; frames = []; workers = []; closed = init.is_closed; close_was_called = false;
           p_close_reason = None;
           viewport_size = Option.map (fun (size : Protocol.Page.Initializer_viewport_size.t) -> { width = size.width; height = size.height }) init.viewport_size;
           p_routes = []; p_ws_routes = []; p_bindings = Hashtbl.create 4; p_timeouts = Timeouts.create ~parent:context.c_timeouts ();
@@ -201,7 +194,7 @@ let create (channel : Protocol.Page.t) : t =
           pe_request = Emitter.create (); pe_request_failed = Emitter.create (); pe_request_finished = Emitter.create ();
           pe_response = Emitter.create (); pe_web_socket = Emitter.create (); pe_worker = Emitter.create () }
     in
-    main_frame.page <- Some page;
+    Ownership.add_frame page main_frame;
     let subscribe emitter event =
         Events.subscribe_on_demand (Channel.conn channel) emitter (fun ~enabled -> Protocol.Page.update_subscription ~event ~enabled channel)
     in
@@ -247,8 +240,8 @@ let viewport_size (page : t) = Option.map (fun (size : size) -> size.width, size
 let is_closed (page : t) = page.closed
 let workers (page : t) = page.workers
 let video (page : t) = if page.context.records_video then Some page else None
-let set_default_timeout timeout (page : t) = page.p_timeouts.default <- Some timeout
-let set_default_navigation_timeout timeout (page : t) = page.p_timeouts.default_navigation <- Some timeout
+let set_default_timeout timeout (page : t) = Timeouts.set_default page.p_timeouts timeout
+let set_default_navigation_timeout timeout (page : t) = Timeouts.set_default_navigation page.p_timeouts timeout
 
 let frame ?name ?url (page : t) =
     match name, url with
@@ -450,16 +443,8 @@ let close ?(run_before_unload = false) ?reason (page : t) =
 
 (* Hands control to the Playwright inspector until the user resumes the script. *)
 let pause (page : t) =
-    let timeouts = page.context.c_timeouts in
-    let default, default_navigation = timeouts.default, timeouts.default_navigation in
-    timeouts.default <- Some 0.;
-    timeouts.default_navigation <- Some 0.;
-    Fun.protect
-        ~finally:(fun () ->
-            timeouts.default <- default;
-            timeouts.default_navigation <- default_navigation)
-        (fun () ->
-            Fiber.first (fun () -> Protocol.Browser_context.pause page.context.c_channel) (fun () -> ignore (Promise.await page.p_gone)))
+    Timeouts.suspended page.context.c_timeouts (fun () ->
+        Fiber.first (fun () -> Protocol.Browser_context.pause page.context.c_channel) (fun () -> ignore (Promise.await page.p_gone)))
 
 (* {1 Input devices} *)
 

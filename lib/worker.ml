@@ -22,8 +22,7 @@ let close_error (worker : t) =
 (* The worker is gone: it ended, or its page or the connection to it went away. *)
 let did_close (worker : t) =
     if not (Promise.is_resolved worker.w_gone) then begin
-        Option.iter (fun (page : page) -> page.workers <- List.filter (fun w -> w != worker) page.workers) worker.w_page;
-        Option.iter (fun (context : browser_context) -> context.service_workers <- List.filter (fun w -> w != worker) context.service_workers) worker.w_context;
+        Ownership.remove_worker worker;
         Promise.resolve worker.w_gone_resolver (close_error worker);
         ignore (Emitter.emit worker.w_session.conn worker.we_close worker)
     end

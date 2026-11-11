@@ -10,6 +10,9 @@ let create (channel : Protocol.Route.t) : t =
     let init = Protocol.Route.initializer_ channel in
     { rt_channel = channel; rt_request = Types.request init.request; rt_context = None; handling = None }
 
+(* The context that the route is offered to: its own, or that of the page that offers it. *)
+let set_context (route : t) context = route.rt_context <- Some context
+
 let request (route : t) = route.rt_request
 
 (* Once the page that issued the request is gone the outcome no longer matters to anyone, so
@@ -31,12 +34,7 @@ let handle (route : t) f =
     f ();
     report route true
 
-let override (route : t) ?url ?method_ ?headers ?post_data () =
-    let request = route.rt_request in
-    let keep fresh old = match fresh with Some _ -> fresh | None -> old in
-    request.overrides <-
-        { o_url = keep url request.overrides.o_url; o_method = keep method_ request.overrides.o_method;
-          o_headers = keep headers request.overrides.o_headers; o_post_data = keep post_data request.overrides.o_post_data }
+let override (route : t) ?url ?method_ ?headers ?post_data () = Request.override route.rt_request ?url ?method_ ?headers ?post_data ()
 
 let send_continue (route : t) ~is_fallback =
     let overrides = route.rt_request.overrides in

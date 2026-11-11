@@ -10,6 +10,17 @@ let default_timeout = 30_000.
 let default_launch_timeout = 180_000.
 
 let create ?parent () = { parent; default = None; default_navigation = None }
+let set_default t timeout = t.default <- Some timeout
+let set_default_navigation t timeout = t.default_navigation <- Some timeout
+
+(* Runs [f] with no timeouts by default. *)
+let suspended t f =
+    let default, default_navigation = t.default, t.default_navigation in
+    t.default <- Some 0.;
+    t.default_navigation <- Some 0.;
+    Fun.protect f ~finally:(fun () ->
+        t.default <- default;
+        t.default_navigation <- default_navigation)
 
 (* PWDEBUG opens the inspector and lets the user step through the script at their own pace. *)
 let debugging =

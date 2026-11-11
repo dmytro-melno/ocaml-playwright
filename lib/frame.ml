@@ -34,7 +34,7 @@ let create session (channel : Protocol.Frame.t) : t =
         { f_channel = channel; f_session = session; page = None; parent_frame; child_frames = []; f_url = init.url; f_name = init.name;
           detached = false; load_states = init.load_states; fe_load_state = Emitter.create (); fe_navigated = Emitter.create () }
     in
-    Option.iter (fun (parent : t) -> parent.child_frames <- parent.child_frames @ [ frame ]) parent_frame;
+    Option.iter (fun parent -> Ownership.add_child_frame parent frame) parent_frame;
     Protocol.Frame.listen channel (handle_event frame);
     frame
 

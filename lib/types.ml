@@ -2,7 +2,17 @@
 
    Playwright's objects refer to each other freely (a page knows its frames, a frame its page,
    a request its frame, ...), so their representations are defined together here.  The behaviour
-   lives in one module per object; this module holds data only. *)
+   lives in one module per object; this module holds data only.
+
+   Every module can read every field.  Who writes is settled as follows:
+
+   - A mutable field is written by the module of its record: [page.closed] by {!Page},
+     [request.failure] by {!Network.Request}.  Another module that has something to tell calls
+     a function of that module.
+   - The fields that tie two objects together ([context.pages], [frame.page], [worker.w_page],
+     ...) are written by {!Ownership}, which keeps the two ends in step.
+   - An emitter is fired by the module that hears from the driver of what happened.  For some
+     events of a page that is its context, or one of its frames: see {!page}. *)
 
 open Eio.Std
 
@@ -142,24 +152,26 @@ and page = {
     p_gone : Error.t Promise.t;
     p_gone_resolver : Error.t Promise.u;
     pe_close : page Emitter.t;
-    pe_console : console_message Emitter.t;
     pe_crash : page Emitter.t;
-    pe_dialog : dialog Emitter.t;
-    pe_dom_content_loaded : page Emitter.t;
     pe_download : download Emitter.t;
     pe_file_chooser : file_chooser Emitter.t;
     pe_frame_attached : frame Emitter.t;
     pe_frame_detached : frame Emitter.t;
-    pe_frame_navigated : frame Emitter.t;
-    pe_load : page Emitter.t;
+    pe_web_socket : web_socket Emitter.t;
+    pe_worker : worker Emitter.t;
+    (* The driver tells the context of these, which fires them: see {!Browser_context}. *)
+    pe_console : console_message Emitter.t;
+    pe_dialog : dialog Emitter.t;
     pe_page_error : Error.t Emitter.t;
     pe_popup : page Emitter.t;
     pe_request : request Emitter.t;
     pe_request_failed : request Emitter.t;
     pe_request_finished : request Emitter.t;
     pe_response : response Emitter.t;
-    pe_web_socket : web_socket Emitter.t;
-    pe_worker : worker Emitter.t;
+    (* And the main frame of these: see {!Frame}. *)
+    pe_dom_content_loaded : page Emitter.t;
+    pe_frame_navigated : frame Emitter.t;
+    pe_load : page Emitter.t;
 }
 
 and frame = {
@@ -370,7 +382,7 @@ and api_request_context = {
     a_channel : Protocol.Api_request_context.t;
     a_session : session;
     a_tracing : tracing;
-    mutable a_timeouts : Timeouts.t;
+    a_timeouts : Timeouts.t;
     mutable a_close_reason : string option;
     a_close_state : Closing.t;
 }

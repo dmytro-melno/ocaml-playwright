@@ -7,10 +7,18 @@ let default_test_id_attribute = "data-testid"
 
 (* Applies what the browser was launched with to a context of its own. *)
 let setup_context (browser : t) (context : browser_context) =
-    context.browser <- Some browser;
-    if not (List.memq context browser.contexts) then browser.contexts <- browser.contexts @ [ context ];
-    context.tracing.traces_dir <- browser.b_traces_dir;
-    context.request.a_tracing.traces_dir <- browser.b_traces_dir
+    Ownership.add_context browser context;
+    Tracing.set_traces_dir context.tracing browser.b_traces_dir;
+    Tracing.set_traces_dir context.request.a_tracing browser.b_traces_dir
+
+(* The browser was launched by, or connected to through, this browser type. *)
+let adopt (browser_type : browser_type) ?traces_dir (browser : t) =
+    browser.browser_type <- Some browser_type;
+    browser.b_traces_dir <- traces_dir;
+    List.iter (setup_context browser) browser.contexts
+
+(* What ends the connection that the browser was reached over, if it has one of its own. *)
+let set_disconnect (browser : t) disconnect = browser.disconnect <- Some disconnect
 
 (* The browser is gone: it was closed, it crashed, or the connection to it ended. *)
 let did_close (browser : t) =
@@ -90,8 +98,7 @@ let new_page ?proxy =
             Connection.guard browser.b_session.conn "closing a browser context" ~undo:(fun () -> Browser_context.close context) (fun () ->
                 Browser_context.new_page context)
         in
-        page.owned_context <- Some context;
-        context.owner_page <- Some page;
+        Ownership.give_context page context;
         page)
 
 let new_browser_cdp_session (browser : t) = Protocol.Browser.new_browser_cdp_session browser.b_channel |> Types.cdp_session

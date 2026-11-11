@@ -65,7 +65,7 @@ let update_web_socket_interception (context : t) =
 
 (* Offers a route to the context's handlers; a route that nobody settles goes to the network. *)
 let on_route (context : t) (route : route) =
-    route.rt_context <- Some context;
+    Route.set_context route context;
     let page = Network.Request.safe_page route.rt_request in
     let settled =
         Route.Handler.dispatch
@@ -127,9 +127,7 @@ let js_error (error : Protocol.Serialized_error.t) : Error.t =
 (* The context is gone: it was closed, or its browser or the connection to it went away. *)
 let did_close (context : t) =
     if Closing.set_closed context.close_state then begin
-        Option.iter (fun (browser : browser) -> browser.contexts <- List.filter (fun c -> c != context) browser.contexts) context.browser;
-        (let selectors = context.c_session.selectors in
-         selectors.all_contexts <- List.filter (fun c -> c != context) selectors.all_contexts);
+        Ownership.remove_context context;
         Promise.resolve context.c_closed_resolver ();
         emit context context.ce_close context
     end
@@ -143,7 +141,7 @@ let handle_event (context : t) (event : Protocol.Browser_context.event) =
     | Close -> did_close context
     | Page { page } ->
         let page = Types.page page in
-        context.pages <- context.pages @ [ page ];
+        Ownership.add_page context page;
         emit context context.ce_page page;
         (match page.opener with Some opener when not opener.closed -> emit context opener.pe_popup page | _ -> ())
     | Route { route } -> handle "route" (fun () -> on_route context (Types.route route))
@@ -151,8 +149,7 @@ let handle_event (context : t) (event : Protocol.Browser_context.event) =
         handle "WebSocket route" (fun () -> on_web_socket_route context (Types.web_socket_route web_socket_route))
     | Service_worker { worker } ->
         let worker = Types.worker worker in
-        worker.w_context <- Some context;
-        context.service_workers <- context.service_workers @ [ worker ];
+        Ownership.add_service_worker context worker;
         emit context context.ce_service_worker worker
     | Console { type_; text; args; location; timestamp; page; worker } ->
         let page = Option.map Types.page page in
@@ -187,8 +184,7 @@ let handle_event (context : t) (event : Protocol.Browser_context.event) =
         Option.iter (fun page -> emit context (Types.page page).pe_request request) page
     | Request_failed { request; failure_text; response_end_timing; page } ->
         let request = Types.request request in
-        request.failure <- Some (Option.value failure_text ~default:"");
-        Network.Request.set_response_end request response_end_timing;
+        Network.Request.did_fail request ~failure_text ~response_end:response_end_timing;
         emit context context.ce_request_failed request;
         Option.iter (fun page -> emit context (Types.page page).pe_request_failed request) page
     | Request_finished { request; response; response_end_timing; page } ->
@@ -196,11 +192,7 @@ let handle_event (context : t) (event : Protocol.Browser_context.event) =
         Network.Request.set_response_end request response_end_timing;
         emit context context.ce_request_finished request;
         Option.iter (fun page -> emit context (Types.page page).pe_request_finished request) page;
-        Option.iter
-            (fun response ->
-                let response = Types.response response in
-                if not (Promise.is_resolved response.rs_finished) then Promise.resolve response.rs_finished_resolver (Ok ()))
-            response
+        Option.iter (fun response -> Network.Response.did_finish (Types.response response)) response
     | Response { response; page } ->
         let response = Types.response response in
         emit context context.ce_response response;
@@ -210,9 +202,9 @@ let handle_event (context : t) (event : Protocol.Browser_context.event) =
 let create session (channel : Protocol.Browser_context.t) : t =
     let init = Protocol.Browser_context.initializer_ channel in
     let c_closed, c_closed_resolver = Promise.create () in
-    let c_timeouts = Timeouts.create () in
     let request = Types.api_request_context init.request_context in
-    request.a_timeouts <- c_timeouts;
+    (* The context and its requests have their timeouts in common. *)
+    let c_timeouts = request.a_timeouts in
     let context =
         { c_channel = channel; c_session = session; browser = None; pages = []; c_routes = []; c_ws_routes = []; c_bindings = Hashtbl.create 4;
           c_timeouts; owner_page = None; base_url = init.options.base_url; records_video = init.options.record_video <> None;
@@ -230,7 +222,7 @@ let create session (channel : Protocol.Browser_context.t) : t =
     subscribe context.ce_response `Response;
     subscribe context.ce_request_finished `Request_finished;
     subscribe context.ce_request_failed `Request_failed;
-    session.selectors.all_contexts <- context :: session.selectors.all_contexts;
+    Ownership.add_to_session context;
     Protocol.Browser_context.listen channel (handle_event context);
     Channel.on_lost channel (fun _ -> did_close context);
     context
@@ -270,8 +262,8 @@ let pages (context : t) = context.pages
 let service_workers (context : t) = context.service_workers
 let tracing (context : t) = context.tracing
 let request (context : t) = context.request
-let set_default_timeout timeout (context : t) = context.c_timeouts.default <- Some timeout
-let set_default_navigation_timeout timeout (context : t) = context.c_timeouts.default_navigation <- Some timeout
+let set_default_timeout timeout (context : t) = Timeouts.set_default context.c_timeouts timeout
+let set_default_navigation_timeout timeout (context : t) = Timeouts.set_default_navigation context.c_timeouts timeout
 
 let new_page (context : t) =
     if context.owner_page <> None then Error.raise_ "Please use Browser.new_context";

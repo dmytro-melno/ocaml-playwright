@@ -32,6 +32,9 @@ let create (channel : Protocol.Json_pipe.t) : t =
         pipe.on_lost error);
     pipe
 
+(* What to do when the connection that the pipe lives on ends. *)
+let set_on_lost pipe handle = pipe.on_lost <- handle
+
 (* Every pipe has its client side: see {!Types}. *)
 let of_channel (channel : Protocol.Json_pipe.t) =
     match (Channel.any channel).impl with
