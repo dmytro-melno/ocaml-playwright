@@ -123,7 +123,7 @@ function untar(archive) {
 }
 
 (async () => {
-  const response = await fetch(url, { signal: AbortSignal.timeout(10 * 60 * 1000) });
+  const response = await fetch(url);
   if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
   const tarball = Buffer.from(await response.arrayBuffer());
   const [algorithm, expected] = [integrity.slice(0, integrity.indexOf('-')), integrity.slice(integrity.indexOf('-') + 1)];
@@ -138,15 +138,19 @@ function untar(archive) {
 
 let read_file path = try In_channel.with_open_bin path In_channel.input_all with Sys_error _ -> ""
 
+let exit_code = function Unix.WEXITED code -> code | WSIGNALED signal | WSTOPPED signal -> 128 + abs signal
+
 let rec wait_for pid =
     match Unix.waitpid [] pid with
-    | _, Unix.WEXITED code -> code
-    | _, (WSIGNALED signal | WSTOPPED signal) -> 128 + abs signal
+    | _, status -> exit_code status
     | exception Unix.Unix_error (Unix.EINTR, _, _) -> wait_for pid
 
-(* Runs a command to completion with its output going to the file [log], and returns its exit
-   code. *)
-let run_process ~log executable args =
+let poll_interval = 0.05
+
+(* Runs a command with its output going to the file [log], and returns its exit code.  The
+   command is given up, which means killed and waited for, when it takes longer than [timeout]
+   milliseconds or when [cancelled] says so; it is asked every few milliseconds. *)
+let run_process ~log ~timeout ~cancelled executable args =
     let out = Unix.openfile log [ O_WRONLY; O_CREAT; O_TRUNC; O_CLOEXEC ] 0o644 in
     let null = Unix.openfile (if Sys.win32 then "NUL" else "/dev/null") [ O_RDONLY; O_CLOEXEC ] 0 in
     let env = Array.append (Unix.environment ()) [| "NODE_USE_ENV_PROXY=1" |] in
@@ -155,11 +159,40 @@ let run_process ~log executable args =
             ~finally:(fun () -> Unix.close out; Unix.close null)
             (fun () -> Unix.create_process_env executable (Array.of_list (executable :: args)) env null out out)
     in
-    wait_for pid
+    let give_up reason =
+        (try Unix.kill pid Sys.sigkill with Unix.Unix_error _ -> ());
+        ignore (wait_for pid);
+        reason
+    in
+    (* The time is counted in the pauses made, which no change of the system's clock can upset. *)
+    let rec poll waited =
+        match Unix.waitpid [ WNOHANG ] pid with
+        | 0, _ ->
+            if cancelled () then give_up `Cancelled
+            else if timeout > 0. && waited *. 1000. >= timeout then give_up `Timed_out
+            else begin
+                Unix.sleepf poll_interval;
+                poll (waited +. poll_interval)
+            end
+        | _, status -> `Exited (exit_code status)
+        | exception Unix.Unix_error (Unix.EINTR, _, _) -> poll waited
+    in
+    poll 0.
+
+let default_install_timeout = 300_000.
+
+(* How long an installation may take, in milliseconds; zero for as long as it takes. *)
+let install_timeout () =
+    match getenv "PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT" with
+    | None -> default_install_timeout
+    | Some text -> (
+        match float_of_string_opt text with
+        | Some timeout when timeout >= 0. -> timeout
+        | _ -> Error.raise_ "PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT is %S, which is not a number of milliseconds" text)
 
 (* Downloads the pinned driver into [target].  The package is unpacked into a scratch directory
    and renamed into place, so concurrent installations and interrupted ones are both harmless. *)
-let install ~node target =
+let install ~node ~timeout ~cancelled target =
     let scratch = Printf.sprintf "%s.tmp-%d-%06x" target (Unix.getpid ()) (Random.State.bits (Random.State.make_self_init ()) land 0xFFFFFF) in
     mkdir_p scratch;
     Fun.protect
@@ -170,21 +203,28 @@ let install ~node target =
             let unpacked = scratch / "unpacked" in
             Out_channel.with_open_bin script (fun oc -> output_string oc install_script);
             let url = Option.value (getenv "PLAYWRIGHT_OCAML_DRIVER_URL") ~default:Protocol.driver_tarball in
-            let code = run_process ~log node [ script; url; Protocol.driver_integrity; unpacked ] in
-            if code <> 0 || cli_in unpacked = None then
+            let failed reason =
                 Error.raise_
                     "Could not install the Playwright %s driver: %s\n\
                      Check the network connection, or unpack the playwright-core %s npm package yourself and point \
                      PLAYWRIGHT_OCAML_DRIVER to it."
-                    version (String.trim (read_file log)) version;
+                    version reason version
+            in
+            (match run_process ~log ~timeout ~cancelled node [ script; url; Protocol.driver_integrity; unpacked ] with
+            | `Exited 0 when cli_in unpacked <> None -> ()
+            | `Exited _ -> failed (String.trim (read_file log))
+            | `Timed_out ->
+                failed (Printf.sprintf "%s: not finished after %g seconds (the limit, which PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT sets in milliseconds)" url (timeout /. 1000.))
+            | `Cancelled -> Error.raise_ "The installation of the Playwright %s driver was cancelled" version);
             (try Unix.rename unpacked target
              with Unix.Unix_error _ when cli_in target <> None -> () (* another process installed it meanwhile *)))
 
 let installed_dir () = cache_dir () / ("driver-" ^ version)
 
 (* Finds the driver, installing it first when [install_if_missing] allows.  That blocks until
-   the download is complete. *)
-let locate ?(install_if_missing = true) () =
+   the download is complete, has taken more than [install_timeout] milliseconds, or [cancelled]
+   says that the caller has lost interest; see {!run_process}. *)
+let locate ?(install_if_missing = true) ?install_timeout:timeout ?(cancelled = fun () -> false) () =
     let node = find_node () in
     let cli =
         match getenv "PLAYWRIGHT_OCAML_DRIVER" with
@@ -198,7 +238,7 @@ let locate ?(install_if_missing = true) () =
             | Some cli -> cli
             | None when install_if_missing ->
                 mkdir_p (Filename.dirname target);
-                install ~node target;
+                install ~node ~timeout:(match timeout with Some timeout -> timeout | None -> install_timeout ()) ~cancelled target;
                 (match cli_in target with Some cli -> cli | None -> Error.raise_ "The Playwright driver vanished from %S" target)
             | None -> Error.raise_ "The Playwright %s driver is not installed in %S" version target)
     in

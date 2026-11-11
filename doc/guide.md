@@ -939,6 +939,7 @@ things:
 | `PLAYWRIGHT_OCAML_CACHE_DIR` | Where the driver is kept. Default: `$XDG_CACHE_HOME/ocaml-playwright` or `~/.cache/ocaml-playwright`; on Windows `%LOCALAPPDATA%\ocaml-playwright`. |
 | `PLAYWRIGHT_OCAML_DRIVER` | A directory that holds the driver already, that is the `playwright-core` package in the right version, for machines without network access. Nothing is downloaded then. |
 | `PLAYWRIGHT_OCAML_DRIVER_URL` | Another place to download the driver's package from, such as a mirror of the npm registry. The checksum is verified all the same. |
+| `PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT` | How long the download of the driver may take, in milliseconds; `0` for as long as it takes. Default: five minutes. |
 | `HTTPS_PROXY`, `NO_PROXY` | The proxy for that download. This needs a recent Node.js (24, or 22.21 and later); browsers are downloaded through the proxy by any version. |
 | `PLAYWRIGHT_BROWSERS_PATH` | Where Playwright installs and looks for browsers. This and the other [variables of Playwright](https://playwright.dev/docs/browsers#managing-browser-binaries) work as usual. |
 

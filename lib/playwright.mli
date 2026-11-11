@@ -312,6 +312,10 @@ val create :
     installed. Both can be overridden with environment variables, see the user guide. Browsers are installed with
     [ocaml-playwright install], or an installed one is used through [executable_path] or [channel].
 
+    Other fibers run while the driver is downloaded and started. The call can be cancelled at any time, which
+    also ends a download; [Eio.Time.with_timeout] thus limits how long starting may take. A download is given up
+    after five minutes, or what [PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT] says.
+
     [on_error what exn] is called for exceptions that have no caller to be raised in, namely those escaping from
     event listeners and route handlers; [what] says where [exn] comes from. The default prints them to standard
     error. The function is called in a handler of [exn], so [Printexc.get_raw_backtrace ()] is its backtrace. It

@@ -49,8 +49,9 @@ let initialize_timeout = 60_000.
 
 let create ?on_error ?handler_concurrency ?handler_backlog ~sw
         ~(env : Eio_unix.Stdenv.base) () : t =
-    (* Installing the driver can take a while, during which other fibers go on. *)
-    let driver = Eio_unix.run_in_systhread ~label:"playwright-driver" (fun () -> Driver.locate ()) in
+    (* Installing the driver can take a while, during which other fibers go on, and which ends
+       when this one is cancelled. *)
+    let driver = Fibers.in_systhread ~label:"playwright-driver" (fun ~cancelled -> Driver.locate ~cancelled ()) in
     let process = Driver_process.spawn ~sw ~env driver in
     let conn =
         Connection.create ~clock:(Eio.Stdenv.clock env)

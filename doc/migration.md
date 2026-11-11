@@ -87,7 +87,7 @@ let () =
 | 0.1 | 0.2 |
 | --- | --- |
 | `Playwright.create ~env ~sw ()` | unchanged; also `Playwright.run ~env f` |
-| `Playwright.create ~download_timeout ~init_timeout ~shutdown_timeout ~max_event_tasks` | removed; cancel the fiber to give up early |
+| `Playwright.create ~download_timeout ~init_timeout ~shutdown_timeout ~max_event_tasks` | removed. `Playwright.create` can be cancelled at any time, also while the driver is being downloaded, so `Eio.Time.with_timeout` limits it; the download alone is limited by `PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT` |
 | `Playwright.create ~on_event_error` | `~on_error:(fun what exn -> ...)` |
 | `Playwright.destroy pw` | `Playwright.close pw` |
 | `Playwright.Playwright.chromium pw` (`firefox`, `webkit`) | `Playwright.chromium pw` |
