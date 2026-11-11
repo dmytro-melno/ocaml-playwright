@@ -1,0 +1,7 @@
+; Tests against the driver alone.  What this library has ported from the Playwright client is
+; compared here with the original, which the driver holds.  They need Node.js and the driver,
+; but no browser, and are skipped, successfully, where those are missing; see doc/dev/testing.md.
+
+(test
+ (name main)
+ (libraries playwright_internal alcotest eio eio.unix eio_main))

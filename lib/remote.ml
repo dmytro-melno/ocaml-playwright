@@ -20,7 +20,7 @@ let connect ?(timeout = 0.) ?(headers = []) ?slow_mo ?expose_network endpoint (t
     let result =
         Protocol.Local_utils.connect ~timeout ~endpoint
             ~headers:(`Assoc (List.map (fun (name, value) -> name, `String value) headers))
-            ?expose_network ?slow_mo (Url_match.local_utils local)
+            ?expose_network ?slow_mo (Local_utils.of_session local)
     in
     let pipe = Json_pipe.of_channel result.pipe in
     let conn = Connection.create_relayed local.conn (Json_pipe.transport pipe) in

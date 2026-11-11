@@ -33,8 +33,11 @@
       that no browser needs to be asked about.
     - JavaScript regular expressions are given as literals in a string, such as ["/sign (in|up)/i"], to the
       functions and arguments named [..._regex].
-    - URL patterns are {{:https://playwright.dev/docs/network#glob-url-patterns} glob patterns}; functions named
-      [..._matching] take an OCaml predicate on the URL instead.
+    - URL patterns are {{:https://playwright.dev/docs/network#glob-url-patterns} glob patterns}: [*] stands for
+      any characters but [/], [**] for any characters, [{a,b}] for either, and a backslash makes the next character
+      literal. A pattern that does not start with [*] is resolved against the base URL of the context. Braces that
+      are nested or not balanced raise [Invalid_argument]. Functions named [..._matching] take an OCaml predicate
+      on the URL instead.
     - Events are values of a GADT, which gives every event its payload type:
       [Page.on Page.Console (fun message -> ...) page].
     - What registers something for later — an event listener, a route, an init script, an exposed function —

@@ -1,10 +1,11 @@
 # Testing
 
-There are three sets of checks, all run by `dune runtest`:
+There are four sets of checks, all run by `dune runtest`:
 
 | Directory | What | Needs |
 | --- | --- | --- |
 | `test/unit` | the internals, without a driver | nothing |
+| `test/driver` | what was ported from the Playwright client, against the original in the driver | Node.js, the driver |
 | `test/integration` | the public API against Chromium | Node.js, the driver, a Chromium |
 | `test/docs` | the OCaml code in `README.md` and `doc/*.md` compiles | nothing |
 
@@ -18,7 +19,9 @@ implementation; `internal.ml` brings its modules into scope. It covers:
 
 - `test_wire.ml`: JSON decoding, framing of messages, and the connection against a scripted
   transport: creation and disposal of objects, replies and errors, cancellation, closing.
-- `test_values.ml`: JavaScript values, selectors, the regular expressions of URL globs.
+- `test_values.ml`: JavaScript values, selectors.
+- `test_urls.ml`: the URL parser, against a table of what Node.js gives; URL globs, against
+  the tables of Playwright's own tests.
 - `test_support.ml`: emitters, waiters, timeouts.
 - `test_process.ml`: running a child process over pipes, with both implementations of
   `Driver_process`: output, graceful stop, forced stop, cancellation. It uses `cat`, `sh`
@@ -27,6 +30,19 @@ implementation; `internal.ml` brings its modules into scope. It covers:
 ```sh
 dune build ./test/unit/main.exe && ./_build/default/test/unit/main.exe
 ./_build/default/test/unit/main.exe test connection        # one group
+```
+
+## Driver tests
+
+`test/driver` starts the driver, but no browser. The driver matches the URLs of requests
+against the globs of routes, and the client does so again to find the handler, with code
+ported from Playwright (`lib/glob.ml`). The test asks the driver for the regular expression
+that it makes of some hundred globs and bases, and compares it with the client's. Run it
+after every upgrade of Playwright; a difference means that `urlMatch.ts` has changed and
+`lib/glob.ml` must follow. It is skipped, like the browser tests, where there is no driver.
+
+```sh
+dune build ./test/driver/main.exe && ./_build/default/test/driver/main.exe
 ```
 
 ## Browser tests

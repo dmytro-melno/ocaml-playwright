@@ -31,48 +31,6 @@ let unindent text =
     let lines = drop_blank lines |> List.rev |> drop_blank |> List.rev in
     String.concat "\n" (List.map (fun line -> if blank line then "" else String.sub line common (String.length line - common)) lines)
 
-(* The absolute form of a URL, as the page will report it: what JavaScript's [new URL(url, base)]
-   gives for the URLs that are written in assertions.  A bare origin gets its path, and a
-   relative URL is resolved against [base].  Dot segments are left alone. *)
-let resolve_url ?base url =
-    let length = String.length in
-    let has_scheme s =
-        match String.index_opt s ':' with
-        | Some colon when colon > 0 ->
-            let allowed i = match s.[i] with 'a' .. 'z' | 'A' .. 'Z' -> true | '0' .. '9' | '+' | '-' | '.' -> i > 0 | _ -> false in
-            List.for_all allowed (List.init colon Fun.id)
-        | _ -> false
-    in
-    let rec skip_until stop s i = if i < length s && not (String.contains stop s.[i]) then skip_until stop s (i + 1) else i in
-    (* Where "scheme://authority" ends, for URLs of that form. *)
-    let origin_end s =
-        match String.index_opt s ':' with
-        | Some colon when colon + 2 < length s && s.[colon + 1] = '/' && s.[colon + 2] = '/' -> Some (skip_until "/?#" s (colon + 3))
-        | _ -> None
-    in
-    let with_path s =
-        match origin_end s with
-        | Some stop when stop = length s || s.[stop] <> '/' -> String.sub s 0 stop ^ "/" ^ String.sub s stop (length s - stop)
-        | _ -> s
-    in
-    if has_scheme url then with_path url
-    else
-        match Option.map with_path base with
-        | Some base when has_scheme base && origin_end base <> None ->
-            let origin_end = Option.get (origin_end base) in
-            let path_end = skip_until "?#" base origin_end in
-            if url = "" then String.sub base 0 (skip_until "#" base origin_end)
-            else if String.starts_with ~prefix:"//" url then with_path (String.sub base 0 (String.index base ':' + 1) ^ url)
-            else if url.[0] = '/' then String.sub base 0 origin_end ^ url
-            else if url.[0] = '?' then String.sub base 0 path_end ^ url
-            else if url.[0] = '#' then String.sub base 0 (skip_until "#" base origin_end) ^ url
-            else begin
-                let directory_end = String.rindex_from base (path_end - 1) '/' in
-                let url = if String.starts_with ~prefix:"./" url then String.sub url 2 (length url - 2) else url in
-                String.sub base 0 (directory_end + 1) ^ url
-            end
-        | _ -> url
-
 (* Raises unless the outcome is the one wanted. *)
 let verdict ~is_not ~subject ~condition (outcome : Frame.expectation) =
     if outcome.matches = is_not then begin
@@ -225,7 +183,8 @@ struct
         page ?timeout ~expected_text:(text_values ~normalize_white_space:true [ Regex regex ]) "to.have.title" ~condition:("to have title " ^ regex) p
 
     let to_have_url ?timeout ?ignore_case url (p : page) =
-        let url = resolve_url ?base:p.context.base_url url in
+        (* The page reports its URL in normal form, so that is what is expected of it. *)
+        let url = Url.resolve ?base:p.context.base_url url in
         page ?timeout ~expected_text:(text_values ?ignore_case [ Text url ]) "to.have.url" ~condition:(Printf.sprintf "to have URL %S" url) p
 
     let to_have_url_regex ?timeout regex p =

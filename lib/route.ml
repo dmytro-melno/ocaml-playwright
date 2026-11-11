@@ -101,8 +101,8 @@ let fetch ?timeout ?url ?method_ ?headers ?post_data ?max_redirects ?max_retries
 (* {1 Handlers} *)
 
 module Handler = struct
-    let make session ?base_url ?times matcher handler : route_handler =
-        { rh_matcher = matcher; rh_matches = Url_match.compile session ?base_url matcher; rh_handler = handler; rh_times = times; rh_handled = 0;
+    let make ?base_url ?times matcher handler : route_handler =
+        { rh_matcher = matcher; rh_matches = Url_match.compile ?base_url matcher; rh_handler = handler; rh_times = times; rh_handled = 0;
           rh_running = 0; rh_idle = Eio.Condition.create (); rh_quiet = false }
 
     let will_expire (handler : route_handler) = match handler.rh_times with Some times -> handler.rh_handled + 1 >= times | None -> false
@@ -175,7 +175,7 @@ module Har = struct
     (* Opens the archive [file] and returns the handler that answers requests from it, together
        with the function that closes the archive again. *)
     let open_ session ?(not_found = `Abort) file =
-        let utils = Url_match.local_utils session in
+        let utils = Local_utils.of_session session in
         let har_id =
             match Protocol.Local_utils.har_open ~file:(Files.absolute file) utils with
             | { error = Some message; _ } -> Error.raise_ "%s" message
@@ -292,8 +292,8 @@ module Web_socket = struct
         | `Page -> t.wr_state.on_page_close <- Some handler
         | `Server -> t.wr_state.on_server_close <- Some handler
 
-    let make_handler session ?base_url matcher handler : ws_route_handler =
-        { wh_matcher = matcher; wh_matches = Url_match.compile session ?base_url ~web_socket:true matcher; wh_handler = handler }
+    let make_handler ?base_url matcher handler : ws_route_handler =
+        { wh_matcher = matcher; wh_matches = Url_match.compile ?base_url ~web_socket:true matcher; wh_handler = handler }
 
     (* Returns whether one of [handlers] took the route. *)
     let dispatch (handlers : ws_route_handler list) (t : t) =

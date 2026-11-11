@@ -13,7 +13,7 @@ let create session (channel : Protocol.Tracing.t) : t =
 (* Where the traces of the browser that the context belongs to are kept. *)
 let set_traces_dir (t : t) traces_dir = t.traces_dir <- traces_dir
 
-let local_utils (t : t) = Url_match.local_utils t.t_session
+let local_utils (t : t) = Local_utils.of_session t.t_session
 let is_zip path = Filename.check_suffix (String.lowercase_ascii path) ".zip"
 
 let start_collecting_stacks (t : t) trace_name =

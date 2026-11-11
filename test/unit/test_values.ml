@@ -153,58 +153,12 @@ let test_selector_combinators () =
     | _ -> Alcotest.fail "a string that is no regex literal must be rejected"
     | exception Invalid_argument _ -> ()
 
-(* {1 URL patterns}
-
-   Globs are translated to regular expressions by the driver; these are the shapes it produces. *)
-
-let test_url_regex () =
-    let matches source url = Url_regex.matches (Url_regex.parse source) url in
-    let images = {|^((.+/)|)([^/]*)\.(png|jpg)$|} in
-    Alcotest.(check bool) "**/*.{png,jpg} matches" true (matches images "https://example.com/static/logo.png");
-    Alcotest.(check bool) "at the root" true (matches images "logo.jpg");
-    Alcotest.(check bool) "other extension" false (matches images "https://example.com/static/logo.gif");
-    Alcotest.(check bool) "extension must end the URL" false (matches images "https://example.com/logo.png?x=1");
-    let api = {|^https://example\.com/api/([^/]*)$|} in
-    Alcotest.(check bool) "one segment" true (matches api "https://example.com/api/users");
-    Alcotest.(check bool) "not two segments" false (matches api "https://example.com/api/users/1");
-    Alcotest.(check bool) "dot is literal" false (matches api "https://exampleXcom/api/users");
-    let anything = {|^https://example\.com/(.*)$|} in
-    Alcotest.(check bool) "** crosses segments" true (matches anything "https://example.com/a/b/c?d=e#f");
-    Alcotest.(check bool) "empty rest" true (matches anything "https://example.com/");
-    Alcotest.(check bool) "escaped metacharacters" true (matches {|^a\?b\+c\$\(\)\[\]\{\}\|\\$|} {|a?b+c$()[]{}|\|});
-    Alcotest.(check bool) "anchored at both ends" false (matches {|^b$|} "abc");
-    (* Backtracking over nested repetition terminates quickly on a non-match. *)
-    Alcotest.(check bool) "no blow-up" false (matches {|^((.+/)|)([^/]*)\.zip$|} (String.concat "/" (List.init 200 (fun _ -> "segment")) ^ ".tar"));
-    match Url_regex.parse {|^[a-z]+\d$|} with
-    | _ -> Alcotest.fail "unsupported syntax must be refused rather than misinterpreted"
-    | exception Url_regex.Unsupported _ -> ()
-
 (* {1 Snapshot templates} *)
 
 let test_unindent () =
     Alcotest.(check string) "common indentation and blank edges are removed" "- list:\n  - listitem: one\n\n  - listitem: two"
         (Expect.unindent "\n        - list:\n          - listitem: one\n\n          - listitem: two\n    ");
     Alcotest.(check string) "nothing to remove" "- heading" (Expect.unindent "- heading")
-
-(* {1 URLs in assertions} *)
-
-let test_resolve_url () =
-    let check what expected ?base url = Alcotest.(check string) what expected (Expect.resolve_url ?base url) in
-    check "an absolute URL is kept" "https://example.com/a?b#c" ~base:"http://other.test/" "https://example.com/a?b#c";
-    check "a bare origin gets its path" "https://example.com/" "https://example.com";
-    check "also before a query" "https://example.com/?q=1" "https://example.com?q=1";
-    check "other schemes are kept" "about:blank" ~base:"http://localhost:8080" "about:blank";
-    check "a data URL is kept" "data:text/html,<p>a/b</p>" "data:text/html,<p>a/b</p>";
-    check "an absolute path replaces the path" "http://localhost:8080/checkout" ~base:"http://localhost:8080/app/index.html" "/checkout";
-    check "the base may be a bare origin" "http://localhost:8080/checkout" ~base:"http://localhost:8080" "/checkout";
-    check "a relative path replaces the last segment" "http://localhost:8080/app/cart" ~base:"http://localhost:8080/app/index.html?x=1" "cart";
-    check "relative to a directory" "http://localhost:8080/app/cart" ~base:"http://localhost:8080/app/" "./cart";
-    check "relative to a bare origin" "http://localhost:8080/cart" ~base:"http://localhost:8080" "cart";
-    check "a query replaces the query" "http://localhost:8080/app?page=2" ~base:"http://localhost:8080/app?page=1#top" "?page=2";
-    check "a fragment replaces the fragment" "http://localhost:8080/app?page=1#end" ~base:"http://localhost:8080/app?page=1#top" "#end";
-    check "the scheme is inherited" "http://cdn.test/x.js" ~base:"http://localhost:8080/app" "//cdn.test/x.js";
-    check "nothing gives the base" "http://localhost:8080/app?page=1" ~base:"http://localhost:8080/app?page=1#top" "";
-    check "without a base, a relative URL is kept" "/checkout" "/checkout"
 
 let tests =
     [ "js",
@@ -217,5 +171,4 @@ let tests =
       [ Alcotest.test_case "by text and attributes" `Quick test_selectors_by_text;
         Alcotest.test_case "by role" `Quick test_selectors_by_role;
         Alcotest.test_case "combinators" `Quick test_selector_combinators ];
-      "url", [ Alcotest.test_case "regular expressions from globs" `Quick test_url_regex ];
-      "expect", [ Alcotest.test_case "unindent" `Quick test_unindent; Alcotest.test_case "URLs" `Quick test_resolve_url ] ]
+      "expect", [ Alcotest.test_case "unindent" `Quick test_unindent ] ]

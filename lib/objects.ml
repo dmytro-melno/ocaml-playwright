@@ -55,7 +55,7 @@ let new_session ?parent conn : session =
         | None ->
             { conn; is_remote = false; local_utils = None;
               selectors = { test_id_attribute = Browser.default_test_id_attribute; selector_engines = []; all_contexts = [] };
-              url_matchers = Hashtbl.create 16; devices = []; assertions = { assertion_timeout = 5_000. } }
+              devices = []; assertions = { assertion_timeout = 5_000. } }
     in
     conn.factory <- create session;
     session

@@ -168,7 +168,9 @@ The supporting modules:
 | `Timeouts` | Default timeouts, inherited from context to page. |
 | `Js` | Encoding and decoding of JavaScript values. |
 | `Selector` | Builds the selectors behind `get_by_role` and the other locator functions. |
-| `Url_match`, `Url_regex` | URL globs. The driver converts a glob to a regular expression, as for all clients; `Url_regex` implements the subset of regular expressions that this produces. |
+| `Url` | The URL Standard's parser: what `new URL(reference, base)` gives. Predicts the address that a page reports, for `Expect.to_have_url` and for globs. |
+| `Glob`, `Url_regex`, `Url_match` | URL globs, ported from Playwright's `urlMatch.ts`: `Glob` resolves a glob against the base URL and turns it into the regular expression that Playwright makes of it; `Url_regex` runs the subset of regular expressions that this produces; `Url_match` is the choice between a glob and a predicate. `test/driver` compares the result with the driver's. |
+| `Local_utils` | The utilities of the local driver (archives, HAR files, traces). |
 | `Files` | Files to upload, and their transfer to a remote driver. |
 | `Context_options`, `Screenshot`, `Cookie` | Conversion of options into protocol records. |
 | `Route` | Routing of requests and WebSockets, HAR replay. |

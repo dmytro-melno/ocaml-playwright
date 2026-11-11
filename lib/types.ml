@@ -26,7 +26,6 @@ type session = {
     is_remote : bool;  (* the browser runs behind a Playwright server: files must be streamed to and from it *)
     mutable local_utils : Protocol.Local_utils.t option;  (* always the utilities of the local driver *)
     selectors : selectors;
-    url_matchers : (string, string -> bool) Hashtbl.t;  (* compiled globs, by base URL and glob *)
     mutable devices : device list;
     assertions : assertions;
 }

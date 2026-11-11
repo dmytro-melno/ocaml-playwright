@@ -96,7 +96,7 @@ let remove_routes ?(behavior = `Default) removed (context : t) =
     update_interception context
 
 let add_route ?times matcher handler (context : t) =
-    let handler = Route.Handler.make context.c_session ?base_url:context.base_url ?times matcher handler in
+    let handler = Route.Handler.make ?base_url:context.base_url ?times matcher handler in
     context.c_routes <- handler :: context.c_routes;
     update_interception context;
     Disposable.make (fun () -> remove_routes (fun h -> h == handler) context)
@@ -117,7 +117,7 @@ let unroute glob context = remove_routes (fun (handler : route_handler) -> Route
 let unroute_all ?behavior context = remove_routes ?behavior (fun _ -> true) context
 
 let add_web_socket_route matcher handler (context : t) =
-    let handler = Route.Web_socket.make_handler context.c_session ?base_url:context.base_url matcher handler in
+    let handler = Route.Web_socket.make_handler ?base_url:context.base_url matcher handler in
     context.c_ws_routes <- handler :: context.c_ws_routes;
     update_web_socket_interception context;
     Disposable.make (fun () ->
