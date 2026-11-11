@@ -264,6 +264,8 @@ module Expect = struct
     module type Assertions = module type of Expect.Not
 
     include Expect
+
+    let set_default_timeout timeout (t : t) = set_default_timeout timeout t.session
 end
 
 module JSHandle = Js_handle

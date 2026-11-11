@@ -2,8 +2,7 @@
 
 open Types
 
-let timeout_setting = ref 5_000.
-let set_default_timeout timeout = timeout_setting := timeout
+let set_default_timeout timeout (session : session) = session.assertions.assertion_timeout <- timeout
 
 let text_values ?match_substring ?normalize_white_space ?ignore_case (items : Selector.text list) : Protocol.Expected_text_value.t list =
     List.map
@@ -104,12 +103,12 @@ struct
         let is_not = Polarity.is_not
 
         let locator ?timeout ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text expression ~condition (l : locator) =
-            let timeout = Option.value timeout ~default:!timeout_setting in
+            let timeout = Option.value timeout ~default:l.l_frame.f_session.assertions.assertion_timeout in
             Locator.expect ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not ~timeout expression l
             |> verdict ~is_not ~subject:"Locator" ~condition
 
         let page ?timeout ?expected_text expression ~condition (p : page) =
-            let timeout = Option.value timeout ~default:!timeout_setting in
+            let timeout = Option.value timeout ~default:p.main_frame.f_session.assertions.assertion_timeout in
             Frame.expect ?expected_text ~is_not ~timeout expression p.main_frame |> verdict ~is_not ~subject:"Page" ~condition
 
         let have_text ?timeout ?ignore_case ?use_inner_text text l =

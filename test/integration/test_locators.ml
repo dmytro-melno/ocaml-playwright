@@ -310,7 +310,7 @@ let test_expect _ page =
         |}
         (Page.locator "ul" page)
 
-let test_expect_waits_and_fails _ page =
+let test_expect_waits_and_fails t page =
     Page.set_content {|<p id="status">loading</p><ul><li>one</li></ul>|} page;
     ignore (Page.evaluate "setTimeout(() => { document.querySelector('#status').textContent = 'ready' }, 150)" page);
     let status = Page.locator "#status" page in
@@ -329,9 +329,9 @@ let test_expect_waits_and_fails _ page =
     let error = failure "snapshot" (fun () -> Expect.to_match_aria_snapshot ~timeout:100. "- list:\n  - listitem: two" (Page.locator "ul" page)) in
     check_contains "snapshot received" ~sub:"- listitem: one" error.message;
     (* The default timeout is a setting. *)
-    Expect.set_default_timeout 100.;
+    Expect.set_default_timeout 100. t.pw;
     Fun.protect
-        ~finally:(fun () -> Expect.set_default_timeout 5000.)
+        ~finally:(fun () -> Expect.set_default_timeout 5000. t.pw)
         (fun () -> check_failure "default timeout" ~kind:Assertion_failed ~message:"100ms" (fun () -> Expect.to_have_text "never" status))
 
 let tests t =

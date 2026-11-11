@@ -357,8 +357,8 @@ Expect.Not.to_be_visible (Page.get_by_text "Loading" page);
 Expect.Not.to_have_class "disabled" (Page.get_by_role `Button ~name:"Send" page)
 ```
 
-`~timeout` changes the time allowed for one assertion and `Expect.set_default_timeout` for
-all of them. An assertion that fails raises `Playwright.Error` with the kind
+`~timeout` changes the time allowed for one assertion, and `Expect.set_default_timeout 10_000. pw`
+that of all assertions about the pages of a driver. An assertion that fails raises `Playwright.Error` with the kind
 `Assertion_failed` and a message like this one:
 
 ```text
@@ -853,7 +853,7 @@ Call log:
 | What | Default | How to change it |
 | --- | --- | --- |
 | actions, waiting, navigation | 30 s | `~timeout`; `Page.set_default_timeout`, `BrowserContext.set_default_timeout`; for navigation alone `set_default_navigation_timeout` |
-| assertions | 5 s | `~timeout`; `Expect.set_default_timeout` |
+| assertions | 5 s | `~timeout`; `Expect.set_default_timeout`, for a driver |
 | launching a browser | 180 s | `~timeout` |
 
 Functions that only read what the library knows already, such as `Page.url`, do not wait

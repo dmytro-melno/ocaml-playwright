@@ -28,7 +28,12 @@ type session = {
     selectors : selectors;
     url_matchers : (string, string -> bool) Hashtbl.t;  (* compiled globs, by base URL and glob *)
     mutable devices : device list;
+    assertions : assertions;
 }
+
+(* Like the selector settings below, these are those of the driver and of all that is reached
+   through it. *)
+and assertions = { mutable assertion_timeout : float  (* of the assertions that are not given one *) }
 
 (* Selector settings apply to every context, including those of remote sessions, so a remote
    session shares this record with the local one. *)

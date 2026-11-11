@@ -477,6 +477,13 @@ let test_second_driver t () =
     let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
     let page = Browser.new_page browser in
     Alcotest.(check bool) "the objects of two drivers are different ones" false (BrowserType.equal (chromium pw) (chromium t.pw));
+    (* A setting of one driver is not one of the other. *)
+    Expect.set_default_timeout 150. pw;
+    check_failure "the assertions of this driver" ~kind:Assertion_failed ~message:"150ms" (fun () -> Expect.to_be_visible (Page.locator "#never" page));
+    let other = Browser.new_page t.browser in
+    ignore (Page.evaluate "setTimeout(() => document.title = 'late', 500)" other);
+    Expect.to_have_title "late" other;
+    Page.close other;
     Playwright.close pw;
     check_failure "everything fails once the driver is stopped" ~kind:Target_closed (fun () -> Page.title page);
     check_failure "also launching" ~kind:Target_closed (fun () -> BrowserType.launch (chromium pw));

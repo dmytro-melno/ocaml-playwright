@@ -2056,8 +2056,10 @@ module Expect : sig
     (** The opposite assertions: [Expect.Not.to_be_visible locator] waits for the element to be hidden. *)
     module Not : Assertions
 
-    val set_default_timeout : float -> unit
-    (** Sets the timeout of the assertions that are not given one, for the whole program. *)
+    val set_default_timeout : float -> t -> unit
+    (** Sets the timeout of the assertions that are not given one, which is 5 seconds at first. The setting is that
+        of a driver: it applies to the assertions about its pages, those of browsers that it has connected to
+        included, and to no others. *)
 end
 
 (** {1:roots What a driver gives access to} *)
