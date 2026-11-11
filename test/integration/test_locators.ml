@@ -337,6 +337,18 @@ let test_expect _ page =
     Expect.to_have_id "name" name;
     Expect.to_have_role `Textbox name;
     Expect.to_have_accessible_name "Name" name;
+    Expect.Not.to_have_accessible_error_message "A name is required" name;
+    let complain =
+        {|input => {
+            document.body.insertAdjacentHTML('beforeend', '<span id="complaint">A name  is required</span>');
+            input.setAttribute('aria-invalid', 'true');
+            input.setAttribute('aria-errormessage', 'complaint');
+        }|}
+    in
+    ignore (Locator.evaluate complain name);
+    Expect.to_have_accessible_error_message "A name is required" name;
+    Expect.to_have_accessible_error_message_regex "/required$/" name;
+    ignore (Locator.evaluate "input => { input.removeAttribute('aria-invalid'); document.querySelector('#complaint').remove(); }" name);
     Expect.Not.to_be_checked terms;
     Locator.check terms;
     Expect.to_be_checked terms;

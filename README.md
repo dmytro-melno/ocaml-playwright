@@ -23,7 +23,7 @@ let () =
     Browser.close browser
 ```
 
-This version works with **Playwright 1.65**.
+This is version 0.2.0, which works with **Playwright 1.65**.
 
 ## Requirements
 
@@ -125,6 +125,9 @@ Eio.Fiber.List.map title [ "https://ocaml.org"; "https://playwright.dev" ]
 - [API reference](lib/playwright.mli): the documented interface; `dune build @doc` renders it
   with odoc. Since the API follows Playwright's closely, the
   [Playwright documentation](https://playwright.dev/docs/intro) is a good companion.
+- [Playwright side by side](doc/parity.md), for those who know Playwright from another
+  language: how its interface is written in OCaml, where this library behaves differently,
+  and what it does not cover.
 - [Examples](examples): small complete programs. Run one with
   `dune exec examples/quickstart.exe`.
 - [Migrating from 0.1](doc/migration.md), the versions before this rewrite.
@@ -135,11 +138,13 @@ Eio.Fiber.List.map title [ "https://ocaml.org"; "https://playwright.dev" ]
 
 ## What is not covered
 
-Most of the Playwright API is here. These parts are not, at present: JavaScript and CSS
-coverage, screencasts, visual comparisons (`toHaveScreenshot`), WebAuthn virtual
-authenticators, Chromium's own tracing (`browser.startTracing`), Android and Electron. The
-guide lists the [differences from the Playwright API](doc/guide.md#differences-from-playwright)
-in detail.
+Most of the Playwright API is here. These parts are not, at present: the test runner and
+what belongs to it (fixtures, `expect.poll`, visual comparisons with `toHaveScreenshot`),
+JavaScript and CSS coverage, screencasts, WebAuthn virtual authenticators, Chromium's own
+tracing (`browser.startTracing`), Android and Electron.
+[doc/parity.md](doc/parity.md#what-is-not-covered) has the full list, with what to use
+instead, and [doc/dev/protocol-coverage.md](doc/dev/protocol-coverage.md) the inventory of
+Playwright's protocol that it is derived from.
 
 ## Development
 

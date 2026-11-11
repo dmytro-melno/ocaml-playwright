@@ -300,6 +300,31 @@ ignore (with_button, second, either)
 elements, `Locator.and_` and `Locator.or_` combine two locators, and `Locator.visible`
 keeps the visible elements only.
 
+### Elements by reference
+
+A program that decides what to do by looking at the page, a language model for instance,
+needs the page in a form that it can read and a way to say which element it means. The
+snapshot for that purpose is a rendering of the accessibility tree in which every element
+carries a reference:
+
+```ocaml
+let snapshot = Page.aria_snapshot ~mode:`Ai page in
+(* - generic [active] [ref=e1]:
+     - heading "Sign up" [level=1] [ref=e2]
+     - textbox "Name" [ref=e4]
+     - button "Submit" [ref=e5] *)
+print_string snapshot;
+let button = Page.get_by_ref "e5" page in
+Locator.click button;
+print_endline (Locator.normalize button |> Locator.selector)
+(* internal:role=button[name="Submit"i] *)
+```
+
+`Page.get_by_ref` gives the locator of a reference. References hold until the next snapshot
+is taken; `Locator.normalize` turns such a locator into the one that Playwright itself would
+write, by role and name where possible, which lasts and can be stored or shown.
+`Page.aria_snapshot_json` gives the same tree as JSON.
+
 ### Strictness
 
 An operation on one element, such as `Locator.click` or `Locator.inner_text`, fails if its
@@ -347,7 +372,10 @@ Page.get_by_role `Button ~name:"Send" page |> Locator.click
 | `Locator.dispatch_event` | fire a DOM event directly, without the checks above |
 
 Options shared by most actions: `~timeout`; `~force:true` skips the actionability checks;
-`~trial:true` performs the checks but not the action.
+`~trial:true` performs the checks but not the action. Pointer actions take
+`` ~scroll:`None `` as well, with which nothing is scrolled and the action fails for an
+element that is not within the viewport: a way to find out whether a user could reach it as
+the page is.
 
 Lower-level input goes through the keyboard, mouse and touchscreen of the page:
 
@@ -503,7 +531,17 @@ Page.once Page.Close (fun _ -> print_endline "the page was closed") page |> igno
 ```
 
 The event determines the type of the listener's argument: `Page.Console` carries a console
-message, `Page.Request_failed` a request. The events of a context cover all of its pages.
+message, `Page.Request_failed` a request.
+
+The events of a context cover all of its pages, those that are yet to be opened included.
+Besides the events that a page has too, there are `BrowserContext.Page` for a new page,
+`Page_load` and `Page_close` for what becomes of it, and `Frame_navigated` for every
+navigation in any frame. `Browser.on_context` tells of new contexts.
+
+```ocaml
+BrowserContext.on BrowserContext.Frame_navigated (fun frame -> print_endline ("now at " ^ Frame.url frame)) context |> ignore;
+BrowserContext.on BrowserContext.Page_close (fun page -> print_endline ("closed " ^ Page.url page)) context |> ignore
+```
 
 `Page.on` returns a `Disposable.t`. Most listeners stay for as long as their page, and what
 they return is ignored. To remove one, keep it and dispose of it. A listener that has been
@@ -788,6 +826,16 @@ BrowserContext.new_page context
 use: `BrowserContext.set_offline`, `set_geolocation`, `grant_permissions`,
 `set_extra_http_headers`, and for a page `Page.set_viewport_size` and `Page.emulate_media`.
 
+Servers that authenticate their clients by TLS certificate are given one per origin, from
+files or from memory. The same option exists for `APIRequest.new_context`.
+
+```ocaml
+let certificate =
+    Client_certificate.pem ~origin:"https://internal.example.com" ~cert:(`Path "client.pem") ~key:(`Path "client.key") ()
+in
+Browser.new_context ~client_certificates:[ certificate ] browser
+```
+
 ### Cookies and storage
 
 ```ocaml
@@ -1047,6 +1095,13 @@ let pages = List.concat_map BrowserContext.pages (Browser.contexts browser) in
 List.iter (fun page -> print_endline (Page.url page)) pages
 ```
 
+With `~no_defaults:true` Playwright leaves the settings of that browser's own context alone,
+which is the polite way to attach to a browser that somebody is using.
+
+**A browser to share.** `Browser.bind` goes the other way: it makes a browser that this
+program launched available to other clients of Playwright, such as its command line tool and
+its MCP server, and returns the endpoint for them to connect to. `Browser.unbind` ends that.
+
 For Chromium there is also direct access to the
 [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/), for the rare
 things that Playwright has no function for:
@@ -1112,34 +1167,20 @@ build run `ocaml-playwright --version` once to fetch it, or provide it through
 
 ## Differences from Playwright
 
-The library follows Playwright for Node.js and Python closely. Where it deviates, and what
-it leaves out:
+The library follows Playwright closely: the same objects, the same operations, the same
+options and the same waiting. What differs is what OCaml and Eio make different.
 
-**By design**
+- Functions block, and concurrency and cancellation are those of Eio fibers.
+- Listeners and handlers run in fibers of their own, a bounded number at a time, and their
+  exceptions go to `~on_error`. A route handler that raises aborts its request.
+- Regular expressions are JavaScript literals in strings, and URLs are matched by glob
+  patterns or by predicates.
+- `evaluate` takes JavaScript source, not a function of the host language.
+- Assertions are plain functions that raise. There is no test runner, and nothing that
+  belongs to one: fixtures, soft assertions, `expect.poll`, comparisons of screenshots.
+- Not covered: code coverage, screencasts, WebAuthn authenticators, Chromium's own tracing,
+  Android and Electron.
 
-- Regular expressions are JavaScript literals in strings (`..._regex`), and they are not
-  accepted for URLs: use glob patterns or `..._matching` with a predicate.
-- `Page.evaluate` and its relatives take JavaScript source. There is nothing like passing a
-  function of the host language.
-- The clock of a context is controlled through the `Clock` module, with the context as
-  argument.
-- Listeners are removed by disposing of what `on` and `once` returned; there is no `off`,
-  because it would have to recognise a function. `route_web_socket` returns a disposable
-  too, while `Tracing.start`, `Tracing.group` and the like return `()` and have their
-  counterparts `stop` and `group_end`.
-- If a route handler raises before it has settled its route, the exception goes to
-  `~on_error` and the request fails. In Playwright for Node.js the exception is an
-  unhandled rejection and the request stays pending.
-- Assertions are plain functions that raise; there is no test runner, no fixtures, no soft
-  assertions and no `expect.poll`.
-
-**Not covered**
-
-- JavaScript and CSS coverage (`page.coverage`).
-- Screencasts (`page.screencast`) and visual comparisons (`toHaveScreenshot`,
-  `toMatchSnapshot`).
-- WebAuthn virtual authenticators.
-- Chromium's own tracing, `browser.startTracing`. The Playwright trace is covered.
-- Reading a download as a stream; use `Download.path` or `Download.save_as`.
-- `browserType.launchServer`. A server is started with `ocaml-playwright run-server`.
-- Android and Electron.
+[parity.md](parity.md) has all of it: how each construct of Playwright's interface is
+written here, the members that have another name, every intended difference in behaviour,
+and what stands in for the parts that are not covered.

@@ -2240,6 +2240,11 @@ module Expect : sig
         val to_have_accessible_description : ?timeout:float -> ?ignore_case:bool -> string -> Locator.t -> unit
         val to_have_accessible_description_regex : ?timeout:float -> string -> Locator.t -> unit
 
+        val to_have_accessible_error_message : ?timeout:float -> ?ignore_case:bool -> string -> Locator.t -> unit
+        (** The text of what [aria-errormessage] refers to, for an element that is marked as invalid. *)
+
+        val to_have_accessible_error_message_regex : ?timeout:float -> string -> Locator.t -> unit
+
         val to_match_aria_snapshot : ?timeout:float -> string -> Locator.t -> unit
         (** The accessibility tree of the element matches the given
             {{:https://playwright.dev/docs/aria-snapshots} ARIA snapshot} template. *)

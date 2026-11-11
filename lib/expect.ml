@@ -169,6 +169,12 @@ struct
     let to_have_accessible_description_regex ?timeout regex l =
         simple_text "to.have.accessible.description" "accessible description" ?timeout ~normalize_white_space:true (Regex regex) l
 
+    let to_have_accessible_error_message ?timeout ?ignore_case message l =
+        simple_text "to.have.accessible.error.message" "accessible error message" ?timeout ?ignore_case ~normalize_white_space:true (Text message) l
+
+    let to_have_accessible_error_message_regex ?timeout regex l =
+        simple_text "to.have.accessible.error.message" "accessible error message" ?timeout ~normalize_white_space:true (Regex regex) l
+
     let to_match_aria_snapshot ?timeout snapshot l =
         let snapshot = unindent snapshot in
         locator ?timeout ~expected_value:(Js.String snapshot) "to.match.aria" ~condition:("to match the ARIA snapshot\n" ^ snapshot) l
