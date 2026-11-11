@@ -13,7 +13,7 @@ module Context = struct
         channel.impl <-
             Api_request_context
                 { a_channel = channel; a_session = session; a_tracing = Types.tracing init.tracing; a_timeouts = Timeouts.create ();
-                  a_close_reason = None; a_closed = false }
+                  a_close_reason = None; a_close_state = Closing.create () }
 
     let has_json_content_type headers =
         List.exists
@@ -24,7 +24,7 @@ module Context = struct
 
     let fetch ?timeout ?method_ ?headers ?params ?data ?json ?form ?(multipart : (string * multipart_value) list option) ?fail_on_status_code ?ignore_https_errors ?max_redirects
         ?max_retries ?(request : request option) url (t : t) : api_response =
-        if t.a_closed then raise (Error.E (Error.target_closed ?message:t.a_close_reason ()));
+        if not (Closing.is_open t.a_close_state) then raise (Error.E (Error.target_closed ?message:t.a_close_reason ()));
         let bodies = List.length (List.filter Fun.id [ data <> None; json <> None; form <> None; multipart <> None ]) in
         if bodies > 1 then invalid_arg "Playwright: only one of ~data, ~json, ~form and ~multipart can be specified";
         let method_ = match method_, request with Some _, _ -> method_ | None, Some request -> Some (Network.Request.method_ request) | None, None -> None in
@@ -57,7 +57,7 @@ module Context = struct
                 ?method_ ?headers:(Option.map Network.name_values headers) ?post_data ?json_data ?form_data:(Option.map Network.name_values form)
                 ?multipart_data ?fail_on_status_code ?ignore_https_errors ?max_redirects ?max_retries t.a_channel
         in
-        { ar_context = t; ar_init = response; ar_disposed = false }
+        { ar_context = t; ar_init = response }
 
     let with_method method_ ?timeout ?headers ?params ?data ?json ?form ?multipart ?fail_on_status_code ?ignore_https_errors ?max_redirects
         ?max_retries url t =
@@ -83,13 +83,12 @@ module Context = struct
     let add_cookies cookies (t : t) = Protocol.Api_request_context.add_cookies ~cookies t.a_channel
     let clear_cookies ?name ?domain ?path (t : t) = Protocol.Api_request_context.clear_cookies ?name ?domain ?path t.a_channel
 
+    (* Disposing is idempotent, and a context that is already gone counts as disposed of. *)
     let dispose ?reason (t : t) =
-        if not t.a_closed then begin
-            t.a_closed <- true;
-            t.a_close_reason <- reason;
+        if Closing.is_open t.a_close_state then t.a_close_reason <- reason;
+        Closing.close t.a_session.conn t.a_close_state (fun () ->
             (try Tracing.export_all_hars t.a_tracing with Error.E { kind = Target_closed; _ } -> ());
-            try Protocol.Api_request_context.dispose ?reason t.a_channel with Error.E { kind = Target_closed; _ } -> ()
-        end
+            Protocol.Api_request_context.dispose ?reason t.a_channel)
 end
 
 module Response = struct
@@ -115,10 +114,11 @@ module Response = struct
     let json r : Yojson.Safe.t =
         try Yojson.Safe.from_string (body r) with Yojson.Json_error message -> Error.raise_ "The response body is not valid JSON: %s" message
 
+    (* Disposing is idempotent on the side of the driver. *)
     let dispose (r : t) =
-        if not r.ar_disposed then begin
-            r.ar_disposed <- true;
-            try Protocol.Api_request_context.dispose_api_response ~fetch_uid:r.ar_init.fetch_uid r.ar_context.a_channel
-            with Error.E { kind = Target_closed; _ } -> ()
-        end
+        let context = r.ar_context in
+        try
+            Connection.detached context.a_session.conn (fun () ->
+                Protocol.Api_request_context.dispose_api_response ~fetch_uid:r.ar_init.fetch_uid context.a_channel)
+        with Error.E { kind = Target_closed; _ } -> ()
 end

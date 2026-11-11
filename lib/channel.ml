@@ -14,3 +14,7 @@ let of_json conn (j : Json.t) : t =
     | None -> Error.raise_ "Protocol error: object %S is not bound in the connection" guid
 
 let call = Connection.call
+
+(* Gives back what a cancelled command made: see {!Connection.call}.  Nobody is there to hear
+   that it could not be done. *)
+let release ?(params : Json.t = `Assoc []) method_ (t : t) = try Connection.call t method_ params ignore with Error.E _ -> ()

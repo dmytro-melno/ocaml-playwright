@@ -78,7 +78,7 @@ and browser = {
     b_name : string;
     version : string;
     mutable contexts : browser_context list;
-    mutable connected : bool;
+    b_close_state : Closing.t;
     mutable b_close_reason : string option;
     mutable b_traces_dir : string option;
     (* For a browser reached through its own connection: how to drop that connection. *)
@@ -103,7 +103,7 @@ and browser_context = {
     tracing : tracing;
     request : api_request_context;
     mutable service_workers : worker list;
-    mutable close_state : [ `Open | `Closing | `Closed ];
+    close_state : Closing.t;
     mutable c_close_reason : string option;
     c_closed : unit Promise.t;
     c_closed_resolver : unit Promise.u;
@@ -371,13 +371,12 @@ and api_request_context = {
     a_tracing : tracing;
     mutable a_timeouts : Timeouts.t;
     mutable a_close_reason : string option;
-    mutable a_closed : bool;
+    a_close_state : Closing.t;
 }
 
 and api_response = {
     ar_context : api_request_context;
     ar_init : Protocol.Api_response.t;
-    mutable ar_disposed : bool;
 }
 
 and cdp_session = {

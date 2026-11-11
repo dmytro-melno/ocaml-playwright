@@ -104,6 +104,8 @@ let upload (context : browser_context) ?directory files =
             files
     in
     let result = Protocol.Browser_context.create_temp_files ?root_dir_name:(Option.map Filename.basename directory) ~items context.c_channel in
+    let abandon () = List.iter (fun stream -> try Protocol.Writable_stream.close stream with Error.E _ -> ()) result.writable_streams in
+    Connection.guard context.c_channel.conn "closing the streams of an upload" ~undo:abandon @@ fun () ->
     List.iter2
         (fun (_, path) stream ->
             In_channel.with_open_bin path (fun ic ->

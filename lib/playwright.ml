@@ -456,9 +456,13 @@ let create ?(on_error = fun what ex -> report_to_stderr what ex (Printexc.get_ra
     let serving = ref false in
     Fiber.fork_daemon ~sw (fun () ->
         serving := true;
-        Fun.protect
-            ~finally:(fun () -> Promise.resolve stopped_resolver ())
-            (fun () -> Fun.protect ~finally:process.stop (fun () -> Connection.run conn));
+        let stop_driver () = Fun.protect ~finally:(Promise.resolve stopped_resolver) process.stop in
+        (match Connection.run conn with
+        | () -> stop_driver ()
+        | exception ex ->
+            let backtrace = Printexc.get_raw_backtrace () in
+            stop_driver ();
+            Printexc.raise_with_backtrace ex backtrace);
         `Stop_daemon);
     if not !serving then begin
         (* The switch is being cancelled. *)

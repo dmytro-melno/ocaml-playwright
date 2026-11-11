@@ -4,6 +4,7 @@ module Json = Playwright__Json
 module Error = Playwright__Error
 module Transport = Playwright__Transport
 module Connection = Playwright__Connection
+module Closing = Playwright__Closing
 module Protocol = Playwright__Protocol
 module Emitter = Playwright__Emitter
 module Waiter = Playwright__Waiter

@@ -7,7 +7,7 @@ let chunk_size = 1024 * 1024
 (* Copies a driver-side stream into a local file. *)
 let save_stream (stream : Channel.t) path =
     Files.mkdir_p (Filename.dirname (Files.absolute path));
-    Fun.protect
+    Connection.protect stream.conn "closing a stream"
         ~finally:(fun () -> try Protocol.Stream.close stream with Error.E _ -> ())
         (fun () ->
             try

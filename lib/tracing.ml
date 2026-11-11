@@ -42,7 +42,7 @@ let save_chunk (t : t) ?path stacks_id =
         (match (Protocol.Tracing.tracing_stop_chunk ~mode:`Archive t.t_channel).artifact with
         | None -> discard_stacks ()
         | Some artifact ->
-            Fun.protect
+            Connection.protect t.t_channel.conn "deleting a trace"
                 ~finally:(fun () -> try Artifact.delete artifact with Error.E _ -> ())
                 (fun () -> Artifact.save_as t.t_session artifact path);
             Protocol.Local_utils.zip ~zip_file:path ~entries:[] ?stacks_id ~mode:`Append ~include_sources:t.include_sources (local_utils t))
@@ -50,14 +50,17 @@ let save_chunk (t : t) ?path stacks_id =
 let stop_chunk ?path (t : t) =
     let stacks_id = t.stacks_id in
     t.stacks_id <- None;
-    try save_chunk t ?path stacks_id
-    with error ->
-        (* Release the stack session even on failure, otherwise later traces keep appending to it. *)
-        Option.iter (fun stacks_id -> try Protocol.Local_utils.trace_discarded ~stacks_id (local_utils t) with Error.E _ -> ()) stacks_id;
-        raise error
+    (* The stacks are released also when the trace could not be saved, otherwise later traces keep
+       appending to them. *)
+    Connection.guard t.t_channel.conn "discarding the stacks of a trace"
+        ~undo:(fun () -> Option.iter (fun stacks_id -> try Protocol.Local_utils.trace_discarded ~stacks_id (local_utils t) with Error.E _ -> ()) stacks_id)
+        (fun () -> save_chunk t ?path stacks_id)
 
+(* Tracing is stopped also when the trace could not be saved, which is the failure that counts. *)
 let stop ?path (t : t) =
-    Fun.protect ~finally:(fun () -> Protocol.Tracing.tracing_stop t.t_channel) (fun () -> stop_chunk ?path t)
+    let stop () = Protocol.Tracing.tracing_stop t.t_channel in
+    Connection.guard t.t_channel.conn "stopping tracing" ~undo:stop (fun () -> stop_chunk ?path t);
+    stop ()
 
 (* {1 HAR recording} *)
 
@@ -89,7 +92,7 @@ let export_har (t : t) har_id =
             match (Protocol.Tracing.har_export ~har_id ~mode:`Archive t.t_channel).artifact with
             | None -> ()
             | Some artifact ->
-                Fun.protect
+                Connection.protect t.t_channel.conn "deleting a recording"
                     ~finally:(fun () -> try Artifact.delete artifact with Error.E _ -> ())
                     (fun () ->
                         if is_zip path then Artifact.save_as t.t_session artifact path

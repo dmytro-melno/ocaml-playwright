@@ -118,7 +118,8 @@ let launch_persistent_context =
             let context = Types.browser_context result.context in
             adopt t ?traces_dir:o.traces_dir browser;
             Browser.setup_context browser context;
-            Browser_context.start_har_recording c context;
+            Connection.guard t.bt_session.conn "closing a browser" ~undo:(fun () -> Browser.close browser) (fun () ->
+                Browser_context.start_har_recording c context);
             context))
 
 (* Attaches to a running browser through the Chrome DevTools Protocol. *)

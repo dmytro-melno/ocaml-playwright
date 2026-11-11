@@ -14,8 +14,7 @@ let setup_context (browser : t) (context : browser_context) =
 
 (* The browser is gone: it was closed, it crashed, or the connection to it ended. *)
 let did_close (browser : t) =
-    if browser.connected then begin
-        browser.connected <- false;
+    if Closing.set_closed browser.b_close_state then begin
         Promise.resolve browser.b_closed_resolver ();
         ignore (Emitter.emit browser.b_session.conn browser.e_disconnected browser)
     end
@@ -31,7 +30,7 @@ let create session (channel : Channel.t) =
     let browser_type = match channel.parent with Some { impl = Browser_type browser_type; _ } -> Some browser_type | _ -> None in
     let b_closed, b_closed_resolver = Promise.create () in
     let browser =
-        { b_channel = channel; b_session = session; browser_type; b_name = init.name; version = init.version; contexts = []; connected = true;
+        { b_channel = channel; b_session = session; browser_type; b_name = init.name; version = init.version; contexts = []; b_close_state = Closing.create ();
           b_close_reason = None; b_traces_dir = None; disconnect = None; b_closed; b_closed_resolver; e_disconnected = Emitter.create () }
     in
     channel.impl <- Browser browser;
@@ -46,7 +45,7 @@ let browser_type (browser : t) =
 let contexts (browser : t) = browser.contexts
 let version (browser : t) = browser.version
 let name (browser : t) = browser.b_name
-let is_connected (browser : t) = browser.connected
+let is_connected (browser : t) = not (Closing.is_closed browser.b_close_state)
 let on_disconnected listener (browser : t) = Emitter.on browser.e_disconnected listener
 let off_disconnected listener (browser : t) = Emitter.off browser.e_disconnected listener
 
@@ -79,7 +78,8 @@ let new_context_with (o : Context_options.t) (browser : t) =
         |> Types.browser_context
     in
     setup_context browser context;
-    Browser_context.start_har_recording o context;
+    Connection.guard session.conn "closing a browser context" ~undo:(fun () -> Browser_context.close context) (fun () ->
+        Browser_context.start_har_recording o context);
     context
 
 let new_context ?proxy = Context_options.collect (fun options browser -> new_context_with { options with proxy } browser)
@@ -88,22 +88,23 @@ let new_context ?proxy = Context_options.collect (fun options browser -> new_con
 let new_page ?proxy =
     Context_options.collect (fun options browser ->
         let context = new_context_with { options with proxy } browser in
-        let page = Browser_context.new_page context in
+        let page =
+            Connection.guard browser.b_session.conn "closing a browser context" ~undo:(fun () -> Browser_context.close context) (fun () ->
+                Browser_context.new_page context)
+        in
         page.owned_context <- Some context;
         context.owner_page <- Some page;
         page)
 
 let new_browser_cdp_session (browser : t) = Protocol.Browser.new_browser_cdp_session browser.b_channel |> Types.cdp_session
 
-(* Closing is idempotent, and a browser that is already gone counts as closed. *)
+(* Closing is idempotent, and a browser that is already gone counts as closed.  A browser that
+   was connected to is disconnected from. *)
 let close ?reason (browser : t) =
-    browser.b_close_reason <- reason;
-    try
-        (match browser.disconnect with
-        | Some disconnect -> disconnect ()
-        | None ->
-            if browser.connected then begin
-                Protocol.Browser.close ?reason browser.b_channel;
-                Promise.await browser.b_closed
-            end)
-    with Error.E { kind = Target_closed; _ } -> ()
+    if Closing.is_open browser.b_close_state then browser.b_close_reason <- reason;
+    match browser.disconnect with
+    | Some disconnect -> disconnect ()
+    | None ->
+        Closing.close browser.b_session.conn browser.b_close_state (fun () ->
+            Protocol.Browser.close ?reason browser.b_channel;
+            Promise.await browser.b_closed)

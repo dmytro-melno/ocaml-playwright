@@ -28,7 +28,7 @@ type t = {
     owns_scope : bool;
     clock : float Eio.Time.clock_ty r;
     objects : (string, channel) Hashtbl.t;
-    pending : (string, (Json.t, Error.t) result Promise.u) Hashtbl.t;
+    pending : (string, (Json.t, Error.t) result -> unit) Hashtbl.t;  (* what to do with the reply to each command in flight *)
     outbox : Json.t Eio.Stream.t;
     id_prefix : string;
     mutable last_id : int;
@@ -147,9 +147,9 @@ let objects_bottom_up conn =
 let close conn error =
     if conn.closed = None then begin
         conn.closed <- Some error;
-        let pending = Hashtbl.fold (fun _ resolver acc -> resolver :: acc) conn.pending [] in
+        let pending = Hashtbl.fold (fun _ settle acc -> settle :: acc) conn.pending [] in
         Hashtbl.reset conn.pending;
-        List.iter (fun resolver -> Promise.resolve resolver (Error error)) pending;
+        List.iter (fun settle -> settle (Error error)) pending;
         let objects = objects_bottom_up conn in
         List.iter
             (fun (channel : channel) ->
@@ -172,10 +172,22 @@ let enqueue conn (message : Json.t) =
         Eio.Stream.add conn.outbox message
     end
 
-(* Sends a command and waits for its reply.  [timeout] is in milliseconds and enforced by the
-   driver; [0.] disables it.  If the calling fiber is cancelled the driver is asked to abort the
-   command, and a reply that still arrives is dropped. *)
-let call ?(timeout = 0.) (channel : channel) method_ (params : Json.t) : Json.t =
+(* Sends a command and waits for its reply, which [decode] turns into the result.  [timeout]
+   is in milliseconds and enforced by the driver; [0.] disables it.
+
+   The reply is decoded by the reader, before the command counts as answered: a reply that
+   cannot be understood is a protocol failure like any other, and the caller sees the error that
+   the connection is closed with.
+
+   If the calling fiber is cancelled, the driver is asked to abort the command.  That is only a
+   request: the command may have been carried out already, and what it made then belongs to
+   nobody.  [orphan] is given the result of such a command, in a fiber of the instance, to
+   release what is in it; without it the late reply is dropped.
+
+   The driver does not abort every command cleanly: one that makes a page or a context can
+   leave it behind, out of anybody's reach.  Such a command is not [abortable]: it is left to
+   finish, and its result goes to [orphan]. *)
+let call ?(timeout = 0.) ?orphan ?(abortable = true) (channel : channel) method_ (params : Json.t) (decode : Json.t -> 'a) : 'a =
     let conn = channel.conn in
     Option.iter (fun error -> raise (Error.E error)) conn.closed;
     if channel.collected then Error.raise_ "The object has been collected to prevent unbounded heap growth.";
@@ -183,19 +195,100 @@ let call ?(timeout = 0.) (channel : channel) method_ (params : Json.t) : Json.t 
     let id = Printf.sprintf "%s@%d" conn.id_prefix conn.last_id in
     let metadata = if timeout > 0. then `Assoc [ "timeout", Json.float timeout ] else `Assoc [] in
     let promise, resolver = Promise.create () in
-    Hashtbl.replace conn.pending id resolver;
+    Hashtbl.replace conn.pending id (fun reply -> Promise.resolve resolver (Result.map decode reply));
     enqueue conn (`Assoc [ "id", `String id; "guid", `String channel.guid; "method", `String method_; "params", params; "metadata", metadata ]);
     match Promise.await promise with
     | Ok result -> result
     | Error error -> raise (Error.E error)
     | exception ex ->
-        if Hashtbl.mem conn.pending id then begin
-            Hashtbl.remove conn.pending id;
-            enqueue conn
-                (`Assoc [ "guid", `String channel.guid; "method", `String "__abort__";
-                          "params", `Assoc [ "id", `String id; "reason", `String "Cancelled by the client" ] ])
-        end;
-        raise ex
+        let backtrace = Printexc.get_raw_backtrace () in
+        let release result = Option.iter (fun orphan -> fork conn "releasing the result of a cancelled command" (fun () -> orphan result)) orphan in
+        (match Promise.peek promise with
+        | Some (Ok result) -> release result  (* the reply and the cancellation crossed *)
+        | Some (Error _) -> ()
+        | None ->
+            if Hashtbl.mem conn.pending id then begin
+                (match orphan with
+                | None -> Hashtbl.remove conn.pending id
+                | Some _ -> Hashtbl.replace conn.pending id (function Ok reply -> release (decode reply) | Error _ -> ()));
+                if abortable then
+                    enqueue conn
+                        (`Assoc [ "guid", `String channel.guid; "method", `String "__abort__";
+                                  "params", `Assoc [ "id", `String id; "reason", `String "Cancelled by the client" ] ])
+            end);
+        Printexc.raise_with_backtrace ex backtrace
+
+(* {1 Work that outlives its caller}
+
+   Closing, disposing and cleaning up must not be left half done because the fiber that asked for
+   them was cancelled: usually that is exactly when they are asked for.  Such work is carried out
+   in the scope of the instance.  The caller waits for it, and a caller that is cancelled only
+   stops waiting. *)
+
+type 'a outcome = ('a, exn * Printexc.raw_backtrace) result
+
+(* Runs [f] in the scope of the instance and passes its outcome to [settle], exactly once.  [f]
+   starts immediately and runs until it first blocks.  If the instance ends first, the outcome is
+   the error that the connection was closed with. *)
+let run_detached conn (f : unit -> 'a) (settle : 'a outcome -> unit) =
+    let lost () = Error (Error.E (Option.value conn.closed ~default:(Error.target_closed ())), Printexc.get_callstack 0) in
+    let started = ref false in
+    Option.iter
+        (fun sw ->
+            Fiber.fork_daemon ~sw (fun () ->
+                started := true;
+                settle
+                    (match f () with
+                    | value -> Ok value
+                    | exception ex when is_cancellation ex -> lost ()
+                    | exception ex -> Error (ex, Printexc.get_raw_backtrace ()));
+                `Stop_daemon))
+        conn.scope.switch;
+    (* Nothing starts in a scope that is gone or on its way out. *)
+    if not !started then settle (lost ())
+
+let start conn f : 'a outcome Promise.t =
+    let promise, resolver = Promise.create () in
+    run_detached conn f (Promise.resolve resolver);
+    promise
+
+let join (outcome : 'a outcome Promise.t) =
+    match Promise.await outcome with
+    | Ok value -> value
+    | Error (ex, backtrace) -> Printexc.raise_with_backtrace ex backtrace
+
+(* [f ()], which cancelling the caller does not interrupt. *)
+let detached conn f = join (start conn f)
+
+(* For the step that releases something once an operation is over.  It is carried out even when
+   the calling fiber is being cancelled, and it never raises: "target closed" means that there
+   was nothing left to release, and any other failure is reported. *)
+let cleanup conn what f =
+    let outcome =
+        start conn (fun () ->
+            try f () with
+            | Error.E { kind = Target_closed; _ } -> ()
+            | ex when not (is_cancellation ex) -> conn.report what ex (Printexc.get_raw_backtrace ()))
+    in
+    try ignore (Promise.await outcome : unit outcome) with ex when is_cancellation ex -> ()
+
+(* [f ()], with [undo] as its clean-up if it fails or is cancelled: for the steps that follow
+   the making of something, which would otherwise be left behind. *)
+let guard conn what ~undo f =
+    try f ()
+    with ex ->
+        let backtrace = Printexc.get_raw_backtrace () in
+        cleanup conn what undo;
+        Printexc.raise_with_backtrace ex backtrace
+
+(* [Fun.protect] for a [finally] that talks to the driver: see {!cleanup}. *)
+let protect conn what ~finally f =
+    match f () with
+    | result -> cleanup conn what finally; result
+    | exception ex ->
+        let backtrace = Printexc.get_raw_backtrace () in
+        cleanup conn what finally;
+        Printexc.raise_with_backtrace ex backtrace
 
 let rec dispose (channel : channel) ~collected =
     Option.iter (fun (p : channel) -> Hashtbl.remove p.children channel.guid) channel.parent;
@@ -226,10 +319,8 @@ let dispatch conn (message : Json.t) =
         (* A missing entry is the reply to a cancelled command. *)
         (match Hashtbl.find_opt conn.pending id with
         | None -> ()
-        | Some resolver ->
-            (* The caller is released only by what is taken out of the table here, so the reply is
-               decoded first: a failure leaves the entry to be failed with the connection. *)
-            let result =
+        | Some settle ->
+            let reply =
                 match D.member "error" message with
                 | Some error when D.member "result" message = None ->
                     let log = Option.value (D.opt "log" (D.list D.string) message) ~default:[] in
@@ -237,8 +328,10 @@ let dispatch conn (message : Json.t) =
                     Error (Error.of_wire ~log ~details ~render_value:conn.render_value error)
                 | _ -> Ok (Option.value (D.member "result" message) ~default:(`Assoc []))
             in
-            Hashtbl.remove conn.pending id;
-            Promise.resolve resolver result)
+            (* [settle] decodes the result, and may fail.  The caller is released only by what is
+               taken out of the table, so a failure leaves it to be failed with the connection. *)
+            settle reply;
+            Hashtbl.remove conn.pending id)
     | None ->
         let guid = D.req "guid" D.string message in
         let method_ = D.req "method" D.string message in

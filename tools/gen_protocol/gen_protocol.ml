@@ -21,13 +21,38 @@ let excluded_interfaces =
       record with one populated field; [Js] encodes and decodes it directly. *)
 let opaque_types = [ "SerializedValue" ]
 
+(* What a cancelled command leaves behind.  The driver may have carried the command out before it
+      learnt that nobody waits for it any more; whatever the result holds then belongs to nobody.
+      For each kind of object that a command hands over to its caller, the command that gives it
+      back; the reply to a cancelled command is released with it.  A browser takes what is in it
+      along, so nothing else of a result with a browser is released. *)
+let released_with =
+    [ ("JSHandle", "dispose"); ("ElementHandle", "dispose"); ("Disposable", "dispose"); ("APIRequestContext", "dispose");
+        ("Page", "close"); ("BrowserContext", "close"); ("Browser", "close"); ("Stream", "close"); ("WritableStream", "close");
+        ("JsonPipe", "close"); ("Artifact", "delete"); ("CDPSession", "detach") ]
+
+(* The driver aborts a cancelled command that waits for something in a page cleanly, but not one
+      that makes a page, a context or a browser: abandoned half-way, such a command can leave
+      behind what it was making, where nobody can reach it.  So only commands that give back
+      nothing but handles are aborted; the others are left to finish, and then released. *)
+let aborted_safely = [ "JSHandle"; "ElementHandle" ]
+
+(* Commands whose result is not the caller's to release, although its type says so. *)
+let results_not_owned = [ "Browser.newContextForReuse"; "Page.screencastStart" ]
+
+(* Commands whose result is released in a way that its type does not tell: the expression is
+      applied to the result, with the receiver in [ch].  They can be aborted. *)
+let released_specially =
+    [ ("APIRequestContext.fetch",
+          "(fun (response : Api_response.t) -> Channel.release ~params:(Json.obj [ Json.req \"fetchUid\" Json.string response.fetch_uid ]) \"disposeAPIResponse\" ch)") ]
+
 (* {1 Model} *)
 
 type prim = String | Int | Float | Bool | Binary | Json
 
 type ty =
     | Prim of prim
-    | Channel
+    | Channel of string  (* the interface, or [""] for any *)
     | Def of string  (* OCaml module name of a generated record or enum module *)
     | Array of ty
     | Enum of string list
@@ -36,7 +61,7 @@ type field = { wire : string; ty : ty; optional : bool }
 
 type def = Record of field list | Variant of string list
 
-type command = { c_wire : string; params : field list; returns : field list }
+type command = { c_wire : string; c_interface : string; params : field list; returns : field list }
 
 type event = { e_wire : string; payload : field list }
 
@@ -157,11 +182,11 @@ let rec parse_type env ~register ~path (y : yaml) : ty * bool =
             | "boolean" -> Prim Bool
             | "binary" -> Prim Binary
             | "json" -> Prim Json
-            | "Channel" -> Channel
+            | "Channel" -> Channel ""
             | name when List.mem name opaque_types -> Prim Json
             | name -> (
                 match Hashtbl.find_opt env.kinds name with
-                | Some "interface" -> Channel
+                | Some "interface" -> Channel name
                 | Some ("object" | "enum") ->
                     global env name;
                     Def (module_name name)
@@ -264,7 +289,7 @@ let rec interface env name : interface =
             (match find_map c_wire "errorDetails" c with
             | [] -> ()
             | props -> ignore (register (cm ^ "_error_details") (Record (fields (cm ^ "_error_details") props))));
-            iface.commands <- iface.commands @ [ { c_wire; params; returns } ])
+            iface.commands <- iface.commands @ [ { c_wire; c_interface = name; params; returns } ])
         (find_map name "commands" spec);
     List.iter
         (fun (e_wire, y) ->
@@ -287,7 +312,7 @@ let rec type_expr = function
     | Prim Float -> "float"
     | Prim Bool -> "bool"
     | Prim Json -> "Json.t"
-    | Channel -> "Channel.t"
+    | Channel _ -> "Channel.t"
     | Def m -> m ^ ".t"
     | Array t -> type_expr t ^ " list"
     | Enum lits -> "[ " ^ String.concat " | " (List.map (fun l -> "`" ^ variant_name l) lits) ^ " ]"
@@ -301,7 +326,7 @@ let rec encoder = function
     | Prim Bool -> "Json.bool"
     | Prim Binary -> "Json.binary"
     | Prim Json -> "Json.any"
-    | Channel -> "Channel.to_json"
+    | Channel _ -> "Channel.to_json"
     | Def m -> m ^ ".to_json"
     | Array t -> Printf.sprintf "(Json.list %s)" (encoder t)
     | Enum lits ->
@@ -315,7 +340,7 @@ let rec decoder = function
     | Prim Bool -> "D.bool"
     | Prim Binary -> "D.binary"
     | Prim Json -> "D.any"
-    | Channel -> "(Channel.of_json c)"
+    | Channel _ -> "(Channel.of_json c)"
     | Def m -> Printf.sprintf "(%s.of_json c)" m
     | Array t -> Printf.sprintf "(D.list %s)" (decoder t)
     | Enum lits ->
@@ -323,7 +348,7 @@ let rec decoder = function
             (String.concat "; " (List.map (fun l -> Printf.sprintf "(%S, `%s)" l (variant_name l)) lits))
 
 let rec needs_conn = function
-    | Channel | Def _ -> true
+    | Channel _ | Def _ -> true
     | Array t -> needs_conn t
     | Prim _ | Enum _ -> false
 
@@ -385,7 +410,47 @@ let emit_events iface =
         pr "    | _ -> None\n\n"
     end
 
-let emit_command c =
+(* The function that releases the result of [c] when nobody is left to receive it, and whether
+      the command can be aborted: see [released_with] and [aborted_safely].  [lookup] finds a
+      record definition by its module name. *)
+let orphan_handler ~lookup c =
+    let name = c.c_interface ^ "." ^ c.c_wire in
+    let abortable = ref true in
+    let rec release ty value =
+        match ty with
+        | Channel interface ->
+            Option.map
+                (fun method_ ->
+                    if not (List.mem interface aborted_safely) then abortable := false;
+                    Printf.sprintf "Channel.release %S %s" method_ value)
+                (List.assoc_opt interface released_with)
+        | Array item -> Option.map (fun body -> Printf.sprintf "List.iter (fun item -> %s) %s" body value) (release item "item")
+        | Def m -> (
+            match lookup m with
+            | Some (Record fields) ->
+                let owned = match List.filter (fun f -> f.ty = Channel "Browser") fields with [] -> fields | browsers -> browsers in
+                (match List.filter_map (fun f -> release_field f (Printf.sprintf "(%s : %s.t).%s" value m (ident f.wire))) owned with
+                | [] -> None
+                | steps -> Some (String.concat "; " steps))
+            | Some (Variant _) | None -> None)
+        | Prim _ | Enum _ -> None
+    and release_field f value =
+        Option.map
+            (fun body -> if f.optional then Printf.sprintf "Option.iter (fun it -> %s) %s" body value else body)
+            (release f.ty (if f.optional then "it" else value))
+    in
+    match List.assoc_opt name released_specially with
+    | Some handler -> Some (handler, true)
+    | None when List.mem name results_not_owned -> None
+    | None ->
+        let body =
+            match c.returns with
+            | [ f ] -> release_field f "result"
+            | _ -> release (Def (module_name c.c_wire ^ "_result")) "result"
+        in
+        Option.map (fun body -> Printf.sprintf "(fun result -> %s)" body, !abortable) body
+
+let emit_command ~lookup c =
     let args =
         List.map (fun f -> Printf.sprintf "%s%s" (if f.optional then "?" else "~") (ident f.wire)) c.params
     in
@@ -407,18 +472,21 @@ let emit_command c =
         List.iter (fun f -> pr "          %s;\n" (encode_field ~access:Fun.id f)) params;
         pr "        ]\n    in\n");
     match result with
-    | None -> pr "    ignore (Channel.call ?timeout ch %S params)\n\n" c.c_wire
+    | None -> pr "    Channel.call ?timeout ch %S params ignore\n\n" c.c_wire
     | Some decode ->
-        pr "    let j = Channel.call ?timeout ch %S params in\n" c.c_wire;
         if List.length c.returns > 1 || List.exists (fun f -> needs_conn f.ty) c.returns then pr "    let c = Channel.conn ch in\n";
-        pr "    %s\n\n" decode
+        (match orphan_handler ~lookup c with
+        | None -> pr "    Channel.call ?timeout ch %S params (fun j -> %s)\n\n" c.c_wire decode
+        | Some (orphan, abortable) ->
+            pr "    Channel.call ?timeout%s\n      ~orphan:%s\n      ch %S params\n      (fun j -> %s)\n\n" (if abortable then "" else " ~abortable:false") orphan c.c_wire decode)
 
-let emit_interface iface =
+let emit_interface ~globals iface =
     pr "module %s = struct\n" (module_name iface.i_wire);
     pr "  let type_name = %S\n\n" iface.i_wire;
     List.iter (emit_def "  ") (List.rev iface.defs);
     emit_events iface;
-    List.iter emit_command iface.commands;
+    let lookup name = match List.assoc_opt name iface.defs with Some def -> Some def | None -> Hashtbl.find_opt globals name in
+    List.iter (emit_command ~lookup) iface.commands;
     pr "end\n\n"
 
 (* {1 Manifest} *)
@@ -468,7 +536,7 @@ let () =
     pr "(* {1 Structures} *)\n\n";
     List.iter (fun name -> emit_def "" (name, Hashtbl.find env.globals name)) (List.rev env.global_order);
     pr "(* {1 Channels} *)\n\n";
-    List.iter emit_interface interfaces;
+    List.iter (emit_interface ~globals:env.globals) interfaces;
     (* The emitters above indent by two spaces; the project style is four. *)
     let widen line =
         let n = ref 0 in

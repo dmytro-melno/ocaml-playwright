@@ -440,7 +440,9 @@ let close ?(run_before_unload = false) ?reason (page : t) =
     try
         match page.owned_context with
         | Some context -> Browser_context.close context
-        | None -> if run_before_unload then Protocol.Page.run_before_unload page.p_channel else Protocol.Page.close ?reason page.p_channel
+        | None ->
+            Connection.detached page.p_channel.conn (fun () ->
+                if run_before_unload then Protocol.Page.run_before_unload page.p_channel else Protocol.Page.close ?reason page.p_channel)
     with Error.E { kind = Target_closed; _ } when not run_before_unload -> ()
 
 (* Hands control to the Playwright inspector until the user resumes the script. *)

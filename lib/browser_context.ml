@@ -41,7 +41,8 @@ let event_name : type a. a event -> string = function
     | Service_worker -> "serviceworker"
 
 let emit (context : t) emitter value = ignore (Emitter.emit context.c_session.conn emitter value)
-let is_closed (context : t) = context.close_state <> `Open
+(* Like the original, this is true from the moment that the context is being closed. *)
+let is_closed (context : t) = not (Closing.is_open context.close_state)
 let close_error (context : t) = Error.target_closed ?message:(Frame.effective_close_reason context) ()
 
 (* {1 Network interception} *)
@@ -125,8 +126,7 @@ let js_error (error : Protocol.Serialized_error.t) : Error.t =
 
 (* The context is gone: it was closed, or its browser or the connection to it went away. *)
 let did_close (context : t) =
-    if context.close_state <> `Closed then begin
-        context.close_state <- `Closed;
+    if Closing.set_closed context.close_state then begin
         Option.iter (fun (browser : browser) -> browser.contexts <- List.filter (fun c -> c != context) browser.contexts) context.browser;
         (let selectors = context.c_session.selectors in
          selectors.all_contexts <- List.filter (fun c -> c != context) selectors.all_contexts);
@@ -215,7 +215,7 @@ let create session (channel : Channel.t) =
     let context =
         { c_channel = channel; c_session = session; browser = None; pages = []; c_routes = []; c_ws_routes = []; c_bindings = Hashtbl.create 4;
           c_timeouts; owner_page = None; base_url = init.options.base_url; records_video = init.options.record_video <> None;
-          tracing = Types.tracing init.tracing; request; service_workers = []; close_state = `Open; c_close_reason = None; c_closed;
+          tracing = Types.tracing init.tracing; request; service_workers = []; close_state = Closing.create (); c_close_reason = None; c_closed;
           c_closed_resolver; ce_close = Emitter.create (); ce_console = Emitter.create (); ce_dialog = Emitter.create ();
           ce_page = Emitter.create (); ce_web_error = Emitter.create (); ce_request = Emitter.create (); ce_request_failed = Emitter.create ();
           ce_request_finished = Emitter.create (); ce_response = Emitter.create (); ce_service_worker = Emitter.create () }
@@ -331,25 +331,24 @@ let new_cdp_session_for_page (page : page) (context : t) =
 let new_cdp_session_for_frame (frame : frame) (context : t) =
     Protocol.Browser_context.new_cdp_session ~frame:frame.f_channel context.c_channel |> Types.cdp_session
 
-(* Closing is idempotent, and a context whose browser is already gone counts as closed. *)
+(* Closing is idempotent, and a context whose browser is already gone counts as closed.  What
+   is being recorded is saved first.  If that fails, the context is closed all the same and the
+   failure is raised afterwards. *)
 let close ?reason (context : t) =
-    if context.close_state = `Open then begin
-        context.c_close_reason <- reason;
-        context.close_state <- `Closing;
-        let gone = function Error.E { kind = Target_closed; _ } -> true | _ -> false in
-        let har_failure =
+    if Closing.is_open context.close_state then context.c_close_reason <- reason;
+    Closing.close context.c_session.conn context.close_state (fun () ->
+        let recording_failure =
             try
                 Api_request.Context.dispose ?reason context.request;
                 Tracing.export_all_hars context.tracing;
                 None
-            with ex when not (Connection.is_cancellation ex) -> if gone ex then None else Some ex
+            with
+            | Error.E { kind = Target_closed; _ } -> None
+            | ex when not (Connection.is_cancellation ex) -> Some (ex, Printexc.get_raw_backtrace ())
         in
-        (try
-            Protocol.Browser_context.close ?reason context.c_channel;
-            Promise.await context.c_closed
-         with ex when gone ex -> ());
-        Option.iter raise har_failure
-    end
+        Protocol.Browser_context.close ?reason context.c_channel;
+        Promise.await context.c_closed;
+        Option.iter (fun (ex, backtrace) -> Printexc.raise_with_backtrace ex backtrace) recording_failure)
 
 (* {1 Clock} *)
 

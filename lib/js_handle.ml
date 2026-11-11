@@ -32,4 +32,5 @@ let to_string (handle : t) = handle.preview
 (* Disposing of a handle whose page or context is already gone is not an error. *)
 let dispose (handle : t) =
     if not handle.h_channel.disposed then
-        try Protocol.Js_handle.dispose handle.h_channel with Error.E { kind = Target_closed; _ } -> ()
+        try Connection.detached handle.h_channel.conn (fun () -> Protocol.Js_handle.dispose handle.h_channel)
+        with Error.E { kind = Target_closed; _ } -> ()

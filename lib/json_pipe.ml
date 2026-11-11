@@ -41,11 +41,12 @@ let of_channel (channel : Channel.t) =
     | Json_pipe pipe -> pipe
     | _ -> Error.raise_ "Protocol error: object %S is a %s, not a JsonPipe" channel.guid channel.type_
 
-(* Asks the driver to close the pipe.  It is the end of it whether or not the driver hears. *)
+(* It is the end of the pipe at once.  The driver is asked to close its end, whether or not it
+   hears and whether or not the caller waits for that. *)
 let close pipe =
     if not pipe.ended then begin
-        (try Protocol.Json_pipe.close pipe.channel with Error.E _ -> ());
-        finish pipe ~reason:None
+        finish pipe ~reason:None;
+        Connection.cleanup pipe.channel.conn "closing a pipe" (fun () -> try Protocol.Json_pipe.close pipe.channel with Error.E _ -> ())
     end
 
 (* The pipe as a transport, which ends when the pipe does. *)

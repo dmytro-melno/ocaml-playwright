@@ -241,13 +241,16 @@ let spawn_command ?(threads = use_threads ()) ?(grace_period = 10.) ~sw ~(env : 
     in
     let clock = Eio.Stdenv.clock env in
     let stopped = ref None in
+    (* Stopping takes a bounded time and is not interrupted by cancellation: a driver that is
+       left running keeps its browsers running. *)
     let stop () =
-        match !stopped with
-        | Some stopped -> Promise.await stopped
-        | None ->
-            let promise, resolver = Promise.create () in
-            stopped := Some promise;
-            Eio.Cancel.protect (fun () -> Fun.protect ~finally:(Promise.resolve resolver) (fun () -> shut_down ~clock ~grace_period process))
+        Eio.Cancel.protect (fun () ->
+            match !stopped with
+            | Some stopped -> Promise.await stopped
+            | None ->
+                let promise, resolver = Promise.create () in
+                stopped := Some promise;
+                Fun.protect ~finally:(Promise.resolve resolver) (fun () -> shut_down ~clock ~grace_period process))
     in
     (* Whatever happens to the session, the driver does not outlive its switch. *)
     Switch.on_release sw stop;

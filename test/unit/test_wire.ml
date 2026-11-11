@@ -102,7 +102,8 @@ type peer = {
     sw : Switch.t;
     conn : Connection.t;
     sent : Json.t Eio.Stream.t;  (* what the client sent *)
-    deliver : Json.t -> unit;  (* a message from the driver *)
+    post : Json.t -> unit;  (* a message from the driver, which the client has yet to read *)
+    deliver : Json.t -> unit;  (* a message from the driver, read before this returns *)
     hang_up : unit -> unit;
     reported : (string * exn) list ref;
 }
@@ -123,15 +124,16 @@ let with_peer f =
     Fiber.fork_daemon ~sw (fun () ->
         Connection.run conn;
         `Stop_daemon);
+    let post message = Eio.Stream.add inbox (Some message) in
     let deliver message =
-        Eio.Stream.add inbox (Some message);
+        post message;
         Fiber.yield ()
     in
     let hang_up () =
         Eio.Stream.add inbox None;
         Fiber.yield ()
     in
-    f { sw; conn; sent; deliver; hang_up; reported }
+    f { sw; conn; sent; post; deliver; hang_up; reported }
 
 let member name (message : Json.t) = match message with `Assoc fields -> List.assoc_opt name fields | _ -> None
 let string_member name message = match member name message with Some (`String s) -> s | _ -> Alcotest.failf "no string member %S" name
@@ -145,7 +147,7 @@ let channel peer guid = match Connection.find peer.conn guid with Some channel -
 
 (* Starts a call in a fiber of its own and returns what the client sent for it. *)
 let start_call peer channel method_ =
-    let reply = Fiber.fork_promise ~sw:peer.sw (fun () -> Connection.call channel method_ (`Assoc [])) in
+    let reply = Fiber.fork_promise ~sw:peer.sw (fun () -> Connection.call channel method_ (`Assoc []) Fun.id) in
     let request = Eio.Stream.take peer.sent in
     reply, string_member "id" request
 
@@ -161,7 +163,7 @@ let test_call_and_reply () =
     with_peer @@ fun peer ->
     create peer ~type_:"Page" ~guid:"page@1" (`Assoc []);
     let page = channel peer "page@1" in
-    let reply = Fiber.fork_promise ~sw:peer.sw (fun () -> Connection.call ~timeout:1500. page "goto" (`Assoc [ "url", `String "about:blank" ])) in
+    let reply = Fiber.fork_promise ~sw:peer.sw (fun () -> Connection.call ~timeout:1500. page "goto" (`Assoc [ "url", `String "about:blank" ]) Fun.id) in
     let request = Eio.Stream.take peer.sent in
     Alcotest.(check string) "guid" "page@1" (string_member "guid" request);
     Alcotest.(check string) "method" "goto" (string_member "method" request);
@@ -170,7 +172,7 @@ let test_call_and_reply () =
     peer.deliver (`Assoc [ "id", `String (string_member "id" request); "result", `Assoc [ "ok", `Bool true ] ]);
     Alcotest.check json "result" (`Assoc [ "ok", `Bool true ]) (Promise.await_exn reply);
     (* Ids are unique, and a reply without a result is an empty object. *)
-    let second = Fiber.fork_promise ~sw:peer.sw (fun () -> Connection.call page "title" (`Assoc [])) in
+    let second = Fiber.fork_promise ~sw:peer.sw (fun () -> Connection.call page "title" (`Assoc []) Fun.id) in
     let request' = Eio.Stream.take peer.sent in
     Alcotest.(check bool) "fresh id" true (string_member "id" request <> string_member "id" request');
     Alcotest.(check (option json)) "no timeout, empty metadata" (Some (`Assoc [])) (member "metadata" request');
@@ -243,7 +245,7 @@ let test_object_tree () =
     Alcotest.(check bool) "the browser stays" true (Connection.find peer.conn "browser@1" <> None);
     (* Objects that the driver collected refuse further calls with an explanation. *)
     peer.deliver (`Assoc [ "guid", `String "frame@1"; "method", `String "__dispose__"; "params", `Assoc [ "reason", `String "gc" ] ]);
-    let error = failure "call on a collected object" (fun () -> Connection.call frame "title" (`Assoc [])) in
+    let error = failure "call on a collected object" (fun () -> Connection.call frame "title" (`Assoc []) Fun.id) in
     check_contains "collected" ~sub:"collected" error.message;
     Alcotest.(check int) "nothing reported" 0 (List.length !(peer.reported));
     Alcotest.(check bool) "still open" false (Connection.is_closed peer.conn)
@@ -252,7 +254,7 @@ let test_cancellation_aborts () =
     with_peer @@ fun peer ->
     let root = Connection.root peer.conn in
     Fiber.first
-        (fun () -> ignore (Connection.call root "slow" (`Assoc [])))
+        (fun () -> ignore (Connection.call root "slow" (`Assoc []) Fun.id))
         (fun () -> ignore (Eio.Stream.take peer.sent : Json.t));
     let request_id = Printf.sprintf "%s@1" peer.conn.id_prefix in
     let abort = Eio.Stream.take peer.sent in
@@ -271,7 +273,7 @@ let test_closing () =
     ignore (closed_error "pending call" pending : Error.t);
     Alcotest.(check bool) "closed" true (Connection.is_closed peer.conn);
     Promise.await (Connection.stopped peer.conn);
-    let error = failure "call after close" (fun () -> Connection.call root "more" (`Assoc [])) in
+    let error = failure "call after close" (fun () -> Connection.call root "more" (`Assoc []) Fun.id) in
     Alcotest.check error_kind "later calls fail at once" Error.Target_closed error.kind;
     Alcotest.(check bool) "nothing more is sent" true (Eio.Stream.take_nonblocking peer.sent = None)
 
@@ -318,7 +320,7 @@ let test_transport_failure () =
         Connection.run conn;
         `Stop_daemon);
     Promise.await (Connection.stopped conn);
-    let error = failure "call after the failure" (fun () -> Connection.call root "m" (`Assoc [])) in
+    let error = failure "call after the failure" (fun () -> Connection.call root "m" (`Assoc []) Fun.id) in
     Alcotest.check error_kind "kind" Error.Target_closed error.kind;
     check_contains "the error tells why" ~sub:"stream ended inside a message" error.message
 
@@ -352,7 +354,7 @@ let test_objects_are_told () =
     (* Closing again changes nothing. *)
     Connection.close peer.conn (Error.target_closed ~message:"again" ());
     Alcotest.(check int) "told once" 8 (List.length !lost);
-    let error = failure "call after close" (fun () -> Connection.call page "title" (`Assoc [])) in
+    let error = failure "call after close" (fun () -> Connection.call page "title" (`Assoc []) Fun.id) in
     Alcotest.(check string) "the first reason stays" "over" error.message
 
 (* Handlers run in the scope of the connection: they start in order, and end with it. *)
