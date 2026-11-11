@@ -42,6 +42,10 @@ let url_decode s =
 module Request = struct
     type t = request
 
+    let equal (a : t) (b : t) = Channel.equal a.r_channel b.r_channel
+    let compare (a : t) (b : t) = Channel.compare a.r_channel b.r_channel
+    let hash (t : t) = Channel.hash t.r_channel
+
     let unknown_timing =
         { start_time = 0.; domain_lookup_start = -1.; domain_lookup_end = -1.; connect_start = -1.; secure_connection_start = -1.;
           connect_end = -1.; request_start = -1.; response_start = -1.; response_end = -1. }
@@ -158,6 +162,10 @@ end
 module Response = struct
     type t = response
 
+    let equal (a : t) (b : t) = Channel.equal a.rs_channel b.rs_channel
+    let compare (a : t) (b : t) = Channel.compare a.rs_channel b.rs_channel
+    let hash (t : t) = Channel.hash t.rs_channel
+
     let create (channel : Protocol.Response.t) : t =
         let init = Protocol.Response.initializer_ channel in
         let request = Types.request init.request in
@@ -218,6 +226,10 @@ end
 
 module Web_socket = struct
     type t = web_socket
+
+    let equal (a : t) (b : t) = Channel.equal a.ws_channel b.ws_channel
+    let compare (a : t) (b : t) = Channel.compare a.ws_channel b.ws_channel
+    let hash (t : t) = Channel.hash t.ws_channel
 
     let emit (socket : t) emitter value = ignore (Emitter.emit (Channel.conn socket.ws_channel) emitter value)
 

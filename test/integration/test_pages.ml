@@ -18,7 +18,7 @@ let test_goto t page =
     Alcotest.(check string) "method" "GET" (Request.method_ request);
     Alcotest.(check string) "resource type" "document" (Request.resource_type request);
     Alcotest.(check bool) "navigation request" true (Request.is_navigation_request request);
-    Alcotest.(check bool) "frame" true (Request.frame request == Page.main_frame page);
+    Alcotest.(check bool) "frame" true (Frame.equal (Request.frame request) (Page.main_frame page));
     Alcotest.(check bool) "no response for about:blank" true (Option.is_none (Page.goto "about:blank" page))
 
 let test_http_errors_and_redirects t page =
@@ -32,7 +32,7 @@ let test_http_errors_and_redirects t page =
     Alcotest.(check string) "the final response" (Server.url t.server "/new") (Response.url response);
     let redirected_from = Request.redirected_from (Response.request response) |> Option.get in
     Alcotest.(check string) "the redirected request" (Server.url t.server "/old") (Request.url redirected_from);
-    Alcotest.(check bool) "and back" true (same_option (Request.redirected_to redirected_from) (Some (Response.request response)));
+    Alcotest.(check bool) "and back" true (Option.equal Request.equal (Request.redirected_to redirected_from) (Some (Response.request response)));
     Alcotest.(check int) "the redirect response" 302 (Request.response redirected_from |> Option.get |> Response.status)
 
 let test_navigation_failures t page =
@@ -145,7 +145,7 @@ let test_exposed_functions _ page =
     Alcotest.(check int) "called once" 1 (List.length !calls);
     Alcotest.check js "an exception rejects the promise" (Js.String "add takes two arguments")
         (Page.evaluate "window.add(1).then(() => 'resolved', error => error.message.replace(/^.*Failure\\(\"(.*)\"\\).*$/s, '$1'))" page);
-    Page.expose_binding "whoami" (fun source _ -> Js.string (Frame.url source.frame ^ (if source.page == page then " same page" else " other page"))) page;
+    Page.expose_binding "whoami" (fun source _ -> Js.string (Frame.url source.frame ^ (if Page.equal source.page page then " same page" else " other page"))) page;
     Alcotest.check js "binding source" (Js.String "about:blank same page") (Page.evaluate "window.whoami()" page);
     (* Exposed functions survive navigations and may call back into the page. *)
     Page.expose_function "title" (fun _ -> Js.string (Page.title page)) page;
@@ -182,20 +182,20 @@ let test_frames t page =
     let main = Page.main_frame page in
     Alcotest.(check int) "frames" 2 (List.length (Page.frames page));
     let child = Page.frame ~name:"inner" page |> Option.get in
-    Alcotest.(check bool) "by URL" true (same_option (Page.frame ~url:"**/child" page) (Some child));
+    Alcotest.(check bool) "by URL" true (Option.equal Frame.equal (Page.frame ~url:"**/child" page) (Some child));
     Alcotest.(check bool) "no such frame" true (Option.is_none (Page.frame ~name:"other" page));
     Alcotest.(check string) "name" "inner" (Frame.name child);
     Alcotest.(check string) "url" (Server.url t.server "/child") (Frame.url child);
     Alcotest.(check string) "title" "Child" (Frame.title child);
-    Alcotest.(check bool) "parent" true (same_option (Frame.parent_frame child) (Some main) && Option.is_none (Frame.parent_frame main));
-    Alcotest.(check bool) "children" true (same_list (Frame.child_frames main) [ child ]);
-    Alcotest.(check bool) "page" true (Frame.page child == page);
+    Alcotest.(check bool) "parent" true (Option.equal Frame.equal (Frame.parent_frame child) (Some main) && Option.is_none (Frame.parent_frame main));
+    Alcotest.(check bool) "children" true (List.equal Frame.equal (Frame.child_frames main) [ child ]);
+    Alcotest.(check bool) "page" true (Page.equal (Frame.page child) page);
     Alcotest.(check string) "evaluate in a frame" "Inside" (Frame.evaluate "document.querySelector('button').textContent" child |> Js.to_string);
     Alcotest.(check string) "frame element" "IFRAME" (ElementHandle.evaluate "e => e.tagName" (Frame.frame_element child) |> Js.to_string);
     Page.frame_locator "iframe" page |> FrameLocator.get_by_role `Button ~name:"Inside" |> Locator.click;
     Alcotest.(check string) "locator into the frame" "Inside" (Page.locator "iframe" page |> Locator.content_frame |> FrameLocator.locator "button" |> Locator.inner_text);
     let detached = Page.expect_event Page.Frame_detached (fun () -> ignore (Page.evaluate "document.querySelector('iframe').remove()" page)) page in
-    Alcotest.(check bool) "detached" true (detached == child && Frame.is_detached child);
+    Alcotest.(check bool) "detached" true (Frame.equal detached child && Frame.is_detached child);
     Alcotest.(check int) "one frame left" 1 (List.length (Page.frames page))
 
 let tests t =

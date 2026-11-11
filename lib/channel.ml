@@ -24,6 +24,9 @@ let to_json = any_to_json
 let conn (t : any) = t.conn
 let guid (t : any) = t.guid
 let is_disposed (t : any) = t.disposed
+let equal (a : any) (b : any) = a == b
+let compare (a : any) (b : any) = Int.compare a.serial b.serial
+let hash (t : any) = t.serial
 let parent kind (t : any) = Option.bind t.parent (of_any kind)
 
 let rec ancestor kind (t : any) =

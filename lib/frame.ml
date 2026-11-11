@@ -2,6 +2,10 @@ open Types
 
 type t = frame
 
+let equal (a : t) (b : t) = Channel.equal a.f_channel b.f_channel
+let compare (a : t) (b : t) = Channel.compare a.f_channel b.f_channel
+let hash (t : t) = Channel.hash t.f_channel
+
 let emit (session : session) emitter value = ignore (Emitter.emit session.conn emitter value)
 
 (* {1 Lifecycle} *)
@@ -86,7 +90,7 @@ let upload_chunk_size = 1 lsl 20
 
 (* The files below [directory], as paths relative to it. *)
 let rec files_below directory =
-    Sys.readdir directory |> Array.to_list |> List.sort compare
+    Sys.readdir directory |> Array.to_list |> List.sort String.compare
     |> List.concat_map (fun name ->
         let path = Filename.concat directory name in
         if Files.is_directory path then List.map (fun below -> name ^ "/" ^ below) (files_below path) else [ name ])

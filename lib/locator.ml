@@ -122,7 +122,9 @@ let page (locator : t) = page_of_frame locator.l_frame
 let frame (locator : t) = locator.l_frame
 let selector (locator : t) = locator.selector
 let to_string (locator : t) = "Locator@" ^ locator.selector
-let equal (a : t) (b : t) = a.l_frame == b.l_frame && a.selector = b.selector
+let equal (a : t) (b : t) = Frame.equal a.l_frame b.l_frame && String.equal a.selector b.selector
+let compare (a : t) (b : t) = match Frame.compare a.l_frame b.l_frame with 0 -> String.compare a.selector b.selector | order -> order
+let hash (locator : t) = Hashtbl.hash (Frame.hash locator.l_frame, locator.selector)
 
 (* {1 Actions}
 

@@ -11,7 +11,7 @@ let test_console _ page =
     Alcotest.(check string) "type" "log" (ConsoleMessage.type_ message);
     Alcotest.(check string) "text" "hello 42 {a: Array(1)}" (ConsoleMessage.text message);
     Alcotest.(check (list string)) "arguments" [ {|"hello"|}; "42"; "{a: [1]}" ] (List.map (fun arg -> Js.show (JSHandle.json_value arg)) (ConsoleMessage.args message));
-    Alcotest.(check bool) "page" true (same_option (ConsoleMessage.page message) (Some page));
+    Alcotest.(check bool) "page" true (Option.equal Page.equal (ConsoleMessage.page message) (Some page));
     let warning =
         Page.expect_event Page.Console ~predicate:(fun m -> ConsoleMessage.type_ m = "warning")
             (fun () -> ignore (Page.evaluate "console.info('first'); console.warn('second')" page))
@@ -36,7 +36,7 @@ let test_page_errors _ page =
             (Page.context page)
     in
     Alcotest.(check string) "context event" "for the context" (WebError.error web_error).message;
-    Alcotest.(check bool) "its page" true (same_option (WebError.page web_error) (Some page))
+    Alcotest.(check bool) "its page" true (Option.equal Page.equal (WebError.page web_error) (Some page))
 
 let test_dialogs _ page =
     let seen = ref [] in
@@ -64,16 +64,16 @@ let test_popups t page =
     let popup = Page.expect_popup (fun () -> Page.click "a" page) page in
     Page.wait_for_load_state popup;
     Alcotest.(check string) "title" "Popup" (Page.title popup);
-    Alcotest.(check bool) "opener" true (same_option (Page.opener popup) (Some page));
-    Alcotest.(check bool) "pages of the context" true (same_list (BrowserContext.pages context) [ page; popup ]);
+    Alcotest.(check bool) "opener" true (Option.equal Page.equal (Page.opener popup) (Some page));
+    Alcotest.(check bool) "pages of the context" true (List.equal Page.equal (BrowserContext.pages context) [ page; popup ]);
     let closed = ref false in
     Page.on Page.Close (fun _ -> closed := true) popup;
     Page.close popup;
     Alcotest.(check bool) "closed" true (!closed && Page.is_closed popup);
-    Alcotest.(check bool) "removed from the context" true (same_list (BrowserContext.pages context) [ page ]);
+    Alcotest.(check bool) "removed from the context" true (List.equal Page.equal (BrowserContext.pages context) [ page ]);
     let opened = BrowserContext.expect_page (fun () -> ignore (Page.evaluate "window.open('/popup')" page)) context in
     Page.wait_for_url "**/popup" opened;
-    Alcotest.(check bool) "context event for window.open" true (same_option (Page.opener opened) (Some page))
+    Alcotest.(check bool) "context event for window.open" true (Option.equal Page.equal (Page.opener opened) (Some page))
 
 let test_downloads t page =
     Server.route t.server "/report" (fun _ -> Server.respond ~headers:[ "content-disposition", "attachment; filename=report.txt" ] "the report");
@@ -82,7 +82,7 @@ let test_downloads t page =
     let download = Page.expect_download (fun () -> Page.click "a" page) page in
     Alcotest.(check string) "suggested name" "report.txt" (Download.suggested_filename download);
     Alcotest.(check string) "url" (Server.url t.server "/report") (Download.url download);
-    Alcotest.(check bool) "page" true (Download.page download == page);
+    Alcotest.(check bool) "page" true (Page.equal (Download.page download) page);
     Alcotest.(check (option string)) "no failure" None (Download.failure download);
     Alcotest.(check string) "temporary file" "the report" (read_file (Download.path download));
     let target = scratch_file t "saved/report.txt" in
@@ -210,7 +210,7 @@ let test_waiting t page =
             (fun () -> List.iter (fun name -> ignore (Page.goto (Server.url t.server ("/" ^ name)) page)) [ "first"; "second"; "third" ])
             page
     in
-    Alcotest.(check bool) "the frame" true (frame == Page.main_frame page);
+    Alcotest.(check bool) "the frame" true (Frame.equal frame (Page.main_frame page));
     Alcotest.(check (list string)) "each navigation as it happened" (List.map (fun name -> Server.url t.server ("/" ^ name)) [ "first"; "second"; "third" ])
         (List.rev !seen);
     (* A predicate may ask the driver. *)
@@ -303,11 +303,11 @@ let test_workers t page =
     ignore (Page.goto (Server.url t.server "/workers") page);
     let worker = Page.expect_worker (fun () -> ignore (Page.evaluate "() => { window.worker = new Worker('/worker.js') }" page)) page in
     Alcotest.(check string) "url" (Server.url t.server "/worker.js") (Worker.url worker);
-    Alcotest.(check bool) "listed" true (same_list (Page.workers page) [ worker ]);
+    Alcotest.(check bool) "listed" true (List.equal Worker.equal (Page.workers page) [ worker ]);
     ignore (JSHandle.json_value (Worker.evaluate_handle "new Promise(resolve => setTimeout(resolve, 50))" worker));
     Alcotest.check js "evaluate in the worker" (Js.Number 43.) (Worker.evaluate "n => self.answer + n" ~arg:(Js.int 1) worker);
     let closed = Worker.expect_event Worker.Close (fun () -> ignore (Page.evaluate "window.worker.terminate()" page)) worker in
-    Alcotest.(check bool) "closed" true (closed == worker && Page.workers page = [])
+    Alcotest.(check bool) "closed" true (Worker.equal closed worker && Page.workers page = [])
 
 (* Messages and errors from before anyone listened. *)
 let test_history t page =
@@ -318,7 +318,7 @@ let test_history t page =
     let texts filter = Page.console_messages ?filter page |> List.map (fun m -> ConsoleMessage.type_ m ^ ": " ^ ConsoleMessage.text m) in
     Alcotest.(check (list string)) "console messages" [ "log: loaded"; "warning: careful 1" ] (texts None);
     Alcotest.(check bool) "they belong to the page" true
-        (List.for_all (fun m -> same_option (ConsoleMessage.page m) (Some page)) (Page.console_messages page));
+        (List.for_all (fun m -> Option.equal Page.equal (ConsoleMessage.page m) (Some page)) (Page.console_messages page));
     Alcotest.(check (list (pair string string))) "page errors" [ "RangeError", "too late" ]
         (Page.page_errors page |> List.map (fun (error : Playwright.Error.t) -> error.name, error.message));
     ignore (Page.goto (Server.url t.server "/noisy") page);

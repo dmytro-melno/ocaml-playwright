@@ -3,6 +3,10 @@ open Types
 
 type t = page
 
+let equal (a : t) (b : t) = Channel.equal a.p_channel b.p_channel
+let compare (a : t) (b : t) = Channel.compare a.p_channel b.p_channel
+let hash (page : t) = Channel.hash page.p_channel
+
 type _ event =
     | Close : page event
     | Console : console_message event
@@ -315,7 +319,7 @@ let requests (page : t) = Protocol.Page.requests page.p_channel |> List.map Type
 let console_messages ?filter (page : t) : console_message list =
     Protocol.Page.console_messages ?filter page.p_channel
     |> List.map (fun (message : Protocol.Page.Console_messages_result_messages.t) ->
-           { cm_type = message.type_; cm_text = message.text; cm_args = List.map Types.js_handle message.args; cm_location = message.location;
+           { cm_serial = Serial.next (); cm_type = message.type_; cm_text = message.text; cm_args = List.map Types.js_handle message.args; cm_location = message.location;
              cm_timestamp = message.timestamp; cm_page = Some page; cm_worker = None })
 
 let clear_console_messages (page : t) = Protocol.Page.clear_console_messages page.p_channel
@@ -325,6 +329,10 @@ let clear_page_errors (page : t) = Protocol.Page.clear_page_errors page.p_channe
 (* The page's local or session storage for its current origin. *)
 module Web_storage = struct
     type t = page * [ `Local | `Session ]
+
+    let equal ((a, kind_a) : t) ((b, kind_b) : t) = equal a b && kind_a = kind_b
+    let compare ((a, kind_a) : t) ((b, kind_b) : t) = match compare a b with 0 -> Stdlib.compare kind_a kind_b | order -> order
+    let hash ((page, kind) : t) = Hashtbl.hash (hash page, kind)
 
     let items ((page, kind) : t) =
         Protocol.Page.web_storage_items ~kind page.p_channel |> List.map (fun (item : Protocol.Name_value.t) -> item.name, item.value)
@@ -451,6 +459,10 @@ let pause (page : t) =
 module Keyboard = struct
     type t = page
 
+    let equal = equal
+    let compare = compare
+    let hash = hash
+
     let down key (page : t) = Protocol.Page.keyboard_down ~key page.p_channel
     let up key (page : t) = Protocol.Page.keyboard_up ~key page.p_channel
     let insert_text text (page : t) = Protocol.Page.keyboard_insert_text ~text page.p_channel
@@ -460,6 +472,10 @@ end
 
 module Mouse = struct
     type t = page
+
+    let equal = equal
+    let compare = compare
+    let hash = hash
 
     let move ?steps x y (page : t) = Protocol.Page.mouse_move ~x ~y ?steps page.p_channel
     let down ?button ?click_count (page : t) = Protocol.Page.mouse_down ?button ?click_count page.p_channel
@@ -472,11 +488,19 @@ end
 module Touchscreen = struct
     type t = page
 
+    let equal = equal
+    let compare = compare
+    let hash = hash
+
     let tap x y (page : t) = Protocol.Page.touchscreen_tap ~x ~y page.p_channel
 end
 
 module Video = struct
     type t = page
+
+    let equal = equal
+    let compare = compare
+    let hash = hash
 
     let artifact (page : t) =
         match page.video_artifact with

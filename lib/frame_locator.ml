@@ -2,6 +2,10 @@ open Types
 
 type t = frame_locator
 
+let equal (a : t) (b : t) = Frame.equal a.fl_frame b.fl_frame && String.equal a.frame_selector b.frame_selector
+let compare (a : t) (b : t) = match Frame.compare a.fl_frame b.fl_frame with 0 -> String.compare a.frame_selector b.frame_selector | order -> order
+let hash (t : t) = Hashtbl.hash (Frame.hash t.fl_frame, t.frame_selector)
+
 let child_selector (t : t) selector = Selector.join [ t.frame_selector; Selector.enter_frame; selector ]
 
 let locator ?has_text ?has_text_regex ?has_not_text ?has_not_text_regex ?has ?has_not selector (t : t) =

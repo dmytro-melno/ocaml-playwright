@@ -45,7 +45,6 @@ type t = {
     outbox : Json.t Eio.Stream.t;
     id_prefix : string;
     mutable last_id : int;
-    mutable last_object : int;
     mutable closed : Error.t option;
     closed_promise : Error.t Promise.t;
     closed_resolver : Error.t Promise.u;
@@ -61,7 +60,7 @@ and channel = {
     conn : t;
     guid : string;
     type_ : string;
-    order : int;  (* of creation, within the connection *)
+    serial : Serial.t;  (* orders the objects by their creation, and tells them apart across connections *)
     mutable initializer_ : Json.t;  (* [`Null] once a client object has been built from it *)
     mutable parent : channel option;
     children : (string, channel) Hashtbl.t;
@@ -80,9 +79,8 @@ and impl = ..
 type impl += No_impl
 
 let make_channel conn ~parent ~guid ~type_ ~initializer_ =
-    conn.last_object <- conn.last_object + 1;
     let channel =
-        { conn; guid; type_; order = conn.last_object; initializer_; parent; children = Hashtbl.create 4; impl = No_impl;
+        { conn; guid; type_; serial = Serial.next (); initializer_; parent; children = Hashtbl.create 4; impl = No_impl;
           on_event = (fun _ _ -> ()); on_lost = ignore; disposed = false; collected = false }
     in
     Hashtbl.replace conn.objects guid channel;
@@ -98,7 +96,7 @@ let make ~scope ~owns_scope ~clock ~report ~trace ~render_value transport =
     let stopped_promise, stopped_resolver = Promise.create () in
     let conn =
         { transport; scope; owns_scope; clock; objects = Hashtbl.create 256; pending = Hashtbl.create 64; outbox = Eio.Stream.create max_int;
-          id_prefix = random_prefix (); last_id = 0; last_object = 0; closed = None; closed_promise; closed_resolver; stopped_promise;
+          id_prefix = random_prefix (); last_id = 0; closed = None; closed_promise; closed_resolver; stopped_promise;
           stopped_resolver; factory = (fun _ -> No_impl); report; trace; render_value }
     in
     ignore (make_channel conn ~parent:None ~guid:"" ~type_:"Root" ~initializer_:(`Assoc []));
@@ -155,7 +153,7 @@ let objects_bottom_up conn =
     (* [visited] is in reverse. *)
     let rec visit visited (channel : channel) =
         let children = Hashtbl.fold (fun _ child acc -> child :: acc) channel.children [] in
-        let children = List.sort (fun (a : channel) (b : channel) -> Int.compare a.order b.order) children in
+        let children = List.sort (fun (a : channel) (b : channel) -> Int.compare a.serial b.serial) children in
         channel :: List.fold_left visit visited children
     in
     match Hashtbl.find_opt conn.objects "" with

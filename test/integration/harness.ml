@@ -132,10 +132,6 @@ let contains ~sub s =
 
 let check_contains what ~sub s = if not (contains ~sub s) then Alcotest.failf "%s: %S does not contain %S" what s sub
 
-(* Playwright objects have identity; polymorphic equality is not for them. *)
-let same_option a b = match a, b with Some a, Some b -> a == b | None, None -> true | _ -> false
-let same_list a b = List.length a = List.length b && List.for_all2 ( == ) a b
-
 (* A local port on which nothing listens. *)
 let closed_port t =
     Eio.Switch.run @@ fun sw ->

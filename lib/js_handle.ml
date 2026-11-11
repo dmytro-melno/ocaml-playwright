@@ -2,6 +2,10 @@ open Types
 
 type t = js_handle
 
+let equal (a : t) (b : t) = Channel.equal a.h_channel b.h_channel
+let compare (a : t) (b : t) = Channel.compare a.h_channel b.h_channel
+let hash (t : t) = Channel.hash t.h_channel
+
 let handle_event (handle : t) : Protocol.Js_handle.event -> unit = function
     | Preview_updated { preview } -> handle.preview <- preview
 

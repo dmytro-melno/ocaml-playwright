@@ -93,7 +93,7 @@ let test_creation t () =
         | Ok page -> Page.close page
         | Error `Timeout -> ()
     done;
-    eventually t "the contexts of pages that nobody got are closed" (fun () -> same_list before (Browser.contexts t.browser));
+    eventually t "the contexts of pages that nobody got are closed" (fun () -> List.equal BrowserContext.equal before (Browser.contexts t.browser));
     let context = Browser.new_context t.browser in
     for attempt = 0 to 19 do
         match Eio.Time.with_timeout (clock t) (float_of_int attempt *. 0.002) (fun () -> Ok (BrowserContext.new_page context)) with

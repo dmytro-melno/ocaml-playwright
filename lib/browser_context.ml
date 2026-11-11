@@ -3,6 +3,10 @@ open Types
 
 type t = browser_context
 
+let equal (a : t) (b : t) = Channel.equal a.c_channel b.c_channel
+let compare (a : t) (b : t) = Channel.compare a.c_channel b.c_channel
+let hash (t : t) = Channel.hash t.c_channel
+
 type _ event =
     | Close : browser_context event
     | Console : console_message event
@@ -155,7 +159,7 @@ let handle_event (context : t) (event : Protocol.Browser_context.event) =
         let page = Option.map Types.page page in
         let worker = Option.map Types.worker worker in
         let message =
-            { cm_type = type_; cm_text = text; cm_args = List.map Types.js_handle args; cm_location = location; cm_timestamp = timestamp;
+            { cm_serial = Serial.next (); cm_type = type_; cm_text = text; cm_args = List.map Types.js_handle args; cm_location = location; cm_timestamp = timestamp;
               cm_page = page; cm_worker = worker }
         in
         Option.iter (fun (worker : worker) -> emit context worker.we_console message) worker;
@@ -164,7 +168,7 @@ let handle_event (context : t) (event : Protocol.Browser_context.event) =
     | Page_error { error; page; location = _ } ->
         let page = Types.page page in
         let error = js_error error in
-        emit context context.ce_web_error { we_page = Some page; we_error = error };
+        emit context context.ce_web_error { we_serial = Serial.next (); we_page = Some page; we_error = error };
         emit context page.pe_page_error error
     | Dialog { dialog } ->
         let channel = dialog in

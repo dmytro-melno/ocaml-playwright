@@ -2,6 +2,10 @@ open Types
 
 type t = js_handle
 
+let equal (a : t) (b : t) = Channel.equal a.h_channel b.h_channel
+let compare (a : t) (b : t) = Channel.compare a.h_channel b.h_channel
+let hash (t : t) = Channel.hash t.h_channel
+
 let frame_of (handle : t) =
     Option.map Types.frame (Channel.ancestor Protocol.Frame.kind handle.h_channel)
 

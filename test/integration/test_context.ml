@@ -159,25 +159,25 @@ let test_context_scripting t () =
     let created = ref [] in
     BrowserContext.on BrowserContext.Page (fun page -> created := page :: !created) context;
     let first = BrowserContext.new_page context and second = BrowserContext.new_page context in
-    Alcotest.(check bool) "page events" true (same_list (List.rev !created) [ first; second ]);
+    Alcotest.(check bool) "page events" true (List.equal Page.equal (List.rev !created) [ first; second ]);
     visit t second;
     Alcotest.check js "in the first page" (Js.Number 4.) (Page.evaluate "window.double(2)" first);
     Alcotest.check js "in the second page" (Js.Number 42.) (Page.evaluate "window.double(21)" second);
     Alcotest.check js "the caller is known" (Js.String (Server.url t.server "/blank")) (Page.evaluate "window.origin()" second);
     let request = BrowserContext.expect_event BrowserContext.Request (fun () -> ignore (Page.evaluate "fetch('/blank')" second)) context in
-    Alcotest.(check bool) "requests of all pages" true (Request.frame request == Page.main_frame second);
+    Alcotest.(check bool) "requests of all pages" true (Frame.equal (Request.frame request) (Page.main_frame second));
     BrowserContext.set_default_navigation_timeout 150. context;
     Server.route t.server "/slow" (fun _ ->
         sleep t 1.;
         Server.html "late");
     check_failure "navigation timeout of the context" ~kind:Timeout ~message:"150ms" (fun () -> Page.goto (Server.url t.server "/slow") first);
-    Alcotest.(check bool) "its browser" true (same_option (BrowserContext.browser context) (Some t.browser));
+    Alcotest.(check bool) "its browser" true (Option.equal Browser.equal (BrowserContext.browser context) (Some t.browser));
     BrowserContext.close context
 
 let test_browser t () =
     Alcotest.(check string) "name" "chromium" (Browser.name t.browser);
     Alcotest.(check bool) "version" true (String.length (Browser.version t.browser) > 3 && Browser.is_connected t.browser);
-    Alcotest.(check bool) "type" true (Browser.browser_type t.browser == chromium t.pw && BrowserType.name (chromium t.pw) = "chromium");
+    Alcotest.(check bool) "type" true (BrowserType.equal (Browser.browser_type t.browser) (chromium t.pw) && BrowserType.name (chromium t.pw) = "chromium");
     let before = List.length (Browser.contexts t.browser) in
     let page = Browser.new_page ~viewport:(300, 200) t.browser in
     Alcotest.(check int) "a page with a context of its own" (before + 1) (List.length (Browser.contexts t.browser));

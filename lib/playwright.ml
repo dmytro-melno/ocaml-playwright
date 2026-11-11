@@ -110,6 +110,14 @@ type 'a with_launch_options =
     ?firefox_user_prefs:(string * Yojson.Safe.t) list ->
     ?slow_mo:float ->
     'a
+module type Identity = sig
+    type t
+
+    val equal : t -> t -> bool
+    val compare : t -> t -> int
+    val hash : t -> int
+end
+
 module type Locator_queries = sig
     type t
     type locator

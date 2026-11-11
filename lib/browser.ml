@@ -3,6 +3,10 @@ open Types
 
 type t = browser
 
+let equal (a : t) (b : t) = Channel.equal a.b_channel b.b_channel
+let compare (a : t) (b : t) = Channel.compare a.b_channel b.b_channel
+let hash (t : t) = Channel.hash t.b_channel
+
 let default_test_id_attribute = "data-testid"
 
 (* Applies what the browser was launched with to a context of its own. *)

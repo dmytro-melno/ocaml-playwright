@@ -332,7 +332,7 @@ let test_connect t () =
     Alcotest.(check string) "endpoint" "ws://" (String.sub endpoint 0 5);
     Server.page t.server "/remote" {|<title>Remote</title><input type="file"><a download="hello.txt" href="data:text/plain,hello">download</a>|};
     let browser = BrowserType.connect endpoint (chromium t.pw) in
-    Alcotest.(check bool) "connected" true (Browser.is_connected browser && Browser.browser_type browser == chromium t.pw);
+    Alcotest.(check bool) "connected" true (Browser.is_connected browser && BrowserType.equal (Browser.browser_type browser) (chromium t.pw));
     let context = Browser.new_context browser in
     let page = BrowserContext.new_page context in
     ignore (Page.goto (Server.url t.server "/remote") page);
@@ -475,16 +475,55 @@ let test_second_driver t () =
     let pw = Playwright.create ~sw:t.sw ~env:t.env () in
     let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
     let page = Browser.new_page browser in
+    Alcotest.(check bool) "the objects of two drivers are different ones" false (BrowserType.equal (chromium pw) (chromium t.pw));
     Playwright.close pw;
     check_failure "everything fails once the driver is stopped" ~kind:Target_closed (fun () -> Page.title page);
     check_failure "also launching" ~kind:Target_closed (fun () -> BrowserType.launch (chromium pw));
     Playwright.close pw;
     Alcotest.(check bool) "the first driver is unaffected" true (Browser.is_connected t.browser)
 
+(* Objects are compared with the functions of their modules, which also make these modules arguments for the
+   functors of the standard library. *)
+let test_identity t page =
+    Server.page t.server "/identity" {|<title>Identity</title><ul><li>One</li><li>Two</li></ul>|};
+    ignore (Page.goto (Server.url t.server "/identity") page);
+    let other = BrowserContext.new_page (Page.context page) in
+    let again = Frame.page (Page.main_frame page) in
+    Alcotest.(check bool) "a page is itself, however it was reached" true (Page.equal page again);
+    Alcotest.(check bool) "and no other" false (Page.equal page other);
+    Alcotest.(check bool) "the order agrees" true
+        (Page.compare page again = 0 && Page.compare page other <> 0 && Page.compare page other = -Page.compare other page);
+    Alcotest.(check int) "so does the hash" (Page.hash page) (Page.hash again);
+    let module Pages = Set.Make (Page) in
+    Alcotest.(check int) "a set of pages" 2 (Pages.cardinal (Pages.of_list [ page; other; again ]));
+    let module Names = Hashtbl.Make (Frame) in
+    let names = Names.create 2 in
+    Names.replace names (Page.main_frame page) "first";
+    Names.replace names (Page.main_frame other) "second";
+    Names.replace names (Page.main_frame again) "first again";
+    Alcotest.(check (list string)) "a table with frames as keys" [ "first again"; "second" ]
+        (List.sort String.compare (List.of_seq (Names.to_seq_values names)));
+    (* A locator is what it looks for, and where. *)
+    let items = Page.locator "li" page in
+    Alcotest.(check bool) "locators" true (Locator.equal items (Page.locator "li" page) && Locator.hash items = Locator.hash (Page.locator "li" page));
+    Alcotest.(check bool) "another selector" false (Locator.equal items (Page.locator "ul" page));
+    Alcotest.(check bool) "another page" false (Locator.equal items (Page.locator "li" other) || Locator.compare items (Page.locator "li" other) = 0);
+    (* A handle is one object, whatever it is seen as; two handles are two objects, whatever they refer to. *)
+    let element = Page.query_selector "li" page |> Option.get in
+    Alcotest.(check bool) "an element as a handle" true
+        (Option.equal ElementHandle.equal (JSHandle.as_element (ElementHandle.as_js_handle element)) (Some element));
+    Alcotest.(check bool) "two handles to one element" false (ElementHandle.equal element (Page.query_selector "li" page |> Option.get));
+    Alcotest.(check bool) "the parts of a page" true
+        (Keyboard.equal (Page.keyboard page) (Page.keyboard again)
+        && (not (Mouse.equal (Page.mouse page) (Page.mouse other)))
+        && WebStorage.equal (Page.local_storage page) (Page.local_storage again)
+        && not (WebStorage.equal (Page.local_storage page) (Page.session_storage page)))
+
 let tests t =
     [ "rendering", [ case t "screenshots" (test_screenshots t); page_case t "PDF and ARIA snapshots" (test_pdf_and_aria t) ];
       "input", [ page_case t "keyboard and mouse" (test_keyboard_and_mouse t); case t "touch" (test_touch t) ];
       "tools", [ page_case t "CDP sessions" (test_cdp t); case t "selector engines and test ids" (test_selectors t) ];
+      "objects", [ page_case t "identity" (test_identity t) ];
       "fibers", [ case t "concurrent pages" (test_concurrency t); page_case t "cancellation" (test_cancellation t) ];
       "lifecycle",
       [ case t "launch failures" (test_launch_failures t);

@@ -331,6 +331,7 @@ and dialog = {
 }
 
 and console_message = {
+    cm_serial : Serial.t;  (* a message is not an object of the driver, so it is given its identity here *)
     cm_type : string;
     cm_text : string;
     cm_args : js_handle list;
@@ -342,6 +343,7 @@ and console_message = {
 
 (* An uncaught error thrown in a page. *)
 and web_error = {
+    we_serial : Serial.t;
     we_page : page option;
     we_error : Error.t;
 }

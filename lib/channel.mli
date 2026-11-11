@@ -47,6 +47,15 @@ val guid : _ t -> string
 val is_disposed : _ t -> bool
 (** Whether the driver has let go of the object. *)
 
+(** {1 Identity}
+
+    There is one channel for each object of the driver, so two channels are the same object when they are the same
+    channel. The order is that of their creation; the hash is perfect. *)
+
+val equal : _ t -> _ t -> bool
+val compare : _ t -> _ t -> int
+val hash : _ t -> int
+
 val parent : 'kind kind -> _ t -> 'kind t option
 (** The object that owns this one, if it is of that interface. *)
 

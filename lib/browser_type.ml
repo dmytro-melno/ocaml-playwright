@@ -2,6 +2,10 @@ open Types
 
 type t = browser_type
 
+let equal (a : t) (b : t) = Channel.equal a.bt_channel b.bt_channel
+let compare (a : t) (b : t) = Channel.compare a.bt_channel b.bt_channel
+let hash (t : t) = Channel.hash t.bt_channel
+
 let create session (channel : Protocol.Browser_type.t) : t =
     let init = Protocol.Browser_type.initializer_ channel in
     { bt_channel = channel; bt_session = session; bt_name = init.name; executable_path = init.executable_path }

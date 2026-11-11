@@ -2,6 +2,10 @@ open Types
 
 type t = cdp_session
 
+let equal (a : t) (b : t) = Channel.equal a.cdp_channel b.cdp_channel
+let compare (a : t) (b : t) = Channel.compare a.cdp_channel b.cdp_channel
+let hash (t : t) = Channel.hash t.cdp_channel
+
 (* The session is over: it was detached, or its target or the connection to it went away. *)
 let did_close (session : t) =
     if not session.cdp_detached then begin

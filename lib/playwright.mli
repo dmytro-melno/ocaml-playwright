@@ -35,9 +35,10 @@
       [..._matching] take an OCaml predicate on the URL instead.
     - Events are values of a GADT, which gives every event its payload type:
       [Page.on Page.Console (fun message -> ...) page].
-    - Pages, frames, requests and the other objects have identity: the library always returns the same OCaml value
-      for the same object in the browser. Compare them with physical equality, [==]; the polymorphic [=] and
-      [compare] must not be used on them. *)
+    - Pages, frames, requests and the other objects have identity. Each of their modules has [equal], [compare] and
+      [hash], see {!Identity}, which also makes it an argument for [Set.Make], [Map.Make] and [Hashtbl.Make]. The
+      polymorphic [=], [compare] and [Hashtbl.hash] must not be used on objects: they look into values that are
+      none of their business, and may fail or not return. *)
 
 (** {1 Errors} *)
 
@@ -331,6 +332,26 @@ end
 
 (** {1 Shared signatures} *)
 
+(** What makes two values the same object. The module of every kind of object includes this signature, so that
+    objects can be compared, collected in sets and used as keys:
+    {[
+      let module Pages = Set.Make (Page) in
+      let seen = ref Pages.empty in
+      BrowserContext.on BrowserContext.Page (fun page -> seen := Pages.add page !seen) context
+    ]} *)
+module type Identity = sig
+    type t
+
+    val equal : t -> t -> bool
+    (** Whether the two are the same object in the browser: the same page, the same request. Two locators are the
+        same when they look for the same thing in the same frame. *)
+
+    val compare : t -> t -> int
+    (** A total order that agrees with {!equal}. It is otherwise arbitrary, and holds for one run of the program. *)
+
+    val hash : t -> int
+end
+
 (** Finding elements the way users and assistive technology perceive them. These functions are provided by {!Page},
     {!Frame}, {!Locator} and {!FrameLocator}; see {{:https://playwright.dev/docs/locators} Locators}.
 
@@ -616,6 +637,8 @@ and BrowserType : sig
     (** [connect_over_cdp endpoint] attaches to a running Chromium-based browser through the Chrome DevTools Protocol,
         given an HTTP endpoint such as ["http://localhost:9222"] or a WebSocket URL. The contexts and pages that are
         open already are available from {!Browser.contexts}. *)
+
+    include Identity with type t := t
 end
 
 (** A running browser. *)
@@ -648,6 +671,8 @@ and Browser : sig
     val close : ?reason:string -> t -> unit
     (** Closes the browser with all its contexts and pages; for a browser that was connected to, disconnects from it.
         [reason] is reported by the operations that this interrupts. Does nothing if the browser is gone already. *)
+
+    include Identity with type t := t
 end
 
 (** An isolated browser session: pages of the same context share cookies, storage, permissions and settings, and
@@ -785,6 +810,8 @@ and BrowserContext : sig
     (** A Chrome DevTools Protocol session with a page. Chromium only. *)
 
     val new_cdp_session_for_frame : Frame.t -> t -> CDPSession.t
+
+    include Identity with type t := t
 end
 
 (** {1 Pages} *)
@@ -1013,6 +1040,8 @@ and Page : sig
         ?forced_colors:forced_colors -> ?contrast:contrast -> t -> unit
 
     val request_gc : t -> unit
+
+    include Identity with type t := t
 end
 
 (** A frame of a page: its main frame or the content of an [<iframe>]. *)
@@ -1047,6 +1076,8 @@ and Frame : sig
 
     val frame_element : t -> ElementHandle.t
     (** The [<iframe>] or [<frame>] element that holds the frame. *)
+
+    include Identity with type t := t
 end
 
 (** A way to find elements in a page, and the means to act on them.
@@ -1105,8 +1136,6 @@ and Locator : sig
 
     val to_string : t -> string
     (** The selector that the locator stands for. *)
-
-    val equal : t -> t -> bool
 
     (** {1 Actions} *)
 
@@ -1228,6 +1257,8 @@ and Locator : sig
 
     val element_handle : ?timeout:float -> t -> ElementHandle.t
     val element_handles : t -> ElementHandle.t list
+
+    include Identity with type t := t
 end
 
 (** The content of an [<iframe>], for locating elements inside it:
@@ -1249,6 +1280,8 @@ and FrameLocator : sig
     val first : t -> t
     val last : t -> t
     val nth : int -> t -> t
+
+    include Identity with type t := t
 end
 
 (** {1 Handles and input devices} *)
@@ -1273,6 +1306,8 @@ and JSHandle : sig
 
     val to_string : t -> string
     val dispose : t -> unit
+
+    include Identity with type t := t
 end
 
 (** A reference to a DOM element in a page. {!Locator}s are the better tool for nearly everything: an element
@@ -1340,6 +1375,8 @@ and ElementHandle : sig
     val select_option : ?timeout:float -> ?force:bool -> select_option list -> t -> string list
     val set_input_files : ?timeout:float -> string list -> t -> unit
     val set_input_payloads : ?timeout:float -> file_payload list -> t -> unit
+
+    include Identity with type t := t
 end
 
 (** The keyboard of a page, see {!Page.keyboard}. Keys are named as in
@@ -1358,6 +1395,8 @@ and Keyboard : sig
 
     val down : string -> t -> unit
     val up : string -> t -> unit
+
+    include Identity with type t := t
 end
 
 (** The mouse of a page, see {!Page.mouse}. Coordinates are in CSS pixels relative to the top left corner of the
@@ -1373,12 +1412,16 @@ and Mouse : sig
 
     val wheel : float -> float -> t -> unit
     (** [wheel delta_x delta_y] scrolls. *)
+
+    include Identity with type t := t
 end
 
 and Touchscreen : sig
     type t
 
     val tap : float -> float -> t -> unit
+
+    include Identity with type t := t
 end
 
 (** {1 Network} *)
@@ -1433,6 +1476,8 @@ and Request : sig
 
     val sizes : t -> sizes
     (** Waits for the response to finish. *)
+
+    include Identity with type t := t
 end
 
 (** The response to a {!Request}. *)
@@ -1479,6 +1524,8 @@ and Response : sig
     val http_version : t -> string
     val server_addr : t -> server_addr option
     val security_details : t -> security_details option
+
+    include Identity with type t := t
 end
 
 (** An intercepted request, see {!Page.route}. A handler has to conclude each route in exactly one way. *)
@@ -1509,6 +1556,8 @@ and Route : sig
         ?max_retries:int -> t -> APIResponse.t
     (** Performs the request and returns the response without passing it to the page, so that it can be inspected
         and modified before {!fulfill}. *)
+
+    include Identity with type t := t
 end
 
 (** A WebSocket connection opened by a page. *)
@@ -1529,6 +1578,8 @@ and WebSocket : sig
     val off : 'a event -> ('a -> unit) -> t -> unit
     val expect_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> (unit -> unit) -> t -> 'a
     val wait_for_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> t -> 'a
+
+    include Identity with type t := t
 end
 
 (** An intercepted WebSocket connection, see {!Page.route_web_socket}.
@@ -1558,6 +1609,8 @@ and WebSocketRoute : sig
         closure is forwarded to the other side. *)
 
     val close : ?code:int -> ?reason:string -> t -> unit
+
+    include Identity with type t := t
 end
 
 (** {1 Things that pages report} *)
@@ -1574,6 +1627,8 @@ and Dialog : sig
     val page : t -> Page.t option
     val accept : ?prompt_text:string -> t -> unit
     val dismiss : t -> unit
+
+    include Identity with type t := t
 end
 
 and ConsoleMessage : sig
@@ -1592,6 +1647,8 @@ and ConsoleMessage : sig
 
     val timestamp : t -> float
     (** Milliseconds since the Unix epoch. *)
+
+    include Identity with type t := t
 end
 
 (** A file that a page downloads. Downloads are stored in a temporary directory and deleted when the context is
@@ -1614,6 +1671,8 @@ and Download : sig
 
     val cancel : t -> unit
     val delete : t -> unit
+
+    include Identity with type t := t
 end
 
 (** A file chooser that a page opened, see {!Page.expect_file_chooser}. *)
@@ -1625,6 +1684,8 @@ and FileChooser : sig
     val is_multiple : t -> bool
     val set_files : ?timeout:float -> string list -> t -> unit
     val set_payloads : ?timeout:float -> file_payload list -> t -> unit
+
+    include Identity with type t := t
 end
 
 (** An exception that was not handled in a page, see {!BrowserContext.Web_error}. *)
@@ -1633,6 +1694,8 @@ and WebError : sig
 
     val page : t -> Page.t option
     val error : t -> Error.t
+
+    include Identity with type t := t
 end
 
 (** A web worker or a service worker. *)
@@ -1650,6 +1713,8 @@ and Worker : sig
     val off : 'a event -> ('a -> unit) -> t -> unit
     val expect_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> (unit -> unit) -> t -> 'a
     val wait_for_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> t -> 'a
+
+    include Identity with type t := t
 end
 
 (** The [localStorage] or [sessionStorage] of a page, see {!Page.local_storage}. It always is the storage of the
@@ -1662,6 +1727,8 @@ and WebStorage : sig
     val set_item : string -> string -> t -> unit
     val remove_item : string -> t -> unit
     val clear : t -> unit
+
+    include Identity with type t := t
 end
 
 (** The video recording of a page. The file is complete once the page has been closed. *)
@@ -1675,6 +1742,8 @@ and Video : sig
     (** Waits for the page to close and copies the video to the given path. *)
 
     val delete : t -> unit
+
+    include Identity with type t := t
 end
 
 (** {1 Tools} *)
@@ -1710,6 +1779,8 @@ and Tracing : sig
     (** [start_har path] starts recording network activity into a HAR file, which {!stop_har} writes. *)
 
     val stop_har : t -> unit
+
+    include Identity with type t := t
 end
 
 (** The response to a request made with {!APIRequestContext}. *)
@@ -1729,6 +1800,8 @@ and APIResponse : sig
 
     val dispose : t -> unit
     (** Frees the body, which the driver otherwise keeps until the request context is disposed of. *)
+
+    include Identity with type t := t
 end
 
 (** Sending HTTP requests without a page, for instance to prepare the state of a server or to check on it. Requests
@@ -1776,6 +1849,8 @@ and APIRequestContext : sig
 
     val dispose : ?reason:string -> t -> unit
     (** Frees the context and all responses that it holds. Only for contexts made with {!APIRequest.new_context}. *)
+
+    include Identity with type t := t
 end
 
 (** A raw {{:https://chromedevtools.github.io/devtools-protocol/} Chrome DevTools Protocol} session. Chromium only.
@@ -1800,6 +1875,8 @@ and CDPSession : sig
     val off_event : (string -> Yojson.Safe.t -> unit) -> t -> unit
     val on_close : (t -> unit) -> t -> unit
     val detach : t -> unit
+
+    include Identity with type t := t
 end
 
 (** Control over the time that the pages of a context see: [Date], [setTimeout], [requestAnimationFrame] and the

@@ -6,6 +6,10 @@ open Network
 
 type t = route
 
+let equal (a : t) (b : t) = Channel.equal a.rt_channel b.rt_channel
+let compare (a : t) (b : t) = Channel.compare a.rt_channel b.rt_channel
+let hash (t : t) = Channel.hash t.rt_channel
+
 let create (channel : Protocol.Route.t) : t =
     let init = Protocol.Route.initializer_ channel in
     { rt_channel = channel; rt_request = Types.request init.request; rt_context = None; handling = None }
@@ -187,6 +191,10 @@ end
 
 module Web_socket = struct
     type t = web_socket_route
+
+    let equal (a : t) (b : t) = Channel.equal a.wr_channel b.wr_channel
+    let compare (a : t) (b : t) = Channel.compare a.wr_channel b.wr_channel
+    let hash (t : t) = Channel.hash t.wr_channel
 
     (* The messages of a socket are passed on in the order in which they came, also when nobody
        handles them. *)

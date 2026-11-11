@@ -8,6 +8,10 @@ type multipart_value = [ `Text of string | `File of file_payload ]
 module Context = struct
     type t = api_request_context
 
+    let equal (a : t) (b : t) = Channel.equal a.a_channel b.a_channel
+    let compare (a : t) (b : t) = Channel.compare a.a_channel b.a_channel
+    let hash (t : t) = Channel.hash t.a_channel
+
     let create session (channel : Protocol.Api_request_context.t) : t =
         let init = Protocol.Api_request_context.initializer_ channel in
         { a_channel = channel; a_session = session; a_tracing = Types.tracing init.tracing; a_timeouts = Timeouts.create (); a_close_reason = None;
@@ -91,6 +95,14 @@ end
 
 module Response = struct
     type t = api_response
+
+    (* A response is not an object of the driver: it is known by a name within its context. *)
+    let equal (a : t) (b : t) = Channel.equal a.ar_context.a_channel b.ar_context.a_channel && String.equal a.ar_init.fetch_uid b.ar_init.fetch_uid
+    
+    let compare (a : t) (b : t) =
+        match Channel.compare a.ar_context.a_channel b.ar_context.a_channel with 0 -> String.compare a.ar_init.fetch_uid b.ar_init.fetch_uid | order -> order
+    
+    let hash (response : t) = Hashtbl.hash (Channel.hash response.ar_context.a_channel, response.ar_init.fetch_uid)
 
     let url (r : t) = r.ar_init.url
     let status (r : t) = r.ar_init.status

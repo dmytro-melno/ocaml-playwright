@@ -82,7 +82,7 @@ let test_reading _ page =
     Alcotest.(check bool) "no box for hidden elements" true (Page.locator "#hidden" page |> Locator.bounding_box = None);
     Alcotest.check js "evaluate_all" (Js.Number 3.) (Page.locator "li" page |> Locator.evaluate_all "items => items.length");
     Alcotest.(check string) "selector text" "#name" (Locator.to_string name |> fun s -> String.sub s (String.length s - 5) 5);
-    Alcotest.(check bool) "its page" true (Locator.page name == page)
+    Alcotest.(check bool) "its page" true (Page.equal (Locator.page name) page)
 
 let test_actions _ page =
     Page.set_content form page;
@@ -192,7 +192,7 @@ let test_selector_operations _ page =
     Alcotest.(check string) "element handle" "Grace" (ElementHandle.input_value element);
     Alcotest.(check bool) "element state" true (ElementHandle.is_visible element && ElementHandle.is_enabled element);
     Alcotest.(check (option string)) "element attribute" (Some "name") (ElementHandle.get_attribute "id" element);
-    Alcotest.(check bool) "owner frame" true (same_option (ElementHandle.owner_frame element) (Some (Page.main_frame page)));
+    Alcotest.(check bool) "owner frame" true (Option.equal Frame.equal (ElementHandle.owner_frame element) (Some (Page.main_frame page)));
     Alcotest.(check bool) "waiting for hidden yields nothing" true (Option.is_none (Page.wait_for_selector ~state:`Hidden "#hidden" page));
     check_failure "strict selector" ~message:"strict mode violation" (fun () -> Page.click ~strict:true "li" page)
 
@@ -251,7 +251,7 @@ let test_uploads t page =
     check_failure "several files for a single input" ~message:"Non-multiple file input" (fun () -> Page.locator "#one" page |> Locator.set_input_files [ a; b ]);
     let chooser = Page.expect_file_chooser (fun () -> Page.click "#many" page) page in
     Alcotest.(check bool) "multiple" true (FileChooser.is_multiple chooser);
-    Alcotest.(check bool) "its page" true (FileChooser.page chooser == page);
+    Alcotest.(check bool) "its page" true (Page.equal (FileChooser.page chooser) page);
     FileChooser.set_files [ b ] chooser;
     Alcotest.(check string) "through the file chooser" (Filename.basename b ^ ":application/json:{}") (describe "many")
 

@@ -182,12 +182,41 @@ assembles the modules of the implementation and restricts them to that interface
 logic of its own. Starting and stopping a driver, which belongs to no object, is in
 `instance.ml`.
 
-The interface declares the object types first, as abstract types (`page`, `frame`, ...), and
-then one module per object, so that modules can refer to each other's types in any order.
-Signatures that several modules share are stated once: `Locator_queries` (the `get_by_*`
-family), `Frame_operations` (what pages and frames have in common) and the option lists
-`'a with_context_options`, `'a with_launch_options`, `'a with_screenshot_options`. These
-are repeated in `playwright.ml`; the compiler checks that they agree.
+The types of the objects refer to one another: a page has frames, a frame has a page. The
+interface therefore declares the modules of the objects, and `Js`, as one recursive group,
+`module rec Js : sig ... end and BrowserType : sig ... end and ...`, in which each module
+declares its own type `t` and names the others' as `Page.t`, `Frame.t`. There is no other
+name for these types. The implementation is not recursive: its modules are those of the
+private library, whose types are all defined in `types.ml`. What takes a driver and returns
+an object (`chromium`, `APIRequest`) can only be declared after the group, as can `Expect`,
+`Clock` and `Selectors`, which need not be part of it.
+
+Signatures that several modules share are stated once, before the group: `Identity`
+(`equal`, `compare`, `hash`, in every object module), `Locator_queries` (the `get_by_*`
+family) and `Frame_operations` (what pages and frames have in common). Since they come
+before the types that they mention, they take these as parameters: `type locator`,
+`type js_value` and so on, which the modules substitute, as in
+`include Locator_queries with type t := t and type locator := Locator.t`. The two long lists
+of options that several functions accept are type abbreviations, `'a with_context_options`
+and `'a with_launch_options`.
+
+OCaml wants every type and module type that an interface defines to be defined by the
+implementation too. `playwright.ml` therefore begins with a second statement of the value
+types, the two abbreviations and the three shared signatures, without their documentation;
+the compiler checks that they agree with the interface. Keeping them in a third file for
+both to refer to would not remove the need: the shared signatures mention the value types,
+so these would have to move there as well, and the interface would no longer be readable
+on its own. `Expect.Assertions` is not restated: it is `module type of` what the functor in
+`expect.ml` returns, which is why that functor keeps its helpers in an `open struct`.
+
+### Identity
+
+Every object module has `equal`, `compare` and `hash`. For an object of the driver they are
+those of its channel, `Channel.equal` and so on, which rest on the `serial` number that a
+channel is given when it is created (`serial.ml`). A guid would not do: it is unique within
+its connection only, and the browser types of two drivers have the same one. Console
+messages and web errors are not objects of the driver and carry a serial number of their
+own; locators are compared by frame and selector, API responses by context and fetch id.
 
 ## Life of a call
 
