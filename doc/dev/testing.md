@@ -7,25 +7,26 @@ There are four sets of checks, all run by `dune runtest`:
 | `test/unit` | the internals, without a driver | nothing |
 | `test/driver` | what was ported from the Playwright client, against the original in the driver | Node.js, the driver |
 | `test/integration` | the public API against Chromium | Node.js, the driver, a Chromium |
-| `test/docs` | the OCaml code in `README.md` and `doc/*.md` compiles | nothing |
+| `test/docs` | the OCaml code in `README.md`, `doc/*.md` and the comments of `lib/playwright.mli` compiles | nothing |
 
-In addition, `dune runtest` fails if `lib/protocol.ml` is not what the generator produces
-from `protocol/` (see [protocol.md](protocol.md)).
+In addition, `dune runtest` fails if `lib/protocol.ml` or `doc/dev/protocol-coverage.md` is
+not what the generator produces from `protocol/` (see [protocol.md](protocol.md)).
 
 ## Unit tests
 
 `test/unit` is written against `playwright_internal`, the private library that holds the
-implementation; `internal.ml` brings its modules into scope. It covers:
+implementation; `internal.ml` brings its modules into scope. A scripted transport plays the
+driver, so that every order of events can be produced, which no browser does on demand.
 
-- `test_wire.ml`: JSON decoding, framing of messages, and the connection against a scripted
-  transport: creation and disposal of objects, replies and errors, cancellation, closing.
-- `test_values.ml`: JavaScript values, selectors.
-- `test_urls.ml`: the URL parser, against a table of what Node.js gives; URL globs, against
-  the tables of Playwright's own tests.
-- `test_support.ml`: emitters, waiters, timeouts.
-- `test_process.ml`: running a child process over pipes, with both implementations of
-  `Driver_process`: output, graceful stop, forced stop, cancellation. It uses `cat`, `sh`
-  and `sleep`.
+| File | Covers |
+| --- | --- |
+| `test_wire.ml` | JSON decoding, framing of messages, and the connection: creation and disposal of objects, replies and errors, protocol failures, closing |
+| `test_ownership.ml` | what a cancelled fiber leaves behind: replies that arrive late and what they hold, aborting, clean-up, closing that is concurrent, repeated or cancelled |
+| `test_events.ml` | listeners (order, removal, changes during an emission, cost), the budget of handler calls and what happens beyond it, waiting for an event around an action |
+| `test_process.ml` | running a child process over pipes, with both implementations of `Driver_process`: output, standard error, graceful stop, forced stop, cancellation. It uses `cat`, `sh` and `sleep` |
+| `test_values.ml` | JavaScript values, selectors, snapshot templates |
+| `test_urls.ml` | the URL parser, against a table of what Node.js gives; URL globs, against the tables of Playwright's own tests |
+| `test_support.ml` | timeouts, files, errors, and finding and installing the driver, with a script in place of Node.js: the time limit and cancellation of an installation |
 
 ```sh
 dune build ./test/unit/main.exe && ./_build/default/test/unit/main.exe
@@ -47,13 +48,27 @@ dune build ./test/driver/main.exe && ./_build/default/test/driver/main.exe
 
 ## Browser tests
 
-`test/integration` starts one driver, one browser and one HTTP server (`server.ml`, on a
-free local port), and gives every test a fresh browser context. The tests are grouped by
-subject: pages, locators, events, network, contexts, and a file of everything else
-(tracing, CDP, remote browsers, life cycle).
+`test/integration` uses the public interface only, as an application would. It starts one
+driver, one browser and one HTTP server (`server.ml`, on a free local port), and gives every
+test a fresh browser context.
+
+| File | Groups |
+| --- | --- |
+| `test_pages.ml` | `navigation`, `javascript`, `rendering` |
+| `test_locators.ml` | `locators`, `expect` |
+| `test_events.ml` | `events`: listeners, bursts, waiting, dialogs, downloads, popups |
+| `test_network.ml` | `routing`, `network` |
+| `test_context.ml` | `context`, `recording` |
+| `test_cancellation.ml` | `cancellation`: what cancelled calls, closes and creations leave behind |
+| `test_misc.ml` | `lifecycle`, `input`, `tools`, `objects`, `fibers` |
+
+`harness.ml` has what the tests share, and `tls_server.ml` is an HTTPS server that asks for
+a client certificate, for the test of those; it runs on Node.js, with a certificate that is
+part of the file.
 
 Every test also checks that nothing was reported to the `on_error` hook, so an exception in
-a background fiber fails the test during which it happened.
+a background fiber fails the test during which it happened. A test that expects a report
+takes it with `Harness.take_reports`.
 
 The browser is, in this order: the one named by `PLAYWRIGHT_TEST_CHROMIUM`; the Chromium
 that Playwright installed; a Chromium or Chrome found in the usual places of the system.
@@ -105,29 +120,38 @@ let tests t = [ page_case t "fills the form" test_fills_the_form ]
 nothing, for tests that create their own contexts. `Server.page` registers a document on
 the HTTP server for tests that need a real origin, and `Server.route` a function that
 answers requests. Prefer `Page.set_content` and `Page.route` where they suffice: they are
-faster and keep the test in one place.
+faster and keep the test in one place. `Harness.check_failure` checks the kind and the
+message of a `Playwright.Error`.
 
 A test should assert what a user of the library relies on, and it should fail if the
-implementation is broken. Avoid sleeping; wait for a condition with `Expect` or an
-`expect_...` function. A test that passes only when run alone, or only most of the time,
-points at a race worth finding.
+implementation is broken. Avoid sleeping; wait for a condition with `Expect`, an
+`expect_...` function or `Harness.eventually`. Where time is what is tested, leave wide
+margins: the tests also run on machines that are busy with something else. A test that
+passes only when run alone, or only most of the time, points at a race worth finding.
 
 ## Documentation
 
 `test/docs/extract.ml` collects the code blocks that are fenced with exactly ` ```ocaml ` from
-`README.md` and `doc/*.md` (not `doc/dev`) into one source file, which is compiled and never
-run. A block that starts with `open` or `let () =` is a program. Every other block is an
-expression in which `Playwright` is open and `env`, `pw`, `browser`, `context`, `page`,
-`frame` and `locator` are bound. Errors are reported at their place in the Markdown file.
-A block that is not meant to compile is fenced with ` ```ocaml skip `.
+`README.md` and `doc/*.md` (not `doc/dev`), and the examples in the comments of
+`lib/playwright.mli`, into one source file, which is compiled and never run. A block that
+starts with `open` or `let () =` is a program. Every other block is an expression in which
+`Playwright` is open and `env`, `pw`, `browser`, `context`, `page`, `frame` and `locator`
+are bound. Errors are reported at their place in the file that the block comes from. A
+block that is not meant to compile is fenced with ` ```ocaml skip `.
+
+`dune build @doc` builds the reference from `lib/playwright.mli` with odoc, which reports
+references that do not resolve as warnings; there should be none. The programs in
+`examples/` are built with everything else, and are run by hand: they visit real sites.
 
 ## Before a release
 
 ```sh
 dune build @all @runtest
-PLAYWRIGHT_TEST_REQUIRED=1 dune test --force test/integration
-PLAYWRIGHT_TEST_REQUIRED=1 PLAYWRIGHT_OCAML_DRIVER_IO=threads dune test --force test/integration
-dune build @doc                      # needs odoc
+PLAYWRIGHT_TEST_REQUIRED=1 dune test --force test/driver test/integration
+PLAYWRIGHT_TEST_REQUIRED=1 PLAYWRIGHT_OCAML_DRIVER_IO=threads dune test --force test/unit test/integration
+dune build @doc 2>&1 | grep -c Warning      # needs odoc; 0
+dune build --profile release @install
 ```
 
-and the cross-build for Windows, see [windows.md](windows.md).
+Run the browser tests several times: what they find that the unit tests cannot is mostly a
+matter of timing. Then the cross-build for Windows, see [windows.md](windows.md).

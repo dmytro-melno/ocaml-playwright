@@ -15,7 +15,9 @@ Treat Windows as experimental.
 
 ## What is different there
 
-Little, and all of it in two modules.
+Little, and all of it in two modules. Everything else that touches the system (files, the
+installation of the driver, the driver's standard error) is done with the Unix library in
+system threads, in the same way on every system.
 
 **Processes and pipes (`driver_process.ml`).** Eio has no process manager on Windows and its
 pipes cannot be read without blocking there. So the driver is started with
@@ -39,6 +41,20 @@ by the library itself, and the full path is used to start it. Windows would othe
 into the current directory first, which must not decide what program is run. Relative
 entries of `PATH` are ignored for the same reason. `PLAYWRIGHT_NODEJS_PATH` names the
 executable directly.
+
+**Installing the driver (`driver.ml`).** The installer is a Node.js script, started with
+`Unix.create_process_env` and polled with `Unix.waitpid [ WNOHANG ]` until it ends, its time
+is up or the caller is cancelled; it is then killed with `Unix.kill pid Sys.sigkill`, which
+the Unix library carries out with `TerminateProcess` on Windows. Its standard input is
+`NUL` there. The unpacked package is renamed into place with `Unix.rename`. When that fails
+because another process has installed the driver meanwhile, as it does on Windows where a
+directory cannot be renamed over another, the installation counts as done.
+
+**Standard error.** The driver writes to a pipe, and a system thread copies from it to the
+program's standard error (see *The driver* in [architecture.md](architecture.md)). The pipe
+is made with `Unix.pipe ~cloexec:true`, and the write end is passed to
+`Unix.create_process` as the child's standard error, which makes that one handle
+inheritable.
 
 The cache is in `%LOCALAPPDATA%\ocaml-playwright`. The command `ocaml-playwright` runs
 Playwright's tool as a child process and waits for it, where on Unix it replaces itself
