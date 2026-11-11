@@ -21,6 +21,7 @@ type forced_colors = [ `Active | `None | `No_override ]
 type contrast = [ `More | `No_preference | `No_override ]
 type file_payload = Protocol.Frame.Set_input_files_payloads.t = { name : string; mime_type : string option; buffer : string }
 type select_option = Frame.select_option
+type script = [ `Content of string | `Path of string ]
 type web_socket_message = Types.ws_payload = Text of string | Binary of string
 
 type timing = Types.timing = {
@@ -161,8 +162,8 @@ module type Frame_operations = sig
     val evaluate : ?arg:js_value -> string -> t -> js_value
     val evaluate_handle : ?arg:js_value -> string -> t -> js_handle
     val wait_for_function : ?timeout:float -> ?polling:float -> ?arg:js_value -> string -> t -> js_handle
-    val add_script_tag : ?url:string -> ?path:string -> ?content:string -> ?type_:string -> t -> element_handle
-    val add_style_tag : ?url:string -> ?path:string -> ?content:string -> t -> element_handle
+    val add_script_tag : ?type_:string -> [ script | `Url of string ] -> t -> element_handle
+    val add_style_tag : [ script | `Url of string ] -> t -> element_handle
     val query_selector : ?strict:bool -> string -> t -> element_handle option
     val query_selector_all : string -> t -> element_handle list
     val wait_for_selector : ?timeout:float -> ?strict:bool -> ?state:element_state -> string -> t -> element_handle option
@@ -339,7 +340,7 @@ end
 module CDPSession = Cdp_session
 
 module Selectors = struct
-    let register ?content_script ?path ?script name (t : t) = Misc.Selectors.register ?content_script ?path ?script name t.session
+    let register ?content_script name script (t : t) = Misc.Selectors.register ?content_script name script t.session
     let set_test_id_attribute name (t : t) = Misc.Selectors.set_test_id_attribute name t.session
 end
 

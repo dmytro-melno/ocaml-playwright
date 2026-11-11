@@ -247,13 +247,12 @@ let video (page : t) = if page.context.records_video then Some page else None
 let set_default_timeout timeout (page : t) = Timeouts.set_default page.p_timeouts timeout
 let set_default_navigation_timeout timeout (page : t) = Timeouts.set_default_navigation page.p_timeouts timeout
 
-let frame ?name ?url (page : t) =
-    match name, url with
-    | Some name, _ -> List.find_opt (fun (frame : frame) -> frame.f_name = name) page.frames
-    | None, Some glob ->
+let frame (which : [ `Name of string | `Url of string ]) (page : t) =
+    match which with
+    | `Name name -> List.find_opt (fun (frame : frame) -> frame.f_name = name) page.frames
+    | `Url glob ->
         let matches = Frame.url_matcher page.main_frame glob in
         List.find_opt (fun (frame : frame) -> matches frame.f_url) page.frames
-    | None, None -> invalid_arg "Playwright: either ~name or ~url must be specified"
 
 (* {1 Events for the user} *)
 
@@ -354,8 +353,8 @@ let emulate_media ?media ?color_scheme ?reduced_motion ?forced_colors ?contrast 
 
 let set_extra_http_headers headers (page : t) = Protocol.Page.set_extra_http_headers ~headers:(Network.name_values headers) page.p_channel
 
-let add_init_script ?path ?script (page : t) =
-    Disposable.of_channel (Protocol.Page.add_init_script ~source:(Browser_context.init_script ?path ?script ()) page.p_channel)
+let add_init_script script (page : t) =
+    Disposable.of_channel (Protocol.Page.add_init_script ~source:(Browser_context.script_source script) page.p_channel)
 
 let expose_binding name (binding : binding) (page : t) =
     Browser_context.keep_binding page.p_bindings name binding (Protocol.Page.expose_binding ~name page.p_channel)

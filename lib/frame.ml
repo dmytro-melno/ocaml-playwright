@@ -277,10 +277,9 @@ struct
     let expect_navigation ?timeout ?wait_until ?url ?url_matching action t =
         let frame = T.frame t in
         let matches =
-            match url, url_matching with
-            | Some _, Some _ -> invalid_arg "Playwright: pass either ~url or ~url_matching, not both"
-            | Some glob, None -> Some (url_matcher frame glob)
-            | None, matching -> matching
+            match Option.map (url_matcher frame) url, url_matching with
+            | Some glob, Some matching -> Some (fun url -> glob url && matching url)
+            | (Some _ as one), None | None, one -> one
         in
         snd (expect_navigation ?timeout ?wait_until ?matches frame action)
 
@@ -303,15 +302,21 @@ struct
         | Some handle -> Types.js_handle handle
         | None -> Error.raise_ "The driver returned no handle for the awaited function"
 
-    let add_script_tag ?url ?path ?content ?type_ t =
-        let content = match path with Some path -> Some (script_with_source_url ~path (Files.read path)) | None -> content in
+    let add_script_tag ?type_ (source : [ `Content of string | `Path of string | `Url of string ]) t =
+        let url, content =
+            match source with
+            | `Url url -> Some url, None
+            | `Content content -> None, Some content
+            | `Path path -> None, Some (script_with_source_url ~path (Files.read path))
+        in
         Protocol.Frame.add_script_tag ?url ?content ?type_ (T.frame t).f_channel |> Types.element
 
-    let add_style_tag ?url ?path ?content t =
-        let content =
-            match path with
-            | Some path -> Some (Files.read path ^ "/*# sourceURL=" ^ String.concat "" (String.split_on_char '\n' path) ^ "*/")
-            | None -> content
+    let add_style_tag (source : [ `Content of string | `Path of string | `Url of string ]) t =
+        let url, content =
+            match source with
+            | `Url url -> Some url, None
+            | `Content content -> None, Some content
+            | `Path path -> None, Some (Files.read path ^ "/*# sourceURL=" ^ String.concat "" (String.split_on_char '\n' path) ^ "*/")
         in
         Protocol.Frame.add_style_tag ?url ?content (T.frame t).f_channel |> Types.element
 

@@ -60,8 +60,10 @@ let test_queries _ page =
     Alcotest.(check int) "visible only" 0 (Page.locator "#hidden" page |> Locator.visible |> Locator.count);
     Alcotest.(check int) "locator options" 1 (Page.locator "li" ~has_text_regex:"/^apple$/i" page |> Locator.count);
     Alcotest.(check bool) "equal" true (Locator.equal (Page.locator "li" page) (Page.locator "li" page));
-    Alcotest.check_raises "text and regex together" (Invalid_argument "Playwright: pass either ~has_text or ~has_text_regex, not both") (fun () ->
-        ignore (Page.locator "li" ~has_text:"a" ~has_text_regex:"/a/" page))
+    (* The conditions given all have to hold. *)
+    Alcotest.(check (list string)) "text and pattern" [ "Banana ripe" ] (Page.locator "li" ~has_text:"a" ~has_text_regex:"/^b/i" page |> Locator.all_inner_texts);
+    Alcotest.(check (list string)) "neither text nor pattern" [ "Cherry" ]
+        (Locator.filter ~has_not_text:"apple" ~has_not_text_regex:"/^b/i" items |> Locator.all_inner_texts)
 
 let test_reading _ page =
     Page.set_content form page;

@@ -70,16 +70,11 @@ end
 
 module Selectors = struct
     (* Makes a custom selector engine available to every context, present and future. *)
-    let register ?content_script ?path ?script name (session : session) =
+    let register ?content_script name (script : [ `Content of string | `Path of string ]) (session : session) =
         let selectors = session.selectors in
         if List.exists (fun (engine : Protocol.Selector_engine.t) -> engine.name = name) selectors.selector_engines then
             Error.raise_ "\"%s\" selector engine has been already registered" name;
-        let source =
-            match path, script with
-            | Some path, None -> Files.read path
-            | None, Some script -> script
-            | _ -> invalid_arg "Playwright: pass either ~script or ~path"
-        in
+        let source = match script with `Content script -> script | `Path path -> Files.read path in
         let selector_engine : Protocol.Selector_engine.t = { name; source; content_script } in
         List.iter
             (fun (context : browser_context) ->

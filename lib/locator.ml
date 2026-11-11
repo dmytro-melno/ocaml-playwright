@@ -33,13 +33,10 @@ let role_name : role -> string = function
 
 (* {1 Construction} *)
 
-(* A text given either literally or as a regular expression, but not both ways. *)
-let text_option what plain regex : Selector.text option =
-    match plain, regex with
-    | Some _, Some _ -> invalid_arg (Printf.sprintf "Playwright: pass either ~%s or ~%s_regex, not both" what what)
-    | Some "", None | None, None -> None
-    | Some text, None -> Some (Text text)
-    | None, Some regex -> Some (Regex regex)
+(* The conditions on the text of an element: what it is to contain, and what it is to match. *)
+let text_filters filter plain regex =
+    [ (match plain with Some "" | None -> None | Some text -> Some (filter (Selector.Text text)));
+      Option.map (fun regex -> filter (Selector.Regex regex)) regex ]
 
 let same_frame what (frame : frame) (locator : t) =
     if locator.l_frame != frame then invalid_arg (Printf.sprintf "Playwright: %s locator must belong to the same frame" what);
@@ -48,11 +45,11 @@ let same_frame what (frame : frame) (locator : t) =
 let make ?has_text ?has_text_regex ?has_not_text ?has_not_text_regex ?has ?has_not ?visible (frame : frame) selector : t =
     let filters =
         List.filter_map Fun.id
-            [ Option.map Selector.has_text (text_option "has_text" has_text has_text_regex);
-              Option.map Selector.has_not_text (text_option "has_not_text" has_not_text has_not_text_regex);
-              Option.map (fun inner -> Selector.has (same_frame "the inner \"has\"" frame inner)) has;
-              Option.map (fun inner -> Selector.has_not (same_frame "the inner \"has_not\"" frame inner)) has_not;
-              Option.map Selector.visible visible ]
+            (text_filters Selector.has_text has_text has_text_regex
+            @ text_filters Selector.has_not_text has_not_text has_not_text_regex
+            @ [ Option.map (fun inner -> Selector.has (same_frame "the inner \"has\"" frame inner)) has;
+                Option.map (fun inner -> Selector.has_not (same_frame "the inner \"has_not\"" frame inner)) has_not;
+                Option.map Selector.visible visible ])
     in
     { l_frame = frame; selector = Selector.join (selector :: filters) }
 

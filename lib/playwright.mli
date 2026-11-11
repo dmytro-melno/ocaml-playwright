@@ -95,6 +95,9 @@ type file_payload = { name : string; mime_type : string option; buffer : string 
 type select_option = [ `Value of string | `Label of string | `Index of int | `Value_or_label of string ]
 (** Identifies an [<option>] of a [<select>]. *)
 
+type script = [ `Content of string | `Path of string ]
+(** JavaScript or CSS, given as its text or as the file to read it from. *)
+
 type web_socket_message = Text of string | Binary of string
 
 type timing = {
@@ -459,7 +462,8 @@ module type Frame_operations = sig
 
     val expect_navigation :
         ?timeout:float -> ?wait_until:lifecycle_event -> ?url:string -> ?url_matching:(string -> bool) -> (unit -> unit) -> t -> response option
-    (** Runs the action and waits for the navigation that it causes. *)
+    (** Runs the action and waits for the navigation that it causes: the next one, or the next one to a URL that
+        matches the glob pattern [url] and satisfies [url_matching], as far as they are given. *)
 
     val wait_for_timeout : float -> t -> unit
     (** Sleeps. Meant for debugging: waiting for a fixed time makes automation slow and flaky. *)
@@ -483,8 +487,12 @@ module type Frame_operations = sig
     (** Waits until the expression evaluates to a truthy value, and returns that. It is evaluated on every animation
         frame, or every [polling] milliseconds. *)
 
-    val add_script_tag : ?url:string -> ?path:string -> ?content:string -> ?type_:string -> t -> element_handle
-    val add_style_tag : ?url:string -> ?path:string -> ?content:string -> t -> element_handle
+    val add_script_tag : ?type_:string -> [ script | `Url of string ] -> t -> element_handle
+    (** Adds a [<script>] element to the document, and returns it once the script has run. [type_] is its [type]
+        attribute, ["module"] for instance. *)
+
+    val add_style_tag : [ script | `Url of string ] -> t -> element_handle
+    (** Adds a [<style>] element with the content, or a [<link rel="stylesheet">] to the URL. *)
 
     (** {2 Operations by selector} *)
 
@@ -823,9 +831,8 @@ and BrowserContext : sig
 
     (** {1 Scripting} *)
 
-    val add_init_script : ?path:string -> ?script:string -> t -> Disposable.t
-    (** Evaluates a script, given as source text or as a file, in every page and frame of the context before any of
-        the page's own scripts run. *)
+    val add_init_script : script -> t -> Disposable.t
+    (** Evaluates a script in every page and frame of the context before any of the page's own scripts run. *)
 
     val expose_function : string -> (Js.t list -> Js.t) -> t -> Disposable.t
     (** [expose_function name f] makes [f] available to all pages as [window.name]. Calling it in the page returns a
@@ -894,8 +901,8 @@ and Page : sig
     val main_frame : t -> Frame.t
     val frames : t -> Frame.t list
 
-    val frame : ?name:string -> ?url:string -> t -> Frame.t option
-    (** The frame with the given [name] attribute or whose URL matches the glob pattern. *)
+    val frame : [ `Name of string | `Url of string ] -> t -> Frame.t option
+    (** The frame with this [name] attribute, or the first one whose URL matches the glob pattern. *)
 
     val workers : t -> Worker.t list
     val keyboard : t -> Keyboard.t
@@ -1034,7 +1041,7 @@ and Page : sig
 
     (** {1 Scripting} *)
 
-    val add_init_script : ?path:string -> ?script:string -> t -> Disposable.t
+    val add_init_script : script -> t -> Disposable.t
     val expose_function : string -> (Js.t list -> Js.t) -> t -> Disposable.t
     val expose_binding : string -> (BrowserContext.binding_source -> Js.t list -> Js.t) -> t -> Disposable.t
 
@@ -1141,8 +1148,9 @@ and Locator : sig
     val filter :
         ?has_text:string -> ?has_text_regex:string -> ?has_not_text:string -> ?has_not_text_regex:string -> ?has:t -> ?has_not:t ->
         ?visible:bool -> t -> t
-    (** Keeps the elements that contain the text ([has_text]) or a descendant matching another locator ([has]), that
-        do not ([has_not_text], [has_not]), or that are visible or not. *)
+    (** Keeps the elements that contain the text ([has_text], [has_text_regex]) or a descendant matching another
+        locator ([has]), that do not ([has_not_text], [has_not_text_regex], [has_not]), or that are visible or not.
+        An element is kept when it meets all of the conditions given. *)
 
     val first : t -> t
     val last : t -> t
@@ -2073,9 +2081,10 @@ end
 (** Custom selector engines and the attribute used by [get_by_test_id]. The settings apply to all browser contexts
     of the driver, those that exist already included. *)
 module Selectors : sig
-    val register : ?content_script:bool -> ?path:string -> ?script:string -> string -> t -> unit
-    (** [register name] registers a {{:https://playwright.dev/docs/extensibility#custom-selector-engines} selector
-        engine}, given as the source text of a script or as a file, for selectors of the form [name=...]. *)
+    val register : ?content_script:bool -> string -> script -> t -> unit
+    (** [register name script] registers a
+        {{:https://playwright.dev/docs/extensibility#custom-selector-engines} selector engine} for selectors of the
+        form [name=...]. *)
 
     val set_test_id_attribute : string -> t -> unit
 end

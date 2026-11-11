@@ -59,6 +59,13 @@ let test_history t page =
     Alcotest.(check string) "navigated by a click" (Server.url t.server "/two") (Response.url response);
     ignore (Page.go_back page);
     Alcotest.(check string) "back" "One" (Page.title page);
+    (* A navigation is the awaited one when its URL meets all of the conditions given. *)
+    let two = contains ~sub:"/two" in
+    ignore (Page.expect_navigation ~url:"**/t*" ~url_matching:two (fun () -> Page.click "a" page) page);
+    ignore (Page.go_back page);
+    check_failure "the pattern holds, the predicate does not" ~kind:Timeout (fun () ->
+        Page.expect_navigation ~timeout:300. ~url:"**/two" ~url_matching:(fun url -> not (two url)) (fun () -> Page.click "a" page) page);
+    ignore (Page.go_back page);
     ignore (Page.go_forward page);
     Alcotest.(check string) "forward" "Two" (Page.title page);
     Alcotest.(check int) "reload" 200 (Page.reload page |> Option.get |> Response.status);
@@ -162,32 +169,31 @@ let test_exposed_functions _ page =
 
 let test_init_scripts t page =
     Server.page t.server "/init" "<script>window.seenByPage = window.injected</script>";
-    Page.add_init_script ~script:"window.injected = 'early'" page |> ignore;
+    Page.add_init_script (`Content "window.injected = 'early'") page |> ignore;
     let script = scratch_file t "init.js" in
     write_file script "window.fromFile = 7";
-    BrowserContext.add_init_script ~path:script (Page.context page) |> ignore;
+    BrowserContext.add_init_script (`Path script) (Page.context page) |> ignore;
     ignore (Page.goto (Server.url t.server "/init") page);
     Alcotest.(check string) "runs before the page's scripts" "early" (eval_string "window.seenByPage" page);
     Alcotest.(check int) "from a file, for the whole context" 7 (eval_int "window.fromFile" page);
     (* Taken back, a script is not added to the documents that follow. *)
-    let passing = Page.add_init_script ~script:"window.passing = true" page in
+    let passing = Page.add_init_script (`Content "window.passing = true") page in
     ignore (Page.reload page);
     Alcotest.(check string) "added" "boolean" (eval_string "typeof window.passing" page);
     Disposable.dispose passing;
     ignore (Page.reload page);
     Alcotest.(check string) "not added any more" "undefined" (eval_string "typeof window.passing" page);
-    Alcotest.(check string) "the others still are" "early" (eval_string "window.injected" page);
-    Alcotest.check_raises "neither script nor path" (Invalid_argument "Playwright: pass either ~script or ~path") (fun () -> ignore (Page.add_init_script page))
+    Alcotest.(check string) "the others still are" "early" (eval_string "window.injected" page)
 
 let test_script_and_style_tags t page =
     Server.route t.server "/lib.js" (fun _ -> Server.respond ~content_type:"text/javascript" "window.lib = 'loaded'");
     Server.page t.server "/tags" "<body>text</body>";
     ignore (Page.goto (Server.url t.server "/tags") page);
-    ignore (Page.add_script_tag ~url:"/lib.js" page);
-    ignore (Page.add_script_tag ~content:"window.inline = 1" page);
+    ignore (Page.add_script_tag (`Url "/lib.js") page);
+    ignore (Page.add_script_tag (`Content "window.inline = 1") page);
     Alcotest.(check string) "script by URL" "loaded" (eval_string "window.lib" page);
     Alcotest.(check int) "inline script" 1 (eval_int "window.inline" page);
-    ignore (Page.add_style_tag ~content:"body { color: rgb(255, 0, 0) }" page);
+    ignore (Page.add_style_tag (`Content "body { color: rgb(255, 0, 0) }") page);
     Alcotest.(check string) "style" "rgb(255, 0, 0)" (eval_string "getComputedStyle(document.body).color" page)
 
 let test_frames t page =
@@ -196,9 +202,9 @@ let test_frames t page =
     ignore (Page.goto (Server.url t.server "/parent") page);
     let main = Page.main_frame page in
     Alcotest.(check int) "frames" 2 (List.length (Page.frames page));
-    let child = Page.frame ~name:"inner" page |> Option.get in
-    Alcotest.(check bool) "by URL" true (Option.equal Frame.equal (Page.frame ~url:"**/child" page) (Some child));
-    Alcotest.(check bool) "no such frame" true (Option.is_none (Page.frame ~name:"other" page));
+    let child = Page.frame (`Name "inner") page |> Option.get in
+    Alcotest.(check bool) "by URL" true (Option.equal Frame.equal (Page.frame (`Url "**/child") page) (Some child));
+    Alcotest.(check bool) "no such frame" true (Option.is_none (Page.frame (`Name "other") page));
     Alcotest.(check string) "name" "inner" (Frame.name child);
     Alcotest.(check string) "url" (Server.url t.server "/child") (Frame.url child);
     Alcotest.(check string) "title" "Child" (Frame.title child);

@@ -124,7 +124,7 @@ let test_selectors t () =
     in
     let existing = Browser.new_context t.browser in
     let before = BrowserContext.new_page existing in
-    Selectors.register "shout" ~script:engine t.pw;
+    Selectors.register "shout" (`Content engine) t.pw;
     Selectors.set_test_id_attribute "data-qa" t.pw;
     Fun.protect
         ~finally:(fun () -> Selectors.set_test_id_attribute "data-testid" t.pw)
@@ -140,7 +140,7 @@ let test_selectors t () =
             let context = Browser.new_context t.browser in
             check (BrowserContext.new_page context);
             BrowserContext.close context;
-            check_failure "registered twice" ~message:"already registered" (fun () -> Selectors.register "shout" ~script:engine t.pw));
+            check_failure "registered twice" ~message:"already registered" (fun () -> Selectors.register "shout" (`Content engine) t.pw));
     BrowserContext.close existing
 
 (* {1 Fibers} *)

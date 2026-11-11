@@ -435,7 +435,7 @@ Page.expose_function "sha256" (function [ Js.String text ] -> Js.string (Digest.
 Page.evaluate "sha256('hello')" page |> Js.to_string
 ```
 
-`Page.add_init_script ~script page` runs a script in every document of the page before the
+`Page.add_init_script` runs a script, given as `` `Content`` text or as the `` `Path`` of a file, in every document of the page before the
 page's own scripts, which is the place to install mocks and flags. Both functions exist for
 contexts too, where they apply to all pages.
 
