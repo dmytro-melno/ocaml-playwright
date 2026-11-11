@@ -1,0 +1,39 @@
+(* Takes a screenshot of a page the way a device shows it.
+
+     dune exec examples/screenshot.exe -- https://ocaml.org ocaml.png "iPhone 15"
+
+   Without a device name the page is rendered in a desktop-sized window.  CHROMIUM_PATH selects
+   the browser as in quickstart.ml. *)
+
+open Playwright
+
+let () =
+    let url, path, device_name =
+        match Array.to_list Sys.argv with
+        | [ _; url; path ] -> url, path, None
+        | [ _; url; path; device ] -> url, path, Some device
+        | _ ->
+            prerr_endline "usage: screenshot URL FILE [DEVICE]";
+            exit 2
+    in
+    Eio_main.run @@ fun env ->
+    Playwright.run ~env @@ fun pw ->
+    let device =
+        Option.map
+            (fun name ->
+                match Playwright.device name pw with
+                | Some device -> device
+                | None ->
+                    Printf.eprintf "unknown device %S; some that exist:\n" name;
+                    List.iteri (fun i device -> if i < 10 then prerr_endline ("  " ^ Device.name device)) (Playwright.devices pw);
+                    exit 2)
+            device_name
+    in
+    let browser = BrowserType.launch ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") (chromium pw) in
+    let page = match device with Some device -> Browser.new_page ~device browser | None -> Browser.new_page ~viewport:(1280, 800) browser in
+    (match Page.goto ~wait_until:`Networkidle url page with
+    | Some response -> Printf.printf "%d %s\n" (Response.status response) (Page.url page)
+    | None -> ());
+    let image = Page.screenshot ~path ~full_page:true page in
+    Printf.printf "%s: %d bytes\n" path (String.length image);
+    Browser.close browser

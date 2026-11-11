@@ -61,7 +61,7 @@ struct
     let locator ?timeout ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text expression ~condition (l : locator) =
         let timeout = Option.value timeout ~default:!timeout_setting in
         Locator.expect ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not ~timeout expression l
-        |> verdict ~is_not ~subject:(Locator.to_string l) ~condition
+        |> verdict ~is_not ~subject:"Locator" ~condition
 
     let page ?timeout ?expected_text expression ~condition (p : page) =
         let timeout = Option.value timeout ~default:!timeout_setting in

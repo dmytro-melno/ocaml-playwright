@@ -1,0 +1,6 @@
+; Small programs that show the library at work.  They are built with the project but not
+; installed; run one with [dune exec examples/quickstart.exe].
+
+(executables
+ (names quickstart screenshot scrape mock_api parallel trace)
+ (libraries playwright eio eio_main yojson unix))

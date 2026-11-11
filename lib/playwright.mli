@@ -51,14 +51,14 @@ module Error : sig
     type t = {
         kind : kind;
         name : string;  (** The name of the error as Playwright reports it, e.g. ["TimeoutError"] or ["Error"]. *)
-        message : string;
+        message : string;  (** What went wrong, followed by the call log if there is one. *)
         stack : string option;  (** The stack trace of the driver or of the page, when there is one. *)
         log : string list;  (** What the driver did during the failed call; the "call log" of Playwright. *)
         details : Yojson.Safe.t;  (** Structured details that the driver attached to the error, or [`Null]. *)
     }
 
     val to_string : t -> string
-    (** The message followed by the call log, the way Playwright prints errors. *)
+    (** The message, preceded by the name of the error unless that is just ["Error"]. *)
 
     val pp : Format.formatter -> t -> unit
 end
@@ -1925,8 +1925,8 @@ module CDPSession : sig
     val detach : t -> unit
 end
 
-(** Custom selector engines and the attribute used by [get_by_test_id]. The settings apply to the contexts that are
-    created afterwards. *)
+(** Custom selector engines and the attribute used by [get_by_test_id]. The settings apply to all browser contexts
+    of the driver, those that exist already included. *)
 module Selectors : sig
     val register : ?content_script:bool -> ?path:string -> ?script:string -> string -> t -> unit
     (** [register name] registers a {{:https://playwright.dev/docs/extensibility#custom-selector-engines} selector
