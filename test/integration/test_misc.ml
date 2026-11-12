@@ -197,7 +197,7 @@ let test_launch_failures t () =
     let error = failure "no such executable" (fun () -> BrowserType.launch ~executable_path:"/no/such/browser" (chromium t.pw)) in
     check_contains "names the path" ~sub:"/no/such/browser" error.message;
     if not (Sys.file_exists (BrowserType.executable_path (firefox t.pw))) then
-        check_failure "a browser that is not installed" ~message:"ocaml-playwright install" (fun () -> BrowserType.launch (firefox t.pw));
+        check_failure "a browser that is not installed" ~message:"playwright install" (fun () -> BrowserType.launch (firefox t.pw));
     check_failure "an executable that is no browser" (fun () -> BrowserType.launch ~timeout:5000. ~executable_path:"/bin/false" (chromium t.pw))
 
 let test_browser_closing t () =

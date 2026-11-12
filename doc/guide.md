@@ -50,6 +50,10 @@ and install a browser with the command line tool that comes with the package:
 ocaml-playwright install chromium
 ```
 
+The driver believes that it serves Playwright for Python, whose way of naming things is the
+closest to OCaml's. Where one of its messages says `playwright install`, the command is
+`ocaml-playwright install`.
+
 A first program:
 
 ```ocaml

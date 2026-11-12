@@ -641,7 +641,8 @@ and BrowserType : sig
     (** Where Playwright expects to find the browser that it installs. *)
 
     val launch : (t -> Browser.t) with_launch_options
-    (** Starts a browser.
+    (** Starts a browser. When it is not installed, the driver's error names the command of Playwright for Python,
+        [playwright install]; here that is [ocaml-playwright install].
 
         {[
           BrowserType.launch ~headless:false ~args:[ "--start-maximized" ] (Playwright.chromium pw)
