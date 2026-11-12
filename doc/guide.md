@@ -62,7 +62,7 @@ let () =
     let page = Browser.new_page browser in
     ignore (Page.goto "https://example.com" page);
     print_endline (Page.title page);
-    ignore (Page.screenshot ~path:"example.png" page);
+    Eio.Path.(save ~create:(`Or_truncate 0o644) (Eio.Stdenv.cwd env / "example.png") (Page.screenshot page));
     Browser.close browser
 ```
 
@@ -855,7 +855,7 @@ Page.get_by_label "User" page |> Locator.fill "ada";
 Page.get_by_label "Password" page |> Locator.fill "secret";
 Page.get_by_role `Button ~name:"Log in" page |> Locator.click;
 Page.wait_for_url "**/home" page;
-ignore (BrowserContext.storage_state ~path:"auth.json" context);
+Yojson.Safe.to_file "auth.json" (BrowserContext.storage_state context);
 BrowserContext.close context;
 
 (* In every test: *)
@@ -892,16 +892,16 @@ locators, evaluation.
 ## Screenshots, PDF and video
 
 ```ocaml
-let png = Page.screenshot page in
-ignore (Page.screenshot ~path:"page.png" ~full_page:true page);
-ignore (Page.screenshot ~type_:`Jpeg ~quality:80 ~clip:{ x = 0.; y = 0.; width = 400.; height = 300. } page);
-ignore (Page.get_by_role `Table page |> Locator.screenshot ~path:"table.png" ~animations:`Disabled);
-ignore (Page.pdf ~path:"page.pdf" ~format:"A4" ~print_background:true page);
-String.length png
+let save name bytes = Eio.Path.(save ~create:(`Or_truncate 0o644) (Eio.Stdenv.cwd env / name) bytes) in
+save "page.png" (Page.screenshot ~full_page:true page);
+save "detail.jpg" (Page.screenshot ~type_:`Jpeg ~quality:80 ~clip:{ x = 0.; y = 0.; width = 400.; height = 300. } page);
+save "table.png" (Page.get_by_role `Table page |> Locator.screenshot ~animations:`Disabled);
+save "page.pdf" (Page.pdf ~format:"A4" ~print_background:true page)
 ```
 
-Screenshots and PDFs are returned as strings of bytes, and also written to `~path` if that
-is given. `Page.pdf` needs Chromium.
+Screenshots and PDFs are returned as strings of bytes: what a PNG, JPEG, WebP or PDF file
+holds. What becomes of them is the program's business; here they are saved with Eio.
+`Page.pdf` needs Chromium.
 
 A context created with `~record_video_dir` records a video of each of its pages. The file
 is complete when the page has been closed:

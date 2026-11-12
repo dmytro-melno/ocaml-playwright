@@ -439,12 +439,11 @@ let remove_locator_handler (locator : locator) (page : t) =
 
 (* {1 Output} *)
 
-let screenshot ?full_page ?clip ?timeout ?path ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (page : t) =
-    Protocol.Page.screenshot ~timeout:(Timeouts.action ?timeout page.p_timeouts) ?type_:(Screenshot.image_type ?type_ ?path ()) ?quality
-        ?full_page ?clip ?omit_background ?caret ?animations ?scale ?mask:(Option.map Screenshot.mask mask) ?mask_color ?style page.p_channel
-    |> Screenshot.save ?path
+let screenshot ?full_page ?clip ?timeout ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (page : t) =
+    Protocol.Page.screenshot ~timeout:(Timeouts.action ?timeout page.p_timeouts) ?type_ ?quality ?full_page ?clip ?omit_background ?caret
+        ?animations ?scale ?mask:(Option.map Screenshot.mask mask) ?mask_color ?style page.p_channel
 
-let pdf ?path ?scale ?display_header_footer ?header_template ?footer_template ?print_background ?landscape ?page_ranges ?format ?width ?height
+let pdf ?scale ?display_header_footer ?header_template ?footer_template ?print_background ?landscape ?page_ranges ?format ?width ?height
     ?prefer_css_page_size ?margin_top ?margin_right ?margin_bottom ?margin_left ?tagged ?outline (page : t) =
     let margin : Protocol.Page.Pdf_margin.t option =
         match margin_top, margin_right, margin_bottom, margin_left with
@@ -453,7 +452,6 @@ let pdf ?path ?scale ?display_header_footer ?header_template ?footer_template ?p
     in
     Protocol.Page.pdf ?scale ?display_header_footer ?header_template ?footer_template ?print_background ?landscape ?page_ranges ?format ?width
         ?height ?prefer_css_page_size ?margin ?tagged ?outline page.p_channel
-    |> Screenshot.save ?path
 
 (* {1 Closing} *)
 

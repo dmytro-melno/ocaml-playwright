@@ -16,6 +16,7 @@ let () =
             prerr_endline "usage: screenshot URL FILE [DEVICE]";
             exit 2
     in
+    let type_ = match String.lowercase_ascii (Filename.extension path) with ".jpg" | ".jpeg" -> Some `Jpeg | ".webp" -> Some `Webp | _ -> None in
     Eio_main.run @@ fun env ->
     Playwright.run ~env @@ fun pw ->
     let device =
@@ -34,6 +35,7 @@ let () =
     (match Page.goto ~wait_until:`Networkidle url page with
     | Some response -> Printf.printf "%d %s\n" (Response.status response) (Page.url page)
     | None -> ());
-    let image = Page.screenshot ~path ~full_page:true page in
+    let image = Page.screenshot ~full_page:true ?type_ page in
+    Eio.Path.(save ~create:(`Or_truncate 0o644) (Eio.Stdenv.fs env / path) image);
     Printf.printf "%s: %d bytes\n" path (String.length image);
     Browser.close browser

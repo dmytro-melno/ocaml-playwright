@@ -17,6 +17,6 @@ let () =
     Printf.printf "text:  %s\n" (Page.locator "p" page |> Locator.first |> Locator.inner_text);
     let link = Page.get_by_role `Link page |> Locator.first in
     Printf.printf "link:  %s -> %s\n" (Locator.inner_text link) (Option.value (Locator.get_attribute "href" link) ~default:"?");
-    ignore (Page.screenshot ~path:"example.png" page);
+    Eio.Path.(save ~create:(`Or_truncate 0o644) (Eio.Stdenv.cwd env / "example.png") (Page.screenshot page));
     print_endline "saved example.png";
     Browser.close browser

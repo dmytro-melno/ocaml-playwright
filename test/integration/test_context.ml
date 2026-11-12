@@ -42,8 +42,8 @@ let test_storage_state t page =
     BrowserContext.add_cookies [ Cookie.make ~url:(Server.origin t.server) "session" ~value:"abc" ] context;
     ignore (Page.evaluate "localStorage.setItem('theme', 'dark')" page);
     let file = scratch_file t "state.json" in
-    let state = BrowserContext.storage_state ~path:file context in
-    Alcotest.check json "also written to the file" state (Yojson.Safe.from_string (read_file file));
+    let state = BrowserContext.storage_state context in
+    Yojson.Safe.to_file file state;
     let restored_from ?(expression = "localStorage.getItem('theme') + '/' + document.cookie") make =
         let context = make t.browser in
         let page = BrowserContext.new_page context in

@@ -911,9 +911,9 @@ and BrowserContext : sig
     val add_cookies : Cookie.init list -> t -> unit
     val clear_cookies : ?name:string -> ?domain:string -> ?path:string -> t -> unit
 
-    val storage_state : ?path:string -> ?indexed_db:bool -> ?opfs:bool -> ?credentials:bool -> t -> Yojson.Safe.t
-    (** The cookies and the local storage of the context, for the [storage_state] option of a later context, which
-        is also written to [path] if that is given. [indexed_db] and [opfs] add the IndexedDB databases and the
+    val storage_state : ?indexed_db:bool -> ?opfs:bool -> ?credentials:bool -> t -> Yojson.Safe.t
+    (** The cookies and the local storage of the context, for the [storage_state] option of a later context: a JSON
+        value, which [Yojson.Safe.to_file] saves and [Yojson.Safe.from_file] reads. [indexed_db] and [opfs] add the IndexedDB databases and the
         origin private file systems of the pages, and [credentials] the passkeys of the context's virtual WebAuthn
         authenticator, private keys included. *)
 
@@ -1159,20 +1159,20 @@ and Page : sig
 
     val screenshot :
         ?full_page:bool -> ?clip:rect ->
-        ?timeout:float -> ?path:string -> ?type_:[ `Png | `Jpeg | `Webp ] -> ?quality:int -> ?omit_background:bool ->
+        ?timeout:float -> ?type_:[ `Png | `Jpeg | `Webp ] -> ?quality:int -> ?omit_background:bool ->
         ?caret:[ `Hide | `Initial ] -> ?animations:[ `Allow | `Disabled ] -> ?scale:[ `Css | `Device ] -> ?mask:Locator.t list ->
         ?mask_color:string -> ?style:string -> t -> string
     (** Takes a screenshot of the viewport, of the whole scrollable page with [full_page], or of the area [clip].
-        Returns the image data. [path] also saves the image to a file, and determines [type_] from the extension unless
-        that is given. [quality] is 0-100 and applies to JPEG and WebP only. The elements in [mask] are covered with
+        Returns the image: the bytes of a file of [type_], PNG by default. [quality] is 0-100 and applies to JPEG and
+        WebP only. The elements in [mask] are covered with
         boxes of [mask_color], and [style] is a style sheet that is applied while the screenshot is taken. *)
 
     val pdf :
-        ?path:string -> ?scale:float -> ?display_header_footer:bool -> ?header_template:string -> ?footer_template:string ->
+        ?scale:float -> ?display_header_footer:bool -> ?header_template:string -> ?footer_template:string ->
         ?print_background:bool -> ?landscape:bool -> ?page_ranges:string -> ?format:string -> ?width:string -> ?height:string ->
         ?prefer_css_page_size:bool -> ?margin_top:string -> ?margin_right:string -> ?margin_bottom:string -> ?margin_left:string ->
         ?tagged:bool -> ?outline:bool -> t -> string
-    (** Prints the page to PDF and returns the document. Headless Chromium only. Lengths are strings with a unit,
+    (** Prints the page to PDF and returns the document: the bytes of a PDF file. Headless Chromium only. Lengths are strings with a unit,
         e.g. ["10mm"]. *)
 
     val aria_snapshot : ?timeout:float -> ?mode:[ `Ai | `Default ] -> ?depth:int -> ?boxes:bool -> t -> string
@@ -1422,7 +1422,7 @@ and Locator : sig
         the states that apply and its [children], and a string for each text. *)
 
     val screenshot :
-        ?timeout:float -> ?path:string -> ?type_:[ `Png | `Jpeg | `Webp ] -> ?quality:int -> ?omit_background:bool ->
+        ?timeout:float -> ?type_:[ `Png | `Jpeg | `Webp ] -> ?quality:int -> ?omit_background:bool ->
         ?caret:[ `Hide | `Initial ] -> ?animations:[ `Allow | `Disabled ] -> ?scale:[ `Css | `Device ] -> ?mask:t list ->
         ?mask_color:string -> ?style:string -> t -> string
     (** A screenshot of the element, with the options of {!Page.screenshot}. *)
@@ -1532,7 +1532,7 @@ and ElementHandle : sig
     val bounding_box : t -> rect option
 
     val screenshot :
-        ?timeout:float -> ?path:string -> ?type_:[ `Png | `Jpeg | `Webp ] -> ?quality:int -> ?omit_background:bool ->
+        ?timeout:float -> ?type_:[ `Png | `Jpeg | `Webp ] -> ?quality:int -> ?omit_background:bool ->
         ?caret:[ `Hide | `Initial ] -> ?animations:[ `Allow | `Disabled ] -> ?scale:[ `Css | `Device ] -> ?mask:Locator.t list ->
         ?mask_color:string -> ?style:string -> t -> string
     (** A screenshot of the element, with the options of {!Page.screenshot}. *)
@@ -2034,7 +2034,7 @@ and APIRequestContext : sig
     val fetch : ?method_:string -> (string -> t -> APIResponse.t) with_request_options
     (** A request with any method, [GET] by default. *)
 
-    val storage_state : ?path:string -> ?indexed_db:bool -> ?opfs:bool -> t -> Yojson.Safe.t
+    val storage_state : ?indexed_db:bool -> ?opfs:bool -> t -> Yojson.Safe.t
 
     val cookies : ?urls:string list -> t -> Cookie.t list
     (** The cookies that the context holds and sends, which for {!BrowserContext.request} and {!Page.request} are

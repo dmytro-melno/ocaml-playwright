@@ -337,12 +337,8 @@ let set_storage_state (state : Yojson.Safe.t) (context : t) =
         ~storage_state:(Protocol.Browser_context.Set_storage_state_storage_state.of_json context.c_session.conn state)
         context.c_channel
 
-let storage_state ?path ?indexed_db ?opfs ?credentials (context : t) : Yojson.Safe.t =
-    let state =
-        Protocol.Browser_context.storage_state ?indexed_db ?opfs ?credentials context.c_channel |> Protocol.Browser_context.Storage_state_result.to_json
-    in
-    Option.iter (fun path -> Files.write path (Yojson.Safe.pretty_to_string state)) path;
-    state
+let storage_state ?indexed_db ?opfs ?credentials (context : t) : Yojson.Safe.t =
+    Protocol.Browser_context.storage_state ?indexed_db ?opfs ?credentials context.c_channel |> Protocol.Browser_context.Storage_state_result.to_json
 
 let new_cdp_session_for_page (page : page) (context : t) =
     Protocol.Browser_context.new_cdp_session ~page:page.p_channel context.c_channel |> Types.cdp_session

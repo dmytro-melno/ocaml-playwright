@@ -254,9 +254,9 @@ let bounding_box ?timeout (l : t) = with_element ?timeout l (fun handle _ -> Ele
 let scroll_into_view_if_needed ?timeout (l : t) = with_element ?timeout l (fun handle timeout -> Element_handle.scroll_into_view_if_needed ~timeout handle)
 let select_text ?timeout ?force (l : t) = with_element ?timeout l (fun handle timeout -> Element_handle.select_text ~timeout ?force handle)
 
-let screenshot ?timeout ?path ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (l : t) =
+let screenshot ?timeout ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (l : t) =
     with_element ?timeout l (fun handle timeout ->
-        Element_handle.screenshot ~timeout ?path ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style handle)
+        Element_handle.screenshot ~timeout ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style handle)
 
 (* Used by the assertions. *)
 let expect ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not ~timeout expression (l : t) =

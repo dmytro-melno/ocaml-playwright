@@ -102,10 +102,9 @@ let set_input ?timeout files (handle : t) =
 let set_input_files ?timeout paths handle = set_input ?timeout (Frame.Paths paths) handle
 let set_input_payloads ?timeout payloads handle = set_input ?timeout (Frame.Payloads payloads) handle
 
-let screenshot ?timeout ?path ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (handle : t) =
-    Protocol.Element_handle.screenshot ~timeout:(action_timeout ?timeout handle) ?type_:(Screenshot.image_type ?type_ ?path ()) ?quality
-        ?omit_background ?caret ?animations ?scale ?mask:(Option.map Screenshot.mask mask) ?mask_color ?style (element_channel handle)
-    |> Screenshot.save ?path
+let screenshot ?timeout ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (handle : t) =
+    Protocol.Element_handle.screenshot ~timeout:(action_timeout ?timeout handle) ?type_ ?quality ?omit_background ?caret ?animations ?scale
+        ?mask:(Option.map Screenshot.mask mask) ?mask_color ?style (element_channel handle)
 
 let query_selector selector (handle : t) =
     Protocol.Element_handle.query_selector ~selector (element_channel handle) |> Option.map Types.element

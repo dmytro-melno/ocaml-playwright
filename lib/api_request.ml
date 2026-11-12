@@ -65,13 +65,8 @@ module Context = struct
     let delete = with_method "DELETE"
     let head = with_method "HEAD"
 
-    let storage_state_json ?indexed_db ?opfs (t : t) : Yojson.Safe.t =
+    let storage_state ?indexed_db ?opfs (t : t) : Yojson.Safe.t =
         Protocol.Api_request_context.storage_state ?indexed_db ?opfs t.a_channel |> Protocol.Api_request_context.Storage_state_result.to_json
-
-    let storage_state ?path ?indexed_db ?opfs t =
-        let state = storage_state_json ?indexed_db ?opfs t in
-        Option.iter (fun path -> Files.write path (Yojson.Safe.pretty_to_string state)) path;
-        state
 
     let cookies ?(urls = []) (t : t) = Protocol.Api_request_context.cookies ~urls t.a_channel |> List.map Cookie.of_protocol
     let add_cookies cookies (t : t) = Protocol.Api_request_context.add_cookies ~cookies t.a_channel

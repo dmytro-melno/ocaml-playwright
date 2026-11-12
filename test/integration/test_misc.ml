@@ -23,17 +23,14 @@ let test_screenshots t () =
     Alcotest.(check (pair int int)) "element handle" (120, 80) (png_size (Page.query_selector "#box" page |> Option.get |> ElementHandle.screenshot));
     let jpeg = Page.screenshot ~type_:`Jpeg ~quality:50 page in
     Alcotest.(check string) "jpeg" "\xFF\xD8\xFF" (String.sub jpeg 0 3);
-    let file = scratch_file t "shots/page.jpg" in
-    let saved = Page.screenshot ~path:file ~mask:[ Page.locator "#box" page ] page in
-    Alcotest.(check bool) "saved to a file, type from the extension" true (read_file file = saved && String.sub saved 0 3 = "\xFF\xD8\xFF");
+    Alcotest.(check (pair int int)) "masked" (500, 400) (png_size (Page.screenshot ~mask:[ Page.locator "#box" page ] ~mask_color:"black" page));
     check_failure "quality is not for PNG" ~message:"quality" (fun () -> Page.screenshot ~quality:50 page);
     BrowserContext.close context
 
-let test_pdf_and_aria t page =
+let test_pdf_and_aria page =
     Page.set_content {|<title>Doc</title><h1>Report</h1><ul><li>One</li><li><a href="/two">Two</a></li></ul><button disabled>Print</button>|} page;
-    let file = scratch_file t "report.pdf" in
-    let pdf = Page.pdf ~path:file ~format:"A5" ~landscape:true ~margin_top:"1cm" page in
-    Alcotest.(check bool) "pdf" true (String.sub pdf 0 5 = "%PDF-" && read_file file = pdf);
+    let pdf = Page.pdf ~format:"A5" ~landscape:true ~margin_top:"1cm" page in
+    Alcotest.(check string) "pdf" "%PDF-" (String.sub pdf 0 5);
     let snapshot = Page.aria_snapshot page in
     List.iter
         (fun line -> check_contains "page snapshot" ~sub:line snapshot)
@@ -501,7 +498,7 @@ let test_identity t page =
         && not (WebStorage.equal (Page.local_storage page) (Page.session_storage page)))
 
 let tests t =
-    [ "rendering", [ case t "screenshots" (test_screenshots t); page_case t "PDF and ARIA snapshots" (test_pdf_and_aria t) ];
+    [ "rendering", [ case t "screenshots" (test_screenshots t); page_case t "PDF and ARIA snapshots" test_pdf_and_aria ];
       "input", [ page_case t "keyboard and mouse" (test_keyboard_and_mouse t); case t "touch" (test_touch t) ];
       "tools", [ page_case t "CDP sessions" (test_cdp t); case t "selector engines and test ids" (test_selectors t); page_case t "picking a locator" (test_picking t) ];
       "objects", [ page_case t "identity" (test_identity t) ];
