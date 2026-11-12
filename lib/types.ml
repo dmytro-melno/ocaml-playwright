@@ -71,10 +71,13 @@ and typed_array_kind = [ `I8 | `Ui8 | `Ui8c | `I16 | `Ui16 | `I32 | `Ui32 | `F32
 
 and js_handle = {
     h_channel : Protocol.Js_handle.t;
-    h_element : Protocol.Element_handle.t option;  (* the same object, if it is an element *)
     h_session : session;
     mutable preview : string;
 }
+
+(* A handle to an element: the handle, and its channel once more as one of the interface that has
+   the commands for elements. *)
+and element_handle = { e_handle : js_handle; e_channel : Protocol.Element_handle.t }
 
 and browser_type = {
     bt_channel : Protocol.Browser_type.t;
@@ -363,7 +366,7 @@ and download = {
 
 and file_chooser = {
     fc_page : page;
-    fc_element : js_handle;
+    fc_element : element_handle;
     is_multiple : bool;
 }
 
@@ -457,13 +460,7 @@ let cdp_session (c : Protocol.Cdp_session.t) = match client c with Cdp_session x
 
 (* A handle to an element is a handle like any other, to an object of an interface that has more
    commands. *)
-let element (c : Protocol.Element_handle.t) = js_handle c
-let is_element (handle : js_handle) = Option.is_some handle.h_element
-
-let element_channel (handle : js_handle) =
-    match handle.h_element with
-    | Some channel -> channel
-    | None -> Error.raise_ "Internal error: object %S is not an element" (Channel.guid handle.h_channel)
+let element (c : Protocol.Element_handle.t) = { e_handle = js_handle c; e_channel = c }
 
 let page_of_frame (frame : frame) =
     match frame.page with

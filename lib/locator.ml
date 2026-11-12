@@ -316,10 +316,10 @@ let with_element ?timeout (l : t) f =
     let started = Eio.Time.now clock in
     let handle = element_handle ~timeout l in
     Connection.protect l.l_frame.f_session.conn "disposing of an element handle"
-        ~finally:(fun () -> try Js_handle.dispose handle with Error.E _ -> ())
+        ~finally:(fun () -> try Js_handle.dispose handle.e_handle with Error.E _ -> ())
         (fun () ->
             let remaining = if timeout > 0. then Float.max 1. (timeout -. ((Eio.Time.now clock -. started) *. 1000.)) else 0. in
-            f handle (element_channel handle) remaining)
+            f handle.e_handle handle.e_channel remaining)
 
 let evaluate ?timeout ?arg expression (l : t) = with_element ?timeout l (fun handle _ _ -> Js_handle.evaluate handle ?arg expression)
 let evaluate_handle ?timeout ?arg expression (l : t) = with_element ?timeout l (fun handle _ _ -> Js_handle.evaluate_handle handle ?arg expression)

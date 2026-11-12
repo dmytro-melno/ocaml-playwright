@@ -11,7 +11,7 @@ let handle_event (handle : t) : Protocol.Js_handle.event -> unit = function
 
 let create session (channel : Protocol.Js_handle.t) : t =
     let init = Protocol.Js_handle.initializer_ channel in
-    let handle = { h_channel = channel; h_element = Channel.narrow Protocol.Element_handle.kind channel; h_session = session; preview = init.preview } in
+    let handle = { h_channel = channel; h_session = session; preview = init.preview } in
     Protocol.Js_handle.listen channel (handle_event handle);
     handle
 
@@ -28,7 +28,10 @@ let get_properties (handle : t) =
     |> List.map (fun (property : Protocol.Js_handle.Get_property_list_result_properties.t) -> property.name, Types.js_handle property.value)
 
 let json_value (handle : t) = Protocol.Js_handle.json_value handle.h_channel |> Js.of_wire
-let as_element (handle : t) = if is_element handle then Some handle else None
+
+let as_element (handle : t) =
+    Channel.narrow Protocol.Element_handle.kind handle.h_channel |> Option.map (fun e_channel -> { e_handle = handle; e_channel })
+
 let to_string (handle : t) = handle.preview
 
 (* Disposing of a handle whose page or context is already gone is not an error. *)

@@ -43,9 +43,9 @@ end
 module File_chooser = struct
     type t = file_chooser
 
-    let equal (a : t) (b : t) = Channel.equal a.fc_element.h_channel b.fc_element.h_channel
-    let compare (a : t) (b : t) = Channel.compare a.fc_element.h_channel b.fc_element.h_channel
-    let hash (chooser : t) = Channel.hash chooser.fc_element.h_channel
+    let equal (a : t) (b : t) = Channel.equal a.fc_element.e_channel b.fc_element.e_channel
+    let compare (a : t) (b : t) = Channel.compare a.fc_element.e_channel b.fc_element.e_channel
+    let hash (chooser : t) = Channel.hash chooser.fc_element.e_channel
 
     let page (c : t) = c.fc_page
     let element (c : t) = c.fc_element
@@ -60,7 +60,7 @@ module File_chooser = struct
                 converted.payloads
         in
         Protocol.Element_handle.set_input_files ~timeout:(Timeouts.action ?timeout c.fc_page.p_timeouts) ?payloads
-            ?local_directory:converted.local_directory ?local_paths:converted.local_paths (element_channel c.fc_element)
+            ?local_directory:converted.local_directory ?local_paths:converted.local_paths c.fc_element.e_channel
 
     let set_files ?timeout (c : t) paths = set ?timeout (Frame.Paths paths) c
     let set_payloads ?timeout (c : t) payloads = set ?timeout (Frame.Payloads payloads) c
