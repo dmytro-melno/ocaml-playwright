@@ -37,6 +37,9 @@
       literal. A pattern that does not start with [*] is resolved against the base URL of the context. Braces that
       are nested or not balanced are an {!exception-Error} where the pattern is given. Functions named
       [..._matching] take an OCaml predicate on the URL instead.
+    - The library opens no files. Images, documents and the state of a context are returned, and scripts and
+      certificates are passed, as values; reading and writing them is left to the program. Paths are given only for
+      what the driver itself reads or writes: uploads, downloads, videos, traces, profile directories.
 
     {2 Calls, failures and cancellation}
 
@@ -128,9 +131,6 @@ type file_payload = { name : string; mime_type : string option; buffer : string 
 type select_option = [ `Value of string | `Label of string | `Index of int | `Value_or_label of string ]
 (** Identifies an [<option>] of a [<select>]. *)
 
-type script = [ `Content of string | `Path of string ]
-(** JavaScript or CSS, given as its text or as the file to read it from. *)
-
 type web_socket_message = Text of string | Binary of string
 
 type timing = {
@@ -214,18 +214,15 @@ end
 
 (** A TLS client certificate, for a context or a request context to present to the servers of one origin. *)
 module Client_certificate : sig
-    type source = [ `Content of string | `Path of string ]
-    (** A certificate or a key, given as its bytes or as the file to read them from. Files are read when the
-        certificate is put to use, that is when a context is created with it. *)
-
     type t
 
-    val pem : ?passphrase:string -> origin:string -> cert:source -> key:source -> unit -> t
-    (** A certificate and its private key in PEM format, for the servers of [origin], which has to match exactly,
-        e.g. ["https://example.com:8443"]. [passphrase] is what the key is encrypted with. *)
+    val pem : ?passphrase:string -> origin:string -> cert:string -> key:string -> unit -> t
+    (** A certificate and its private key in PEM format, each given as what its file holds, for the servers of
+        [origin], which has to match exactly, e.g. ["https://example.com:8443"]. [passphrase] is what the key is
+        encrypted with. *)
 
-    val pfx : ?passphrase:string -> origin:string -> source -> t
-    (** A private key with its certificate chain in PFX, also known as PKCS #12, format. *)
+    val pfx : ?passphrase:string -> origin:string -> string -> t
+    (** A private key with its certificate chain in PFX, also known as PKCS #12, format: the bytes of such a file. *)
 end
 
 (** A proxy server for a browser, a context or a request context to go through. *)
@@ -295,7 +292,6 @@ type 'a with_context_options =
     ?strict_selectors:bool ->
     ?service_workers:[ `Allow | `Block ] ->
     ?storage_state:Yojson.Safe.t ->
-    ?storage_state_path:string ->
     'a
 (** The options of a browser context, see
     {{:https://playwright.dev/docs/api/class-browser#browser-new-context} [browser.newContext]}.
@@ -304,8 +300,7 @@ type 'a with_context_options =
     - [viewport] is [(width, height)], 1280×720 by default; [no_viewport] makes the page follow the window size.
     - [base_url] is what relative URLs given to {!Page.goto}, {!Page.route} and the like are resolved against.
     - [record_video_dir] turns video recording on, see {!Video}.
-    - [storage_state] restores cookies and local storage saved with {!BrowserContext.storage_state};
-      [storage_state_path] reads it from a file.
+    - [storage_state] restores cookies and local storage saved with {!BrowserContext.storage_state}.
     - [client_certificates] are what the context has to show to the servers of their origins that ask for a
       certificate. *)
 
@@ -550,11 +545,11 @@ module type Frame_operations = sig
     (** Waits until the expression evaluates to a truthy value, and returns that. It is evaluated on every animation
         frame, or every [polling] milliseconds. *)
 
-    val add_script_tag : ?type_:string -> [ script | `Url of string ] -> t -> element_handle
-    (** Adds a [<script>] element to the document, and returns it once the script has run. [type_] is its [type]
-        attribute, ["module"] for instance. *)
+    val add_script_tag : ?type_:string -> [ `Content of string | `Url of string ] -> t -> element_handle
+    (** Adds a [<script>] element to the document, with the content or for the URL, and returns it once the script
+        has run. [type_] is its [type] attribute, ["module"] for instance. *)
 
-    val add_style_tag : [ script | `Url of string ] -> t -> element_handle
+    val add_style_tag : [ `Content of string | `Url of string ] -> t -> element_handle
     (** Adds a [<style>] element with the content, or a [<link rel="stylesheet">] to the URL. *)
 
     (** {2 Operations by selector} *)
@@ -927,8 +922,8 @@ and BrowserContext : sig
 
     (** {1 Scripting} *)
 
-    val add_init_script : script -> t -> Disposable.t
-    (** Evaluates a script in every page and frame of the context before any of the page's own scripts run. *)
+    val add_init_script : string -> t -> Disposable.t
+    (** Evaluates JavaScript in every page and frame of the context before any of the page's own scripts run. *)
 
     val expose_function : string -> (Js.t list -> Js.t) -> t -> Disposable.t
     (** [expose_function name f] makes [f] available to all pages as [window.name]. Calling it in the page returns a
@@ -1145,7 +1140,7 @@ and Page : sig
 
     (** {1 Scripting} *)
 
-    val add_init_script : script -> t -> Disposable.t
+    val add_init_script : string -> t -> Disposable.t
     val expose_function : string -> (Js.t list -> Js.t) -> t -> Disposable.t
     val expose_binding : string -> (BrowserContext.binding_source -> Js.t list -> Js.t) -> t -> Disposable.t
 
@@ -1722,10 +1717,11 @@ and Route : sig
     val request : t -> Request.t
 
     val fulfill :
-        ?status:int -> ?headers:(string * string) list -> ?content_type:string -> ?body:string -> ?json:Yojson.Safe.t -> ?path:string ->
+        ?status:int -> ?headers:(string * string) list -> ?content_type:string -> ?body:string -> ?json:Yojson.Safe.t ->
         ?response:APIResponse.t -> t -> unit
-    (** Answers the request without sending it: with [body], [json] or the file at [path], or with a [response] that
-        was obtained from {!fetch}, of which the other arguments override parts. The status defaults to 200. *)
+    (** Answers the request without sending it: with [body] or [json], or with a [response] that was obtained from
+        {!fetch}, of which the other arguments override parts. The status defaults to 200, and [content_type] to
+        that of JSON for [json]; a [body] has the type that [headers] or [content_type] give it. *)
 
     val continue : ?url:string -> ?method_:string -> ?headers:(string * string) list -> ?post_data:string -> t -> unit
     (** Sends the request to the network, optionally modified. *)
@@ -2244,10 +2240,10 @@ end
 (** Custom selector engines and the attribute used by [get_by_test_id]. The settings apply to all browser contexts
     of the driver, those that exist already included. *)
 module Selectors : sig
-    val register : ?content_script:bool -> string -> script -> t -> unit
+    val register : ?content_script:bool -> string -> string -> t -> unit
     (** [register name script] registers a
-        {{:https://playwright.dev/docs/extensibility#custom-selector-engines} selector engine} for selectors of the
-        form [name=...]. *)
+        {{:https://playwright.dev/docs/extensibility#custom-selector-engines} selector engine}, which the JavaScript
+        of [script] evaluates to, for selectors of the form [name=...]. *)
 
     val set_test_id_attribute : string -> t -> unit
 end

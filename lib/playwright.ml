@@ -21,7 +21,6 @@ type forced_colors = [ `Active | `None | `No_override ]
 type contrast = [ `More | `No_preference | `No_override ]
 type file_payload = Protocol.Frame.Set_input_files_payloads.t = { name : string; mime_type : string option; buffer : string }
 type select_option = Frame.select_option
-type script = [ `Content of string | `Path of string ]
 type web_socket_message = Types.ws_payload = Text of string | Binary of string
 
 type timing = Types.timing = {
@@ -89,7 +88,6 @@ type 'a with_context_options =
     ?strict_selectors:bool ->
     ?service_workers:[ `Allow | `Block ] ->
     ?storage_state:Yojson.Safe.t ->
-    ?storage_state_path:string ->
     'a
 
 type 'a with_launch_options =
@@ -161,8 +159,8 @@ module type Frame_operations = sig
     val evaluate : ?arg:js_value -> string -> t -> js_value
     val evaluate_handle : ?arg:js_value -> string -> t -> js_handle
     val wait_for_function : ?timeout:float -> ?polling:float -> ?arg:js_value -> string -> t -> js_handle
-    val add_script_tag : ?type_:string -> [ script | `Url of string ] -> t -> element_handle
-    val add_style_tag : [ script | `Url of string ] -> t -> element_handle
+    val add_script_tag : ?type_:string -> [ `Content of string | `Url of string ] -> t -> element_handle
+    val add_style_tag : [ `Content of string | `Url of string ] -> t -> element_handle
     val query_selector : ?strict:bool -> string -> t -> element_handle option
     val query_selector_all : string -> t -> element_handle list
     val wait_for_selector : ?timeout:float -> ?strict:bool -> ?state:element_state -> string -> t -> element_handle option

@@ -60,13 +60,12 @@ let fallback ?url ?method_ ?headers ?post_data (route : t) =
 let abort ?error_code (route : t) =
     handle route (fun () -> unless_target_gone route (fun () -> Protocol.Route.abort ?error_code route.rt_channel))
 
-let fulfill ?status ?headers ?content_type ?body ?json ?path ?(response : api_response option) (route : t) =
+let fulfill ?status ?headers ?content_type ?body ?json ?(response : api_response option) (route : t) =
     handle route (fun () ->
         if body <> None && json <> None then invalid_arg "Playwright: pass either ~body or ~json, not both";
         let status = match status, response with Some _, _ -> status | None, Some response -> Some response.ar_init.status | None, None -> None in
         let headers = match headers, response with Some headers, _ -> headers | None, Some response -> pairs response.ar_init.headers | None, None -> [] in
         let body = match body, json with Some _, _ -> body | None, Some json -> Some (Yojson.Safe.to_string json) | None, None -> None in
-        let body = match body, path with None, Some path -> Some (Files.read path) | _ -> body in
         (* The driver that fetched a response still holds its body, and replays it when told which
            one it is.  Another driver knows nothing of it and is sent the body. *)
         let body, fetch_response_uid =
@@ -78,11 +77,10 @@ let fulfill ?status ?headers ?content_type ?body ?json ?path ?(response : api_re
         let headers = List.map (fun (name, value) -> String.lowercase_ascii name, value) headers in
         let set name value headers = (name, value) :: List.remove_assoc name headers in
         let headers =
-            match content_type, json, path with
-            | Some content_type, _, _ -> set "content-type" content_type headers
-            | None, Some _, _ -> set "content-type" "application/json" headers
-            | None, None, Some path -> set "content-type" (Files.mime_type path) headers
-            | None, None, None -> headers
+            match content_type, json with
+            | Some content_type, _ -> set "content-type" content_type headers
+            | None, Some _ -> set "content-type" "application/json" headers
+            | None, None -> headers
         in
         let headers =
             match body with

@@ -263,22 +263,16 @@ struct
         | Some handle -> Types.js_handle handle
         | None -> Error.raise_ "The driver returned no handle for the awaited function"
 
-    let add_script_tag ?type_ (source : [ `Content of string | `Path of string | `Url of string ]) t =
-        let url, content =
-            match source with
-            | `Url url -> Some url, None
-            | `Content content -> None, Some content
-            | `Path path -> None, Some (script_with_source_url ~path (Files.read path))
-        in
+    let tag_source : [ `Content of string | `Url of string ] -> string option * string option = function
+        | `Url url -> Some url, None
+        | `Content content -> None, Some content
+
+    let add_script_tag ?type_ source t =
+        let url, content = tag_source source in
         Protocol.Frame.add_script_tag ?url ?content ?type_ (T.frame t).f_channel |> Types.element
 
-    let add_style_tag (source : [ `Content of string | `Path of string | `Url of string ]) t =
-        let url, content =
-            match source with
-            | `Url url -> Some url, None
-            | `Content content -> None, Some content
-            | `Path path -> None, Some (Files.read path ^ "/*# sourceURL=" ^ String.concat "" (String.split_on_char '\n' path) ^ "*/")
-        in
+    let add_style_tag source t =
+        let url, content = tag_source source in
         Protocol.Frame.add_style_tag ?url ?content (T.frame t).f_channel |> Types.element
 
     (* {2 Selector-based queries and actions} *)

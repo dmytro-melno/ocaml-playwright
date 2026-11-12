@@ -117,9 +117,15 @@ rules of translation:
 - **Objects have identity.** A page, a frame, a request is the same thing however it was
   obtained, and every such module has `equal`, `compare` and `hash` to say so. See
   [Identity](#identity).
+- **Files are the program's business.** The library returns bytes and takes bytes: a
+  screenshot or a PDF is a string, the state of a context a JSON value, a script or a
+  certificate its text. Reading and writing them is a line of `Eio.Path` or `Yojson`, with the
+  program's own choice of where, and of what to do when it fails. Only what the driver
+  itself reads or writes is named by path: uploads (`set_input_files`), downloads and videos
+  (`save_as`), traces (`Tracing.stop ~path`), and the directories of profiles and videos.
 - **Misuse raises `Invalid_argument`.** Options that exclude each other, a number out of
-  range: what is wrong with a call whatever the browser does is
-  reported this way, and at once.
+  range: what is wrong with a call whatever the browser does is reported this way, and at
+  once.
 
 ## Browsers, contexts and pages
 
@@ -523,8 +529,8 @@ Page.expose_function "sha256" (function [ Js.String text ] -> Js.string (Digest.
 Page.evaluate "sha256('hello')" page |> Js.to_string
 ```
 
-`Page.add_init_script` runs a script, given as `` `Content`` text or as the `` `Path`` of a file, in every document of the page before the
-page's own scripts, which is the place to install mocks and flags. Both functions exist for
+`Page.add_init_script` runs JavaScript in every document of the page before the page's own
+scripts, which is the place to install mocks and flags. Both functions exist for
 contexts too, where they apply to all pages.
 
 ## Events
@@ -818,13 +824,13 @@ BrowserContext.new_page context
 use: `BrowserContext.set_offline`, `set_geolocation`, `grant_permissions`,
 `set_extra_http_headers`, and for a page `Page.set_viewport_size` and `Page.emulate_media`.
 
-Servers that authenticate their clients by TLS certificate are given one per origin, from
-files or from memory. The same option exists for `APIRequest.new_context`.
+Servers that authenticate their clients by TLS certificate are given one per origin: a
+certificate and its key as PEM text, or both in a PFX archive. The same option exists for
+`APIRequest.new_context`.
 
 ```ocaml
-let certificate =
-    Client_certificate.pem ~origin:"https://internal.example.com" ~cert:(`Path "client.pem") ~key:(`Path "client.key") ()
-in
+let read name = Eio.Path.(load (Eio.Stdenv.cwd env / name)) in
+let certificate = Client_certificate.pem ~origin:"https://internal.example.com" ~cert:(read "client.pem") ~key:(read "client.key") () in
 Browser.new_context ~client_certificates:[ certificate ] browser
 ```
 
@@ -859,7 +865,7 @@ Yojson.Safe.to_file "auth.json" (BrowserContext.storage_state context);
 BrowserContext.close context;
 
 (* In every test: *)
-Browser.new_context ~storage_state_path:"auth.json" browser
+Browser.new_context ~storage_state:(Yojson.Safe.from_file "auth.json") browser
 ```
 
 ### Time
@@ -966,8 +972,8 @@ Things to know:
 - A driver does not keep its switch from finishing. Once the function given to
   `Eio.Switch.run` has returned and the fibers that the program itself forked are done, the
   driver is stopped and its browsers are closed.
-- Files are read and written in system threads, so a large upload, download or trace does
-  not hold up the other fibers.
+- Uploads, downloads, videos and traces are read and written by the driver, in its own
+  process, so a large one does not hold up the fibers of the program.
 
 ## Errors, timeouts and cancellation
 

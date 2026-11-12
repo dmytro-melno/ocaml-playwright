@@ -96,8 +96,9 @@ adapted; [doc/migration.md](doc/migration.md) says how.
   library.
 - URL globs are read by the driver, as in every Playwright client, base URL and all; a
   malformed glob is an error where the route is registered or the wait begins.
-- Local files (scripts, uploads, downloads, screenshots, traces) are read and written in
-  system threads, so that other fibers go on meanwhile.
+- The library opens no files. Screenshots, PDFs and storage state are returned; scripts,
+  certificates and the bodies of fulfilled routes are passed as text. The driver reads and
+  writes the files whose paths it is given: uploads, downloads, videos, traces.
 
 ### The driver
 

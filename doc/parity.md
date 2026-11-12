@@ -27,7 +27,7 @@ of the module `Playwright`, built with `dune build @doc`.
 | `AbortSignal`, the option `signal` | Cancellation of the fiber: `Eio.Cancel`, `Eio.Time.with_timeout`, a switch that is turned off. |
 | `string \| RegExp` | Two functions or two arguments: the plain one takes the string, the one named `..._regex` a JavaScript literal such as `"/^total: \\d+$/i"`. |
 | A URL as `string \| RegExp \| (url) => boolean` | A glob pattern, or the function named `..._matching` with a predicate in OCaml. There are no regular expressions for URLs. |
-| A union of other kinds | A polymorphic variant: `` `Content `` or `` `Path `` for a script, `` `Name `` or `` `Url `` for `Page.frame`, `` `Value ``, `` `Label `` or `` `Index `` for an option of a `<select>`. |
+| A union of other kinds | A polymorphic variant: `` `Content `` or `` `Url `` for a script tag, `` `Name `` or `` `Url `` for `Page.frame`, `` `Value ``, `` `Label `` or `` `Index `` for an option of a `<select>`. |
 | An enumeration of strings: `'load'`, `'right'`, `'dark'` | Polymorphic variants: `` `Load ``, `` `Right ``, `` `Dark ``. ARIA roles too: `` `Button ``. |
 | `T \| null` | `T option`. |
 | `Buffer`, `bytes` | `string`. |
@@ -56,7 +56,7 @@ of the module `Playwright`, built with `dune build @doc`.
 | `page.unroute(url, handler)` | `Disposable.dispose` of what `Page.route` returned; `Page.unroute glob page` removes all handlers of a pattern |
 | `page.clock.install()`, `context.clock.runFor(ms)` | `Clock.install context`, `Clock.run_for ms context` |
 | `page.frame('name')`, `page.frame({ url })` | ``Page.frame (`Name "name") page``, ``Page.frame (`Url glob) page`` |
-| `page.addInitScript({ path })` | ``Page.add_init_script (`Path path) page`` |
+| `page.addInitScript({ path })`, and every other `path` option that makes the client read or write a file: `screenshot`, `pdf`, `storageState`, `addScriptTag`, `route.fulfill`, client certificates | Not there. The functions take and return the content: `Page.add_init_script source page`, `Page.screenshot page`. Paths that the driver handles are there: uploads, downloads, videos, traces. |
 | `page.addScriptTag({ url })` | ``Page.add_script_tag (`Url url) page`` |
 | `locator.locator(otherLocator)` | `Locator.within outer inner` |
 | `locator.filter({ hasText: /…/ })` | `Locator.filter ~has_text_regex:"/…/"` |
@@ -124,8 +124,8 @@ of the module `Playwright`, built with `dune build @doc`.
 
 - `Page.video` is `None` unless the context records videos, and `wait_for_selector` returns
   `None` when it waited for an element to go away.
-- `~http_credentials` is always a list, and `Client_certificate` values name their files or
-  carry their bytes; the files are read by the library, not by the driver.
+- `~http_credentials` is always a list, and `Client_certificate` values carry the bytes of
+  the certificates.
 - The driver is told that its client speaks Python. That is where the notation of selectors
   in error messages and call logs comes from: `get_by_role("button", name="Save")`.
 - Traces show the calls of the library, but not the places in the OCaml source that made

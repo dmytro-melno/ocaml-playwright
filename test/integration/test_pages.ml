@@ -176,15 +176,13 @@ let test_exposed_functions _ page =
 
 let test_init_scripts t page =
     Server.page t.server "/init" "<script>window.seenByPage = window.injected</script>";
-    Page.add_init_script (`Content "window.injected = 'early'") page |> ignore;
-    let script = scratch_file t "init.js" in
-    write_file script "window.fromFile = 7";
-    BrowserContext.add_init_script (`Path script) (Page.context page) |> ignore;
+    Page.add_init_script "window.injected = 'early'" page |> ignore;
+    BrowserContext.add_init_script "window.forAll = 7" (Page.context page) |> ignore;
     ignore (Page.goto (Server.url t.server "/init") page);
     Alcotest.(check string) "runs before the page's scripts" "early" (eval_string "window.seenByPage" page);
-    Alcotest.(check int) "from a file, for the whole context" 7 (eval_int "window.fromFile" page);
+    Alcotest.(check int) "for the whole context" 7 (eval_int "window.forAll" page);
     (* Taken back, a script is not added to the documents that follow. *)
-    let passing = Page.add_init_script (`Content "window.passing = true") page in
+    let passing = Page.add_init_script "window.passing = true" page in
     ignore (Page.reload page);
     Alcotest.(check string) "added" "boolean" (eval_string "typeof window.passing" page);
     Disposable.dispose passing;

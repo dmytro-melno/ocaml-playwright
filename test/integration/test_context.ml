@@ -53,7 +53,7 @@ let test_storage_state t page =
         result
     in
     Alcotest.(check string) "restored from the value" "dark/session=abc" (restored_from (Browser.new_context ~storage_state:state));
-    Alcotest.(check string) "restored from the file" "dark/session=abc" (restored_from (Browser.new_context ~storage_state_path:file));
+    Alcotest.(check string) "restored from the file" "dark/session=abc" (restored_from (Browser.new_context ~storage_state:(Yojson.Safe.from_file file)));
     Alcotest.(check string) "a fresh context has neither" "null/" (restored_from Browser.new_context);
     Alcotest.(check string) "set in a context that exists already" "dark/session=abc"
         (restored_from (fun browser ->

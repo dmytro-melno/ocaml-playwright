@@ -73,10 +73,8 @@ end
 
 module Selectors = struct
     (* Makes a custom selector engine available to every context, present and future. *)
-    let register ?content_script name (script : [ `Content of string | `Path of string ]) (session : session) =
+    let register ?content_script name source (session : session) =
         let selectors = session.selectors in
-        (* Reading the file lets other fibers run, so it comes before the look at the engines. *)
-        let source = match script with `Content script -> script | `Path path -> Files.read path in
         if List.exists (fun (engine : Protocol.Selector_engine.t) -> engine.name = name) selectors.selector_engines then
             Error.raise_ "\"%s\" selector engine has been already registered" name;
         let selector_engine : Protocol.Selector_engine.t = { name; source; content_script } in

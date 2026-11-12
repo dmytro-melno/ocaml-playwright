@@ -219,7 +219,7 @@ The supporting modules:
 | `Selector` | Builds the selectors behind `get_by_role` and the other locator functions. |
 | `Url_match` | Which URLs are meant: a glob or a predicate. The driver makes a regular expression of a glob (`LocalUtils.globToRegex`), resolving it against the base URL as it does for itself, and `Re` runs it. Nothing of Playwright's `urlMatch.ts` is repeated here. |
 | `Local_utils` | The utilities of the driver (archives of traces). |
-| `Files` | Reading and writing local files: scripts, bodies, screenshots, uploads, downloads. All of it happens in system threads (`Files.blocking`), so that a large file or a slow disk does not hold up the other fibers. |
+| `Files` | The paths that are handed to the driver: made absolute, and told apart as files and directories (in a system thread). The library opens no file; the driver reads and writes them. |
 | `Fibers` | `first` for operations that can fail; `in_systhread` for blocking work that must end when its fiber is cancelled; `is_cancellation`. |
 | `Serial` | Numbers that tell the objects of the process apart: see *Identity*. |
 | `Context_options`, `Screenshot`, `Cookie` | Conversion of options into protocol records. |
@@ -311,7 +311,7 @@ the state consistent is which fiber does what:
 | What the client does by itself in answer to an event: subscribing to events on demand, dismissing a dialog that nobody listens for, releasing the result of a cancelled command, reading a remote connection | `Connection.fork`: a daemon fiber in the same scope | Short, and no more of it than there are events, so not counted. Exceptions are reported. |
 | The predicate of an `expect_*` or `wait_for_*` | a fiber of the waiting call (`Waiter.around`) | One event at a time, in the order of arrival, while the action runs. |
 | Closing, disposing, cleaning up | `Connection.start` and what is built on it: a daemon fiber in the scope of the instance, for which the caller waits | Not interrupted when the caller is cancelled: see *Cancellation*. |
-| Blocking system calls: files, installing the driver, the pipes of the thread-based driver process, the driver's standard error | system threads (`Files.blocking`, `Fibers.in_systhread`, `Driver_process`) | Hand their results to fibers; touch no client state. |
+| Blocking system calls: looking at paths, installing the driver, the pipes of the thread-based driver process, the driver's standard error | system threads (`Files.partition_directories`, `Fibers.in_systhread`, `Driver_process`) | Hand their results to fibers; touch no client state. |
 
 Code that reads and then writes client state outside the reader does so without yielding in
 between.
@@ -514,7 +514,7 @@ to standard error.
 | Have one object change another | a function in the module of the object that changes; `Ownership` if it is about who has whom |
 | Add something that is closed in several steps | a `Closing.t` in its record, `Closing.close` in its `close`, `Closing.set_closed` where it hears that it is gone |
 | Release something when an operation is over | `Connection.protect`, `guard` or `cleanup` |
-| Read or write a local file | `Files` |
+| Read or write a local file | Do not: take or return the content, or give the driver the path (`Files.absolute`) |
 
 Conventions of the code: four spaces of indentation, no formatter, long lines where they
 read better than wrapped ones; comments say why, not what. There are no classes and no

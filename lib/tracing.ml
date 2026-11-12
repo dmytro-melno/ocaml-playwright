@@ -29,7 +29,6 @@ let stop_chunk ?path (t : t) =
     | None -> ignore (Protocol.Tracing.tracing_stop_chunk ~mode:`Discard t.t_channel)
     | Some path ->
         let path = Files.absolute path in
-        Files.make_parent path;
         let result = Protocol.Tracing.tracing_stop_chunk ~mode:`Entries t.t_channel in
         Protocol.Local_utils.zip ~zip_file:path ~entries:(Option.value result.entries ~default:[]) ~mode:`Write ~include_sources:false
             (Local_utils.of_session t.t_session)

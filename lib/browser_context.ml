@@ -313,12 +313,7 @@ let set_extra_http_headers headers (context : t) =
 
 let set_offline offline (context : t) = Protocol.Browser_context.set_offline ~offline context.c_channel
 
-let script_source : [ `Content of string | `Path of string ] -> string = function
-    | `Content script -> script
-    | `Path path -> Frame.script_with_source_url ~path (Files.read path)
-
-let add_init_script script (context : t) =
-    Disposable.of_channel (Protocol.Browser_context.add_init_script ~source:(script_source script) context.c_channel)
+let add_init_script source (context : t) = Disposable.of_channel (Protocol.Browser_context.add_init_script ~source context.c_channel)
 
 (* Registers [binding] in [bindings] under [name]; [registration] is what the driver gave for it. *)
 let keep_binding bindings name (binding : binding) (registration : Protocol.Disposable.t) =

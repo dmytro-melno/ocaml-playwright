@@ -19,17 +19,13 @@ module Http_credentials = struct
 end
 
 module Client_certificate = struct
-    type source = [ `Content of string | `Path of string ]
-    type t = { origin : string; cert : source option; key : source option; pfx : source option; passphrase : string option }
+    type t = { origin : string; cert : string option; key : string option; pfx : string option; passphrase : string option }
 
     let pem ?passphrase ~origin ~cert ~key () = { origin; cert = Some cert; key = Some key; pfx = None; passphrase }
     let pfx ?passphrase ~origin pfx = { origin; cert = None; key = None; pfx = Some pfx; passphrase }
 
-    (* The driver is given what the files hold: it may run on another machine. *)
-    let load : source -> string = function `Content content -> content | `Path path -> Files.read path
-
     let to_protocol (c : t) : Protocol.Context_options_client_certificates.t =
-        { origin = c.origin; cert = Option.map load c.cert; key = Option.map load c.key; passphrase = c.passphrase; pfx = Option.map load c.pfx }
+        { origin = c.origin; cert = c.cert; key = c.key; passphrase = c.passphrase; pfx = c.pfx }
 
     let list = function None | Some [] -> None | Some certificates -> Some (List.map to_protocol certificates)
 end
@@ -83,19 +79,10 @@ let collect k ?(device : device option) ?viewport ?(no_viewport = false) ?screen
     ?(reduced_motion : [ `No_override | `No_preference | `Reduce ] option) ?(forced_colors : [ `Active | `No_override | `None ] option)
     ?(contrast : [ `More | `No_override | `No_preference ] option) ?accept_downloads ?base_url ?record_video_dir ?record_video_size
     ?strict_selectors ?(service_workers : [ `Allow | `Block ] option) ?(storage_state : Yojson.Safe.t option)
-    ?storage_state_path target =
+    target =
     let or_device explicit from_device = match explicit with Some _ -> explicit | None -> Option.map from_device device in
     let viewport = or_device (Option.map size viewport) (fun device -> device.device_viewport) in
     let screen = match Option.map size screen with Some _ as screen -> screen | None -> Option.bind device (fun device -> device.device_screen) in
-    let storage_state =
-        match storage_state, storage_state_path with
-        | Some _, Some _ -> invalid_arg "Playwright: pass either ~storage_state or ~storage_state_path, not both"
-        | Some _, None -> storage_state
-        | None, Some path ->
-            (try Some (Yojson.Safe.from_string (Files.read path))
-             with Yojson.Json_error message -> Error.raise_ "Error reading storage state from %s: %s" path message)
-        | None, None -> None
-    in
     let record_video =
         Option.map
             (fun dir : Protocol.Context_options_record_video.t ->

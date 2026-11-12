@@ -38,13 +38,11 @@ let test_fulfill t page =
     let response = fetch "/api/created" page in
     Alcotest.(check (triple int string string)) "status, header and body" (201, "yes", "created")
         (field "status" response |> Js.to_int, field "test" response |> Js.to_string, body response);
-    let file = scratch_file t "page.html" in
-    write_file file "<title>From a file</title>";
-    Page.route "**/from-file" (Route.fulfill ~path:file) page |> ignore;
-    ignore (Page.goto (Server.url t.server "/from-file") page);
-    Alcotest.(check string) "a file as the response, with its type" "From a file" (Page.title page);
+    Page.route "**/a-page" (Route.fulfill ~content_type:"text/html" ~body:"<title>Made up</title>") page |> ignore;
+    ignore (Page.goto (Server.url t.server "/a-page") page);
+    Alcotest.(check string) "a document" "Made up" (Page.title page);
     Alcotest.(check int) "none of this reached the server" 0
-        (List.length (List.concat_map (Server.requests_for t.server) [ "/api/user"; "/api/created"; "/from-file" ]))
+        (List.length (List.concat_map (Server.requests_for t.server) [ "/api/user"; "/api/created"; "/a-page" ]))
 
 let test_abort_and_continue t page =
     start t page;
@@ -344,22 +342,16 @@ let test_client_certificates t () =
                 Page.inner_text "body" page)
     in
     let known = "client: " ^ Tls_server.common_name in
-    let from_files = Client_certificate.pem ~origin ~cert:(`Path cert) ~key:(`Path key) () in
+    let cert = Tls_server.certificate and key = Tls_server.private_key in
+    let certificate = Client_certificate.pem ~origin ~cert ~key () in
     Alcotest.(check string) "without a certificate" "client: nobody" (shown []);
-    Alcotest.(check string) "from files" known (shown [ from_files ]);
-    Alcotest.(check string) "from memory" known
-        (shown [ Client_certificate.pem ~origin ~cert:(`Content Tls_server.certificate) ~key:(`Content Tls_server.private_key) () ]);
-    Alcotest.(check string) "an archive" known
-        (shown [ Client_certificate.pfx ~passphrase:Tls_server.archive_passphrase ~origin (`Content Tls_server.archive) ]);
-    Alcotest.(check string) "of another origin" "client: nobody"
-        (shown [ Client_certificate.pem ~origin:"https://elsewhere.test" ~cert:(`Path cert) ~key:(`Path key) () ]);
-    let request = APIRequest.new_context ~ignore_https_errors:true ~client_certificates:[ from_files ] t.pw in
+    Alcotest.(check string) "a certificate and its key" known (shown [ certificate ]);
+    Alcotest.(check string) "an archive" known (shown [ Client_certificate.pfx ~passphrase:Tls_server.archive_passphrase ~origin Tls_server.archive ]);
+    Alcotest.(check string) "of another origin" "client: nobody" (shown [ Client_certificate.pem ~origin:"https://elsewhere.test" ~cert ~key () ]);
+    let request = APIRequest.new_context ~ignore_https_errors:true ~client_certificates:[ certificate ] t.pw in
     Alcotest.(check string) "a request context" known (APIRequestContext.get origin request |> APIResponse.text);
     APIRequestContext.dispose request;
-    check_failure "what is no key" ~message:"Failed to load client certificate" (fun () ->
-        shown [ Client_certificate.pem ~origin ~cert:(`Path cert) ~key:(`Content "nonsense") () ]);
-    check_failure "a file that is not there" ~message:"Cannot read file" (fun () ->
-        shown [ Client_certificate.pem ~origin ~cert:(`Path cert) ~key:(`Path (scratch_file t "missing.pem")) () ])
+    check_failure "what is no key" ~message:"Failed to load client certificate" (fun () -> shown [ Client_certificate.pem ~origin ~cert ~key:"nonsense" () ])
 
 let test_web_socket_routes t page =
     start t page;

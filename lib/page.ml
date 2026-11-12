@@ -362,8 +362,7 @@ let emulate_media ?media ?color_scheme ?reduced_motion ?forced_colors ?contrast 
 
 let set_extra_http_headers headers (page : t) = Protocol.Page.set_extra_http_headers ~headers:(Network.name_values headers) page.p_channel
 
-let add_init_script script (page : t) =
-    Disposable.of_channel (Protocol.Page.add_init_script ~source:(Browser_context.script_source script) page.p_channel)
+let add_init_script source (page : t) = Disposable.of_channel (Protocol.Page.add_init_script ~source page.p_channel)
 
 let expose_binding name (binding : binding) (page : t) =
     Browser_context.keep_binding page.p_bindings name binding (Protocol.Page.expose_binding ~name page.p_channel)
