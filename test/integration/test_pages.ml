@@ -109,6 +109,10 @@ let test_evaluate _ page =
     | other -> Alcotest.failf "unexpected %s" (Js.show other));
     Alcotest.check js "shared references" (Js.Array [ Js.Object [ "x", Js.Number 1. ]; Js.Object [ "x", Js.Number 1. ] ])
         (Page.evaluate "() => { const o = { x: 1 }; return [o, o]; }" page);
+    Alcotest.check json "a result that is JSON" (Yojson.Safe.from_string {|{"n":1,"list":["x",null,2.5],"nested":{"ok":true}}|})
+        (Page.evaluate "() => ({ n: 1, list: ['x', null, 2.5], nested: { ok: true } })" page |> Js.to_json);
+    check_failure "a result that is not" ~message:"value.list[1] is undefined" (fun () ->
+        Page.evaluate "() => ({ n: 1, list: ['x', undefined] })" page |> Js.to_json);
     check_failure "exception in the page" ~kind:Other ~message:"nope" (fun () -> Page.evaluate "() => { throw new Error('nope') }" page);
     check_failure "thrown value" ~message:"42" (fun () -> Page.evaluate "() => { throw 42 }" page);
     check_failure "syntax error" ~message:"SyntaxError" (fun () -> Page.evaluate "][" page)
@@ -130,7 +134,7 @@ let test_handles _ page =
              page);
     Alcotest.check js "evaluate on a handle" (Js.Number 3.) (JSHandle.evaluate "(o, extra) => o.n + extra" ~arg:(Js.int 1) handle);
     (* A handle stands for an object in the page; as data it is nothing. *)
-    check_failure "no JSON for a handle" ~message:"no JSON representation" (fun () -> Js.to_json (Js.obj [ "list", Js.Handle list ]));
+    check_failure "no JSON for a handle" ~message:"value.list is a handle" (fun () -> Js.to_json (Js.obj [ "list", Js.Handle list ]));
     JSHandle.dispose handle;
     check_failure "disposed handle" (fun () -> JSHandle.json_value handle)
 

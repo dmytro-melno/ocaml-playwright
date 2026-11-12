@@ -492,7 +492,8 @@ Values cross the boundary as `Js.t`, a variant that covers what JSON cannot expr
 `Js.int`, `Js.string`, `Js.list`, `Js.obj` and their relatives build arguments, and
 `Js.to_int`, `Js.to_string`, `Js.to_list`, `Js.member` and so on take results apart; the
 latter raise `Playwright.Error` if the value is of another kind. For results that are plain
-JSON, `Js.to_json` converts to `Yojson.Safe.t` in one go.
+JSON, `Js.to_json` converts to `Yojson.Safe.t` in one go; it refuses any other, naming the
+place of what JSON has no notion of, rather than turn it into something else.
 
 Two things to keep in mind. A JavaScript number is a float, so `Js.int` refuses, with
 `Invalid_argument`, an integer beyond ±(2⁵³ − 1) that a float would round: pass it as

@@ -114,35 +114,19 @@ let string s = String s
 let list f items = Array (List.map f items)
 let obj fields = Object fields
 
+(* Whether an integer is a number depends on its value, not on the way Yojson happens to carry it. *)
 let rec of_json : Yojson.Safe.t -> t = function
     | `Null -> Null
     | `Bool b -> Bool b
     | `Int i when is_safe_integer i -> Number (float_of_int i)
     | `Int i -> Bigint (string_of_int i)
-    | `Intlit s -> Bigint s
+    | `Intlit s -> (match float_of_string_opt s with Some f when Float.abs f <= max_safe_integer -> Number f | _ -> Bigint s)
     | `Float f -> Number f
     | `String s -> String s
     | `List items -> Array (List.map of_json items)
     | `Assoc fields -> Object (List.map (fun (key, value) -> key, of_json value) fields)
 
 (* {1 Reading values} *)
-
-(* What [JSON.stringify] produces, with integral numbers as [`Int], for the values that JSON
-   has a notion of; the others are rendered in a way of our own rather than lost. *)
-let rec to_json : t -> Yojson.Safe.t = function
-    | Handle _ -> Error.raise_ "A handle to a JavaScript object has no JSON representation"
-    | Undefined | Null -> `Null
-    | Bool b -> `Bool b
-    | Number f when not (Float.is_finite f) -> `Null
-    | Number f when Float.is_integer f && Float.abs f <= max_safe_integer -> `Int (int_of_float f)
-    | Number f -> `Float f
-    | String s | Date s | Url s -> `String s
-    | Bigint s -> `Intlit s
-    | Regexp { source; flags } -> `String (Printf.sprintf "/%s/%s" source flags)
-    | Error { name; message; stack } -> `Assoc [ "name", `String name; "message", `String message; "stack", `String stack ]
-    | Array items -> `List (List.map to_json items)
-    | Object fields -> `Assoc (List.filter_map (fun (key, value) -> match value with Undefined -> None | value -> Some (key, to_json value)) fields)
-    | Typed_array { bytes; _ } -> `String (Base64.encode_string bytes)
 
 let rec show : t -> string = function
     | Undefined -> "undefined"
@@ -181,6 +165,35 @@ let kind : t -> string = function
     | Handle _ -> "a handle"
 
 let expected what value = Error.raise_ "Expected the JavaScript value to be %s, but it is %s" what (kind value)
+
+(* The place of a value in the one being converted, the way JavaScript would write it; [steps] lead to it from the
+   outside in, last step first. *)
+let place steps =
+    let is_identifier key =
+        key <> "" && String.for_all (function 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' | '$' -> true | _ -> false) key && not ('0' <= key.[0] && key.[0] <= '9')
+    in
+    let step = function
+        | `Index index -> Printf.sprintf "[%d]" index
+        | `Key key when is_identifier key -> "." ^ key
+        | `Key key -> Printf.sprintf "[%s]" (Yojson.Safe.to_string (`String key))
+    in
+    String.concat "" ("value" :: List.rev_map step steps)
+
+(* Only what JSON has, so that nothing is turned into something else on the way: [of_json] gives the value back. *)
+let to_json value : Yojson.Safe.t =
+    let rec convert steps = function
+        | Null -> `Null
+        | Bool b -> `Bool b
+        | Number f when Float.is_integer f && Float.abs f <= max_safe_integer -> `Int (int_of_float f)
+        | Number f when Float.is_finite f -> `Float f
+        | String s -> `String s
+        | Array items -> `List (List.mapi (fun index item -> convert (`Index index :: steps) item) items)
+        | Object fields -> `Assoc (List.map (fun (key, value) -> key, convert (`Key key :: steps) value) fields)
+        | (Number _ | Undefined | Bigint _ | Date _ | Url _ | Regexp _ | Error _ | Typed_array _ | Handle _) as value ->
+            let what = match value with Number _ -> show value | value -> kind value in
+            Error.raise_ "Js.to_json: %s is %s, which JSON has no notion of" (place steps) what
+    in
+    convert [] value
 
 let to_string = function String s | Date s | Url s -> s | value -> expected "a string" value
 let to_bool = function Bool b -> b | value -> expected "a boolean" value

@@ -55,28 +55,28 @@ let test_js_roundtrip () =
     | other -> Alcotest.failf "-0 decoded as %s" (Js.show other)
 
 let test_js_json () =
-    Alcotest.check js "of_json"
-        (Js.Object [ "a", Js.Array [ Js.Number 1.; Js.Number 2.5; Js.Null; Js.Bool true ]; "b", Js.String "x" ])
-        (Js.of_json (Json.of_string {|{"a":[1,2.5,null,true],"b":"x"}|}));
-    (* What JSON.stringify gives. *)
-    Alcotest.check json "to_json"
-        (Json.of_string {|{"int":2,"float":2.5,"nan":null,"date":"2020-01-01T00:00:00.000Z","url":"https://example.com/","list":[null,"s",null]}|})
-        (Js.to_json
-             (Js.Object
-                  [ "int", Js.Number 2.; "float", Js.Number 2.5; "undefined", Js.Undefined; "nan", Js.Number Float.nan;
-                    "date", Js.Date "2020-01-01T00:00:00.000Z"; "url", Js.Url "https://example.com/";
-                    "list", Js.Array [ Js.Null; Js.String "s"; Js.Undefined ] ]));
-    Alcotest.check json "undefined by itself" `Null (Js.to_json Js.Undefined);
-    (* What JSON has no notion of is rendered. *)
-    Alcotest.check json "to_json of the rest"
-        (`Assoc
-             [ "bigint", `Intlit "12345678901234567890"; "regexp", `String "/ab+c/gi";
-               "error", `Assoc [ "name", `String "TypeError"; "message", `String "no"; "stack", `String "at x" ]; "bytes", `String "AQID" ])
-        (Js.to_json
-             (Js.Object
-                  [ "bigint", Js.Bigint "12345678901234567890"; "regexp", Js.Regexp { source = "ab+c"; flags = "gi" };
-                    "error", Js.Error { name = "TypeError"; message = "no"; stack = "at x" };
-                    "bytes", Js.Typed_array { kind = `Ui8; bytes = "\001\002\003" } ]));
+    let document = Json.of_string {|{"a":[1,2.5,null,true,-3],"b":"x","c":{},"d":[]}|} in
+    let value =
+        Js.Object
+            [ "a", Js.Array [ Js.Number 1.; Js.Number 2.5; Js.Null; Js.Bool true; Js.Number (-3.) ]; "b", Js.String "x"; "c", Js.Object [];
+              "d", Js.Array [] ]
+    in
+    Alcotest.check js "of_json" value (Js.of_json document);
+    Alcotest.check json "to_json gives it back" document (Js.to_json value);
+    Alcotest.(check bool) "an integral number is an integer" true (Js.to_json (Js.Number 2.) = `Int 2 && Js.to_json (Js.Number 2.5) = `Float 2.5);
+    (* Nothing is turned into something else: what JSON has no notion of is refused, and the message says where it is. *)
+    let refused what place value =
+        Alcotest.(check string) what (Printf.sprintf "Js.to_json: %s, which JSON has no notion of" place) (failure what (fun () -> Js.to_json value)).message
+    in
+    refused "by itself" "value is undefined" Js.Undefined;
+    refused "in an object" "value.due is a date" (Js.Object [ "ok", Js.Null; "due", Js.Date "2020-01-01T00:00:00.000Z" ]);
+    refused "in an array" "value.items[1] is NaN" (Js.Object [ "items", Js.Array [ Js.Number 1.; Js.Number Float.nan ] ]);
+    refused "under a key that is no identifier" {|value["a b"][0].n is a bigint|} (Js.Object [ "a b", Js.Array [ Js.Object [ "n", Js.Bigint "1" ] ] ]);
+    refused "the first one" "value[0] is undefined" (Js.Array [ Js.Undefined; Js.Url "about:blank" ]);
+    List.iter
+        (fun (what, value) -> refused what ("value is " ^ what) value)
+        [ "-Infinity", Js.Number Float.neg_infinity; "a URL", Js.Url "https://example.com/"; "a regular expression", Js.Regexp { source = "ab+c"; flags = "gi" };
+          "an error", Js.Error { name = "TypeError"; message = "no"; stack = "at x" }; "a typed array", Js.Typed_array { kind = `Ui8; bytes = "\001\002\003" } ];
     (* Integers that a JavaScript number would round. *)
     let safe = 9007199254740991 in
     Alcotest.check js "the largest safe integer" (Js.Number 9007199254740991.) (Js.int safe);
@@ -89,7 +89,10 @@ let test_js_json () =
         [ safe + 1; -safe - 1; max_int ];
     Alcotest.check js "of_json, safe" (Js.Number 9007199254740991.) (Js.of_json (`Int safe));
     Alcotest.check js "of_json, beyond" (Js.Bigint "9007199254740993") (Js.of_json (`Int (safe + 2)));
-    Alcotest.check js "of_json, beyond OCaml's" (Js.Bigint "12345678901234567890") (Js.of_json (`Intlit "12345678901234567890"))
+    Alcotest.check js "of_json, beyond OCaml's" (Js.Bigint "12345678901234567890") (Js.of_json (`Intlit "12345678901234567890"));
+    (* The value decides, not the way Yojson carries it. *)
+    Alcotest.check js "of_json, a literal within" (Js.Number (-9007199254740991.)) (Js.of_json (`Intlit "-9007199254740991"));
+    Alcotest.check js "of_json, a literal just beyond" (Js.Bigint "9007199254740992") (Js.of_json (`Intlit "9007199254740992"))
 
 let test_js_accessors () =
     let value = Js.obj [ "name", Js.string "Ada"; "age", Js.int 36; "tags", Js.list Js.string [ "a"; "b" ]; "nick", Js.null ] in

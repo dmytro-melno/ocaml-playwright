@@ -58,9 +58,9 @@ let () =
    care of closing.
 3. **JavaScript values are `Js.t`,** not `Yojson.Safe.t`, in `evaluate`, its relatives and
    their `~arg`. Take results apart with `Js.to_string`, `Js.to_int`, `Js.to_list` and so on,
-   or convert with `Js.to_json`; build arguments with `Js.string`, `Js.obj`, ..., or convert
-   with `Js.of_json`. The argument `?is_function` is gone: an expression that evaluates to a
-   function is called.
+   or, where the result is plain JSON, convert with `Js.to_json`; build arguments with
+   `Js.string`, `Js.obj`, ..., or convert with `Js.of_json`. The argument `?is_function` is
+   gone: an expression that evaluates to a function is called.
 4. **Errors are structured.** `Playwright.Error` used to carry a string; it carries a record
    now. Code that looked for `"TimeoutError:"` at the start of the message matches on the
    kind instead: `exception Playwright.Error { kind = Timeout; _ }`. The text is in the
@@ -204,5 +204,6 @@ installed, `find` also comes across the interfaces of the implementation, named
 `Playwright.Playwright.t`, `Playwright.destroy`, `Page.goto ~url`,
 `Page.wait_for_function ~expression`, `Page.evaluate ~expression` with results matched as
 `Yojson.Safe.t`, and `?chromium_args:string array`. Rules 1, 2, 3 and 5 above cover all of
-them; `Playwright.Js.to_json` gives the old shape of an `evaluate` result where the code
-would rather keep matching on JSON.
+them; where the code would rather keep matching on JSON, `Playwright.Js.to_json` converts
+an `evaluate` result that is plain JSON. An integral number is an `` `Int `` now, and a
+result with `undefined` in it, which used to be `` `Null ``, is refused.

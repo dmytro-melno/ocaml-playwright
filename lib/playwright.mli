@@ -553,7 +553,8 @@ end
     big integers, regular expressions, errors, typed arrays and, in arguments, handles to objects living in the page.
 
     A value is a tree. An object that occurs at several places of a result is repeated at each of them, and a
-    structure that contains itself is cut off with [Undefined] at the place where it comes round. *)
+    structure that contains itself is cut off with [Undefined] at the place where it comes round; in the page it
+    stays whole, and {!Page.evaluate_handle} gives a {!JSHandle} to it. *)
 module rec Js : sig
     type typed_array_kind = [ `I8 | `Ui8 | `Ui8c | `I16 | `Ui16 | `I32 | `Ui32 | `F32 | `F64 | `Bi64 | `Bui64 ]
 
@@ -588,7 +589,8 @@ module rec Js : sig
     val obj : (string * t) list -> t
 
     val of_json : Yojson.Safe.t -> t
-    (** Integers become [Number]s, and [Bigint]s when they are beyond ±(2{^53} - 1). *)
+    (** An integer becomes a [Number], or a [Bigint] when it is beyond ±(2{^53} - 1), whether Yojson holds it as an
+        [`Int] or as an [`Intlit]. *)
 
     (** {2 Inspecting}
 
@@ -613,11 +615,12 @@ module rec Js : sig
     (** The property of an [Object]; [Undefined] when it has no such property. *)
 
     val to_json : t -> Yojson.Safe.t
-    (** The value as JSON. For what JSON has a notion of, this is what [JSON.stringify] gives: [Undefined] becomes
-        [`Null] in an array and is left out of an object, numbers that are not finite become [`Null], dates and
-        URLs become strings; integral numbers become [`Int]. The rest is rendered rather than lost: a bigint becomes
-        an [`Intlit], a regular expression the string ["/source/flags"], an error an object of its [name], [message]
-        and [stack], and a typed array its bytes in Base64. Fails for a value with a [Handle] in it. *)
+    (** The value as JSON, for a value made of what JSON has: [Null], booleans, finite numbers, strings, arrays and
+        objects. An integral number becomes an [`Int], and {!of_json} gives the value back.
+
+        Nothing is turned into something else: for any other value this fails, and the message names the place, as
+        in ["value.items[2].due is a date"]. Where the way [JSON.stringify] treats such values is wanted, call it in
+        the page and parse the string. *)
 
     val show : t -> string
     (** A JavaScript-like rendering, for messages and debugging. *)
