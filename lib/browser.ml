@@ -79,16 +79,16 @@ let selector_options (session : session) =
     in
     engines, test_id_attribute
 
-let new_context_with (o : Context_options.t) (browser : t) =
+(* A proxy of its own and a state to start from are what a new context can have and a persistent one cannot, which
+   has the proxy of its browser and the state of its directory.  Hence they are not among the options that both take. *)
+let new_context ?(proxy : Context_options.Proxy.t option) ?storage_state =
+    Context_options.collect @@ fun (o : Context_options.t) (browser : t) ->
     let session = browser.b_session in
     let selector_engines, test_id_attribute_name = selector_options session in
     let proxy =
-        Option.map
-            (fun (p : Context_options.Proxy.t) : Protocol.Browser.New_context_proxy.t ->
-                { server = p.server; bypass = p.bypass; username = p.username; password = p.password })
-            o.proxy
+        Option.map (fun (p : Context_options.Proxy.t) : Protocol.Browser.New_context_proxy.t -> { server = p.server; bypass = p.bypass; username = p.username; password = p.password }) proxy
     in
-    let storage_state = Option.map (Protocol.Browser.New_context_storage_state.of_json session.conn) o.storage_state in
+    let storage_state = Option.map (Protocol.Browser.New_context_storage_state.of_json session.conn) storage_state in
     let context =
         Protocol.Browser.new_context ?no_default_viewport:o.no_default_viewport ?viewport:o.viewport ?screen:o.screen
             ?ignore_https_errors:o.ignore_https_errors ?client_certificates:o.client_certificates ?java_script_enabled:o.java_script_enabled ?bypass_csp:o.bypass_csp
@@ -102,8 +102,6 @@ let new_context_with (o : Context_options.t) (browser : t) =
     in
     Ownership.add_context browser context;
     context
-
-let new_context ?proxy = Context_options.collect (fun options browser -> new_context_with { options with proxy } browser)
 
 let new_browser_cdp_session (browser : t) = Protocol.Browser.new_browser_cdp_session browser.b_channel |> Types.cdp_session
 

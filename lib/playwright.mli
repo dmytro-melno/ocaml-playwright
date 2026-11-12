@@ -297,7 +297,6 @@ type 'a with_context_options =
     ?record_video_dir:string ->
     ?record_video_size:int * int ->
     ?service_workers:[ `Allow | `Block ] ->
-    ?storage_state:Yojson.Safe.t ->
     'a
 (** The options of a browser context, see
     {{:https://playwright.dev/docs/api/class-browser#browser-new-context} [browser.newContext]}.
@@ -306,7 +305,6 @@ type 'a with_context_options =
     - [viewport] is [(width, height)], 1280×720 by default; [no_viewport] makes the page follow the window size.
     - [base_url] is what relative URLs given to {!Page.goto}, {!Page.route} and the like are resolved against.
     - [record_video_dir] turns video recording on, see {!Video}.
-    - [storage_state] restores cookies and local storage saved with {!BrowserContext.storage_state}.
     - [client_certificates] are what the context has to show to the servers of their origins that ask for a
       certificate. *)
 
@@ -687,7 +685,8 @@ and BrowserType : sig
     val launch_persistent_context : (t -> string -> BrowserContext.t) with_context_options with_launch_options
     (** [launch_persistent_context browser_type user_data_dir] starts a browser that keeps its profile in the given
         directory, and returns its only context. An empty string stands for a temporary directory. Closing the
-        context closes the browser. *)
+        context closes the browser. There is no [storage_state] among the options: such a context has the cookies
+        and the storage of its directory. *)
 
     val connect_over_cdp :
         ?timeout:float -> ?headers:(string * string) list -> ?slow_mo:float -> ?is_local:bool -> ?no_defaults:bool -> ?artifacts_dir:string ->
@@ -709,8 +708,10 @@ end
 and Browser : sig
     type t
 
-    val new_context : ?proxy:Proxy.t -> (t -> BrowserContext.t) with_context_options
-    (** Creates an isolated browser context, comparable to a fresh incognito profile. *)
+    val new_context : ?proxy:Proxy.t -> ?storage_state:Yojson.Safe.t -> (t -> BrowserContext.t) with_context_options
+    (** Creates an isolated browser context, comparable to a fresh incognito profile. [proxy] is a proxy for this
+        context alone, and [storage_state] restores the cookies and the local storage that were saved with
+        {!BrowserContext.storage_state}. *)
 
     val contexts : t -> BrowserContext.t list
     val browser_type : t -> BrowserType.t

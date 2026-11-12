@@ -86,7 +86,6 @@ type 'a with_context_options =
     ?record_video_dir:string ->
     ?record_video_size:int * int ->
     ?service_workers:[ `Allow | `Block ] ->
-    ?storage_state:Yojson.Safe.t ->
     'a
 
 type 'a with_launch_options =

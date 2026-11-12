@@ -75,7 +75,6 @@ let launch =
 let launch_persistent_context =
     collect_launch_options (fun o ->
         Context_options.collect (fun (c : Context_options.t) (t : t) user_data_dir ->
-            if c.storage_state <> None then invalid_arg "Playwright: a persistent context takes its storage state from the user data directory";
             let selector_engines, test_id_attribute_name = Browser.selector_options t.bt_session in
             let user_data_dir = if user_data_dir = "" then user_data_dir else Files.absolute user_data_dir in
             let result =
