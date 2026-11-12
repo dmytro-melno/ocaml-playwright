@@ -1175,9 +1175,9 @@ and Locator : sig
 
     val visible : t -> t
 
-    val within : t -> t -> t
-    (** [within outer inner] are the elements of [inner] inside an element of [outer], with [inner] looked up in each
-        of those separately: [Page.get_by_role `Cell page |> Locator.nth 2 |> Locator.within (Page.get_by_role `Row page)]
+    val within : outer:t -> t -> t
+    (** [within ~outer inner] are the elements of [inner] inside an element of [outer], with [inner] looked up in each
+        of those separately: [Page.get_by_role `Cell page |> Locator.nth 2 |> Locator.within ~outer:(Page.get_by_role `Row page)]
         is the third cell of every row, where [Locator.get_by_role `Cell row |> Locator.nth 2] is the third cell of
         all. *)
 
@@ -1630,11 +1630,13 @@ and WebSocketRoute : sig
     (** Sends a message to this side: to the page, or to the server for the value returned by {!connect_to_server}. *)
 
     val on_message : (web_socket_message -> unit) -> t -> unit
-    (** Handles the messages coming from this side. *)
+    (** Handles the messages coming from this side. This is not a listener: it sets the one handler of this side,
+        replacing an earlier one, and from then on the handler decides what becomes of a message, which is no
+        longer forwarded to the other side. That cannot be taken back, so nothing is returned to dispose of. *)
 
     val on_close : (int option -> string option -> unit) -> t -> unit
-    (** Handles the closing of the connection by this side, given the close code and reason. Without a handler the
-        closure is forwarded to the other side. *)
+    (** Handles the closing of the connection by this side, given the close code and reason. Like {!on_message}, it
+        sets the one handler: without it the closure is forwarded to the other side, with it the handler decides. *)
 
     val close : ?code:int -> ?reason:string -> t -> unit
 
@@ -1902,9 +1904,13 @@ and CDPSession : sig
     (** [send method_] calls a method of the protocol and returns its result. *)
 
     val on_event : (string -> Yojson.Safe.t -> unit) -> t -> Disposable.t
-    (** Registers a listener for the events of the session; it is given the name and the parameters of each. *)
+    (** Registers a listener for the events of the session; it is given the name and the parameters of each. The
+        events of the DevTools protocol are an open set that is named by strings, so there is this one listener for
+        all of them in place of an [event] type and [on]. *)
 
     val on_close : (t -> unit) -> t -> Disposable.t
+    (** Registers a listener for the end of the session: it was detached, or its target is gone. *)
+
     val detach : t -> unit
 
     include Identity with type t := t
@@ -2077,8 +2083,8 @@ end
 (** Custom selector engines and the attribute used by [get_by_test_id]. The settings apply to all browser contexts
     of the driver, those that exist already included. *)
 module Selectors : sig
-    val register : ?content_script:bool -> string -> string -> t -> unit
-    (** [register name script] registers a
+    val register : ?content_script:bool -> string -> script:string -> t -> unit
+    (** [register name ~script] registers a
         {{:https://playwright.dev/docs/extensibility#custom-selector-engines} selector engine}, which the JavaScript
         of [script] evaluates to, for selectors of the form [name=...]. *)
 

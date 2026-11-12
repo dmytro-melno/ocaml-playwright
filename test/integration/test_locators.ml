@@ -235,7 +235,7 @@ let test_references _ page =
         {|<table><tr><td>a1</td><td>b1</td><td>c1</td></tr><tr><td>a2</td><td>b2</td><td>c2</td></tr></table>
           <button>Submit</button> <input aria-label="Amount" value="12">|}
         page;
-    let third = Page.get_by_role `Cell page |> Locator.nth 2 |> Locator.within (Page.get_by_role `Row page) in
+    let third = Page.get_by_role `Cell page |> Locator.nth 2 |> Locator.within ~outer:(Page.get_by_role `Row page) in
     Alcotest.(check (list string)) "the third cell of every row" [ "c1"; "c2" ] (Locator.all_inner_texts third);
     let button = Page.get_by_role `Button page in
     let name = {|The "submit" >> internal:describe="button"|} in

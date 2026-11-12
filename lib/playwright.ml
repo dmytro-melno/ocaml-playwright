@@ -288,7 +288,7 @@ end
 module CDPSession = Cdp_session
 
 module Selectors = struct
-    let register ?content_script name script (t : t) = Misc.Selectors.register ?content_script name script t.session
+    let register ?content_script name ~script (t : t) = Misc.Selectors.register ?content_script name script t.session
     let set_test_id_attribute name (t : t) = Misc.Selectors.set_test_id_attribute name t.session
 end
 

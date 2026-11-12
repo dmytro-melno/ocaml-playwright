@@ -100,7 +100,7 @@ end)
 
 let refine (locator : t) part = { locator with selector = Selector.join [ locator.selector; part ] }
 
-let within (outer : t) (inner : t) = refine outer (Selector.chain (same_frame "the inner" outer.l_frame inner))
+let within ~(outer : t) (inner : t) = refine outer (Selector.chain (same_frame "the inner" outer.l_frame inner))
 
 let filter ?has_text ?has_text_regex ?has_not_text ?has_not_text_regex ?has ?has_not ?visible (locator : t) =
     make ?has_text ?has_text_regex ?has_not_text ?has_not_text_regex ?has ?has_not ?visible locator.l_frame locator.selector

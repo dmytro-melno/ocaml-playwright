@@ -72,7 +72,7 @@ conventions do not tell:
 
 | Playwright | Here |
 | --- | --- |
-| `playwright.chromium`, `playwright.devices`, `playwright.request`, `playwright.selectors` | `Playwright.chromium pw`, `Playwright.device "iPhone 15" pw`, `APIRequest.new_context pw`, `Selectors.register name script pw`, for a driver `pw` from `Playwright.run` or `Playwright.create` |
+| `playwright.chromium`, `playwright.devices`, `playwright.request`, `playwright.selectors` | `Playwright.chromium pw`, `Playwright.device "iPhone 15" pw`, `APIRequest.new_context pw`, `Selectors.register name ~script pw`, for a driver `pw` from `Playwright.run` or `Playwright.create` |
 | A property that is an object: `page.keyboard`, `context.tracing` | A function: `Page.keyboard page`, `BrowserContext.tracing context` |
 | `page.clock.install()`, `context.clock.runFor(ms)` | `Clock.install context`, `Clock.run_for ms context` |
 | `x.off('event', f)`, `removeAllListeners`, `await using` | `Disposable.dispose` of what `on` returned |
@@ -87,7 +87,7 @@ conventions do not tell:
 | `page.route(url, handler)` with a regular expression or a predicate | `Page.route_matching predicate handler page`; there are no regular expressions for URLs |
 | `page.frame('name')`, `page.frame({ url })` | ``Page.frame (`Name "name") page``, ``Page.frame (`Url glob) page`` |
 | `page.addScriptTag({ url })` | ``Page.add_script_tag (`Url url) page`` |
-| `locator.locator(otherLocator)` | `Locator.within outer inner` |
+| `locator.locator(otherLocator)` | `Locator.within ~outer inner` |
 | `locator.filter({ hasText: /…/ })` | `Locator.filter ~has_text_regex:"/…/"`: a JavaScript literal in a string |
 | `locator.setInputFiles({ name, mimeType, buffer })` | `Locator.set_input_payloads` |
 | `locator.toString()` | `Locator.to_string`; the selector alone is `Locator.selector` |
