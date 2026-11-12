@@ -20,9 +20,8 @@ adapted; [doc/migration.md](doc/migration.md) says how.
   piped; required arguments are positional; everything optional is a labelled optional
   argument; timeouts are in milliseconds; choices are polymorphic variants; collections are
   lists.
-- Every kind of object has a module with an abstract type `t` (`Page.t`, `Locator.t`,
-  `Request.t`, ...) and with `equal`, `compare` and `hash`, so that objects can be compared
-  and kept in sets and tables.
+- The types of objects are abstract (`Page.t`, `Locator.t`, `Request.t`, ...), and what
+  lives in the browser has `equal`, `compare` and `hash`.
 - `Playwright.run ~env f` starts the driver for the duration of a function.
   `Playwright.create ~sw ~env ()` ties it to a switch, and `Playwright.close` stops it.
 - Errors are one exception, `Playwright.Error`, with a record: a kind (`Timeout`,
@@ -37,64 +36,32 @@ adapted; [doc/migration.md](doc/migration.md) says how.
 - JavaScript values are `Js.t`, which covers `undefined`, non-finite numbers, dates, big
   integers, regular expressions, errors, typed arrays, URLs and handles, with converters
   from and to OCaml values and JSON.
-
-### What it covers
-
-- Browser types, browsers, contexts with the full set of options, device descriptors
-  (`Playwright.device`), persistent contexts, `BrowserType.connect_over_cdp`.
-- Pages and frames: navigation, content, evaluation, init scripts, exposed functions,
-  emulation, screenshots, PDF, video, web storage, keyboard, mouse and touch.
-- Locators after Playwright's model: `get_by_role` with all its options, `get_by_text`,
-  `get_by_label` and the others with variants for regular expressions, `filter`, `and_`,
-  `or_`, `nth`, `visible`, `describe`, frame locators, strictness, locator handlers,
-  `drag_to`, uploads from disk and from memory.
-- Assertions that retry: the module `Expect`, with `Expect.Not`, for locators, pages and
-  API responses, including ARIA snapshots.
-- Network: requests, responses and WebSockets with their events; `route` and
-  `route_matching` with `fulfill`, `continue`, `fallback`, `abort` and `fetch`;
-  `route_web_socket`; client certificates, HTTP
-  credentials, proxies.
-- `APIRequestContext` for HTTP requests without a page, on a context or alone
-  (`APIRequest.new_context`).
-- Cookies, storage state, permissions, geolocation, `Clock`.
-- Dialogs, downloads, file choosers, console messages and page errors, also as history.
-- Tracing, with chunks and groups. Workers and service workers. CDP sessions. Custom
-  selector engines.
-- What Playwright added up to 1.65: `Page.get_by_ref` and ARIA snapshots with references
-  for programs that are driven by a language model, `Page.aria_snapshot_json`,
-  `Page.pick_locator`, `Locator.within`, `description`, `normalize`, `selector` and
-  `wait_for_function`, `APIResponse.server_addr`, `security_details` and `timing`,
-  `APIRequestContext.tracing`, `WebError.location`, the events of pages on their context
-  (`BrowserContext.Page_close`, `Page_load`, `Frame_navigated`, `Download`, ...),
-  `Dialog_closed`, the options `scroll`, `include_shadow`, `opfs`, `artifacts_dir` and
-  `no_defaults`, `Expect.to_have_accessible_error_message`.
-- The command `ocaml-playwright`, which is Playwright's command line tool for the driver in
-  use (`install`, `show-trace`, `codegen`), and `Playwright.Driver` to install the driver
-  and run the tool from a program.
+- Locators after Playwright's model, with strictness and frame locators; assertions that
+  retry (`Expect`, `Expect.Not`); routing of requests and WebSockets; `APIRequestContext`;
+  cookies, storage state, emulation and `Clock`; dialogs, downloads and file choosers;
+  tracing; workers; CDP sessions. The guide, [doc/guide.md](doc/guide.md), goes through
+  them.
+- From Playwright 1.60 to 1.65: `Page.get_by_ref` and ARIA snapshots with references, for
+  programs that are driven by a language model; `Page.pick_locator`; `Locator.normalize`;
+  `WebStorage`; the events of pages on their context (`BrowserContext.Page_close`,
+  `Frame_navigated`, ...); the options `scroll`, `include_shadow`, `opfs`, `artifacts_dir`
+  and `no_defaults`.
 
 ### Behaviour
 
 - Listeners, route handlers and exposed functions run in a fiber for each call, and may
-  block and call the library. The library bounds
-  how many calls run (1024) and wait (65536) at a time; when handlers fall behind
-  beyond that, the connection is closed with an error that says so. 0.1 closed the
-  connection at 1024 events in progress (`max_event_tasks`).
+  block and call the library. At most 1024 calls run and 65536 wait at a time; when
+  handlers fall behind beyond that, the connection is closed with an error that says so.
+  0.1 closed it at 1024 events in progress.
 - Exceptions that escape from handlers go to `on_error`, by default to standard error. A
   route handler that raises aborts its request.
 - When the driver is closed or dies, every call in flight fails with a `Target_closed`
-  error, the `Close` and `Disconnected` listeners of every object are called, and handlers
-  that are still running are cancelled. No fiber is left waiting.
+  error, the `Close` listeners of every object are called, and handlers that are still
+  running are cancelled. No fiber is left waiting.
 - Cancellation is safe. Cancelling a fiber cancels the call that it is blocked in and tells
   the driver to stop; what the call had made by then is released. `close`, `dispose` and
-  the like are carried out even if their caller is cancelled, so they can be used in
-  `Fun.protect` and `Switch.on_release`. Closing something twice, or from two fibers at
-  once, is fine.
-- `Eio.Time.with_timeout` works around any call, including `Playwright.create`.
-- The time limit of `expect_*` and `wait_for_*` is on the arrival of the event and counts
-  from before the action; the predicate is called as events arrive and may itself call the
-  library.
-- URL globs are read by the driver, as in every Playwright client, base URL and all; a
-  malformed glob is an error where the route is registered or the wait begins.
+  the like are carried out even if their caller is cancelled, and closing something twice,
+  or from two fibers at once, is fine.
 - The library opens no files. Screenshots, PDFs and storage state are returned; scripts,
   certificates and the bodies of fulfilled routes are passed as text. The driver reads and
   writes the files whose paths it is given: uploads, downloads, videos, traces.
@@ -112,36 +79,24 @@ adapted; [doc/migration.md](doc/migration.md) says how.
   needs anyway, and verified against a pinned SHA-512 checksum. It is kept in
   `ocaml-playwright/` under the user's cache directory.
 - The driver never outlives the program's use of it: it is stopped when the instance is
-  closed or its switch finishes, and killed if it does not comply. Its standard error is
-  relayed, so that it cannot make the program's own standard error non-blocking.
-- Windows needs no C stubs any more: the driver's pipes are served by two threads. The
-  build for Windows is cross-compiled and was tried under Wine only; see
+  closed or its switch finishes, and killed if it does not comply.
+- The driver's pipes are served by two threads on every system, so Windows needs no C
+  stubs. The build for Windows is cross-compiled and was tried under Wine only; see
   [doc/dev/windows.md](doc/dev/windows.md).
-- The dependencies are `eio`, `cstruct`, `yojson`, `base64` and `re`.
-
-### Inside
-
-- A connection layer that knows nothing about Playwright's objects, a generated protocol
-  layer in which every object has the type of its interface, client objects on top, and the
-  public module as a facade. The implementation is a private library: applications can
-  name nothing but `Playwright`. See [doc/dev/architecture.md](doc/dev/architecture.md).
-- Unit tests that script the driver's side of the connection, tests of the ported URL
-  matching against the driver, and a suite of tests against Chromium that uses the public
-  interface only, all run with both implementations of the driver's pipes. The OCaml code in
-  the documentation is compiled as part of the tests.
-- A user guide, a comparison with Playwright, a migration guide, examples, and
-  documentation for work on the library.
 
 ### Removed
 
-- The generated API (`Playwright.Playwright`, the `...Params` and `...Result` modules) and
-  the internal modules that were exported (`Connection`, `Transport`, `Driver`, `Internal`,
-  and every `Playwright__...` module).
+- The generated API (`Playwright.Playwright`, the `...Params` and `...Result` modules), the
+  operations that take a selector or work on an `ElementHandle`, and the internal modules
+  that were exported (`Connection`, `Transport`, `Internal`). The implementation is a
+  private library: applications can name nothing but `Playwright`.
 - `Playwright.destroy` (now `Playwright.close`) and the arguments `download_timeout`,
   `init_timeout`, `shutdown_timeout`, `max_event_tasks` and `on_event_error` of
   `Playwright.create`.
+- The environment variable `PLAYWRIGHT_OCAML_CACHE_DIR`.
 - The dependencies on `cohttp-eio`, `tls`, `tls-eio`, `ca-certs`, `mirage-crypto-rng`,
-  `tar`, `tar-eio`, `ppx_deriving_yojson`, `mtime`, `re`, `uri` and others.
+  `tar`, `tar-eio`, `ppx_deriving_yojson`, `mtime`, `uri` and others. What remains is
+  `eio`, `cstruct`, `yojson`, `base64` and `re`.
 
 ## 0.1.1 and earlier
 
