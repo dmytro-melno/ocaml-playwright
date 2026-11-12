@@ -171,8 +171,10 @@ module Disposable : sig
 
     val dispose : t -> unit
     (** Takes the registration back: the listener is not called again, the route no longer intercepts, the script
-        is not added to further documents, the function is no longer exposed. Does nothing the second time, and
-        nothing for what has gone away with its page or context. *)
+        is not added to further documents, the function is no longer exposed. Does nothing once that is done, and
+        nothing for what has gone away with its page or context. A listener is removed on the spot. For the
+        others the driver is asked: fibers that ask at the same time wait for the one answer, and if the driver
+        fails to do it, the error is raised and [dispose] can be called again. *)
 end
 
 (** {1 Options} *)

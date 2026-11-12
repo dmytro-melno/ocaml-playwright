@@ -10,6 +10,11 @@ let reply peer ?(result = `Assoc []) request = peer.deliver (`Assoc [ "id", `Str
 let nothing_sent what peer = Alcotest.(check (option json)) (what ^ ": nothing is sent") None (Eio.Stream.take_nonblocking peer.sent)
 let nothing_reported peer = Alcotest.(check (list string)) "nothing reported" [] (List.map fst !(peer.reported))
 
+let fail peer request name =
+    peer.deliver (`Assoc [ "id", `String (string_member "id" request); "error", `Assoc [ "error", `Assoc [ "name", `String name; "message", `String "no" ] ] ])
+
+let failed outcome = match Promise.await outcome with Error (Error.E { message = "no"; _ }) -> true | _ -> false
+
 (* Runs [f] in a fiber and returns its first request along with the means to cancel it and a
    promise of how it ended. *)
 let start peer f =
@@ -228,9 +233,7 @@ let test_closing_state () =
         in
         state, runs, close
     in
-    let fail request name =
-        peer.deliver (`Assoc [ "id", `String (string_member "id" request); "error", `Assoc [ "error", `Assoc [ "name", `String name; "message", `String "no" ] ] ])
-    in
+    let fail = fail peer in
     (* A cancelled caller stops waiting, and the others wait for the one close to be over. *)
     let state, runs, close = closer () in
     let request, cancel, first = start peer close in
@@ -251,7 +254,6 @@ let test_closing_state () =
     let request, _, first = start peer close in
     let second = Fiber.fork_promise ~sw:peer.sw close in
     fail request "Error";
-    let failed outcome = match Promise.await outcome with Error (Error.E { message = "no"; _ }) -> true | _ -> false in
     Alcotest.(check (pair bool bool)) "both callers see the failure" (true, true) (failed first, failed second);
     Alcotest.(check bool) "open again" true (Closing.is_open state);
     let request, _, retry = start peer close in
@@ -275,10 +277,49 @@ let test_closing_state () =
     close ();
     nothing_reported peer
 
+(* Taking back what the driver keeps is a close like any other.  Taking a listener back is
+   done on the spot. *)
+let test_disposables () =
+    with_peer @@ fun peer ->
+    let root = Connection.root peer.conn in
+    let runs = ref 0 in
+    let registration =
+        Disposable.registration peer.conn (fun () ->
+            incr runs;
+            Connection.call root "dispose" (`Assoc []) ignore)
+    in
+    let dispose () = Disposable.dispose registration in
+    let request, cancel, first = start peer dispose in
+    let second = Fiber.fork_promise ~sw:peer.sw dispose in
+    cancel ();
+    Alcotest.(check bool) "the cancelled caller is released" true (Promise.await_exn first = `Cancelled);
+    nothing_sent "one attempt, not aborted" peer;
+    Alcotest.(check bool) "the other caller waits for it" false (Promise.is_resolved second);
+    fail peer request "Error";
+    Alcotest.(check bool) "and sees it fail" true (failed second);
+    let request, _, retry = start peer dispose in
+    reply peer request;
+    Alcotest.(check bool) "what failed can be tried again" true (Promise.await_exn retry = `Returned ());
+    dispose ();
+    Alcotest.(check int) "tried twice, and no more once it is done" 2 !runs;
+    nothing_sent "disposed of" peer;
+    (* What went away with its page needs no taking back. *)
+    let gone = Disposable.registration peer.conn (fun () -> Connection.call root "dispose" (`Assoc []) ignore) in
+    let request, _, outcome = start peer (fun () -> Disposable.dispose gone) in
+    fail peer request "TargetClosedError";
+    Alcotest.(check bool) "gone is no failure" true (Promise.await_exn outcome = `Returned ());
+    let removed = ref 0 in
+    let listener = Disposable.listener (fun () -> incr removed) in
+    Disposable.dispose listener;
+    Disposable.dispose listener;
+    Alcotest.(check int) "a listener is removed once" 1 !removed;
+    nothing_reported peer
+
 let tests =
     [ "ownership",
       [ Alcotest.test_case "late results" `Quick test_late_results;
         Alcotest.test_case "release by kind" `Quick test_release_by_kind;
         Alcotest.test_case "clean-up" `Quick test_cleanup;
         Alcotest.test_case "detached work" `Quick test_detached;
-        Alcotest.test_case "closing" `Quick test_closing_state ] ]
+        Alcotest.test_case "closing" `Quick test_closing_state;
+        Alcotest.test_case "registrations" `Quick test_disposables ] ]

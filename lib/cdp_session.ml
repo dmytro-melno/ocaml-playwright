@@ -27,5 +27,5 @@ let send ?params method_ (session : t) : Yojson.Safe.t = Protocol.Cdp_session.se
 let detach (session : t) = Connection.detached (Channel.conn session.cdp_channel) (fun () -> Protocol.Cdp_session.detach session.cdp_channel)
 
 (* [listener] receives the name and parameters of every event of the session. *)
-let on_event listener (session : t) = Disposable.make (Emitter.on session.cdpe_event (fun (name, params) -> listener name params))
-let on_close listener (session : t) = Disposable.make (Emitter.on session.cdpe_close listener)
+let on_event listener (session : t) = Disposable.listener (Emitter.on session.cdpe_event (fun (name, params) -> listener name params))
+let on_close listener (session : t) = Disposable.listener (Emitter.on session.cdpe_close listener)

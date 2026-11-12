@@ -61,8 +61,8 @@ let evaluate ?(arg = Js.Undefined) expression (worker : t) =
 let evaluate_handle ?(arg = Js.Undefined) expression (worker : t) =
     Protocol.Worker.evaluate_expression_handle ~expression ~arg:(Js.to_argument arg) worker.w_channel |> Types.js_handle
 
-let on event listener (worker : t) = Disposable.make (Emitter.on (emitter worker event) listener)
-let once event listener (worker : t) = Disposable.make (Emitter.once (emitter worker event) listener)
+let on event listener (worker : t) = Disposable.listener (Emitter.on (emitter worker event) listener)
+let once event listener (worker : t) = Disposable.listener (Emitter.once (emitter worker event) listener)
 
 let timeouts (worker : t) =
     match worker.w_page, worker.w_context with

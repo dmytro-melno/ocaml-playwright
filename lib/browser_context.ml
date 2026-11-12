@@ -118,9 +118,11 @@ let remove_routes ?(behavior = `Default) removed (context : t) =
 
 let add_route ?times matcher handler (context : t) =
     let handler = Route.Handler.make ?base_url:context.base_url ?times matcher handler in
+    let remove () = remove_routes (fun h -> h == handler) context in
     context.c_routes <- handler :: context.c_routes;
-    update_interception context;
-    Disposable.make (fun () -> remove_routes (fun h -> h == handler) context)
+    (* A handler that the driver could not be told about is taken back: nothing else could do that. *)
+    Connection.guard context.c_session.conn "taking back a route" ~undo:remove (fun () -> update_interception context);
+    Disposable.registration context.c_session.conn remove
 
 let route ?times glob handler context = add_route ?times (Glob glob) handler context
 let route_matching ?times predicate handler context = add_route ?times (Predicate predicate) handler context
@@ -139,11 +141,13 @@ let unroute_all ?behavior context = remove_routes ?behavior (fun _ -> true) cont
 
 let add_web_socket_route matcher handler (context : t) =
     let handler = Route.Web_socket.make_handler ?base_url:context.base_url matcher handler in
-    context.c_ws_routes <- handler :: context.c_ws_routes;
-    update_web_socket_interception context;
-    Disposable.make (fun () ->
+    let remove () =
         context.c_ws_routes <- List.filter (fun h -> h != handler) context.c_ws_routes;
-        update_web_socket_interception context)
+        update_web_socket_interception context
+    in
+    context.c_ws_routes <- handler :: context.c_ws_routes;
+    Connection.guard context.c_session.conn "taking back a WebSocket route" ~undo:remove (fun () -> update_web_socket_interception context);
+    Disposable.registration context.c_session.conn remove
 
 let route_web_socket glob handler context = add_web_socket_route (Glob glob) handler context
 let route_web_socket_matching predicate handler context = add_web_socket_route (Predicate predicate) handler context
@@ -277,8 +281,8 @@ let start_har_recording (options : Context_options.t) (context : t) =
 
 (* {1 Events for the user} *)
 
-let on event listener (context : t) = Disposable.make (Emitter.on (emitter context event) listener)
-let once event listener (context : t) = Disposable.make (Emitter.once (emitter context event) listener)
+let on event listener (context : t) = Disposable.listener (Emitter.on (emitter context event) listener)
+let once event listener (context : t) = Disposable.listener (Emitter.once (emitter context event) listener)
 
 let expect_event (type a) ?timeout ?predicate (event : a event) action (context : t) : a =
     let timeout = Timeouts.action ?timeout context.c_timeouts in
@@ -338,7 +342,7 @@ let add_init_script script (context : t) =
 (* Registers [binding] in [bindings] under [name]; [registration] is what the driver gave for it. *)
 let keep_binding bindings name (binding : binding) (registration : Protocol.Disposable.t) =
     Hashtbl.replace bindings name binding;
-    Disposable.make (fun () ->
+    Disposable.registration (Channel.conn registration) (fun () ->
         (match Hashtbl.find_opt bindings name with Some current when current == binding -> Hashtbl.remove bindings name | _ -> ());
         Protocol.Disposable.dispose registration)
 

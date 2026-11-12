@@ -59,8 +59,8 @@ let contexts (browser : t) = browser.contexts
 let version (browser : t) = browser.version
 let name (browser : t) = browser.b_name
 let is_connected (browser : t) = not (Closing.is_closed browser.b_close_state)
-let on_disconnected listener (browser : t) = Disposable.make (Emitter.on browser.e_disconnected listener)
-let on_context listener (browser : t) = Disposable.make (Emitter.on browser.e_context listener)
+let on_disconnected listener (browser : t) = Disposable.listener (Emitter.on browser.e_disconnected listener)
+let on_context listener (browser : t) = Disposable.listener (Emitter.on browser.e_context listener)
 
 let selector_options (session : session) =
     let engines = match session.selectors.selector_engines with [] -> None | engines -> Some engines in

@@ -183,7 +183,7 @@ let hide_highlight (l : t) = Protocol.Frame.hide_highlight ~selector:l.selector 
 
 let highlight ?style (l : t) =
     Protocol.Frame.highlight ~selector:l.selector ?style l.l_frame.f_channel;
-    Disposable.make (fun () -> hide_highlight l)
+    Disposable.registration l.l_frame.f_session.conn (fun () -> hide_highlight l)
 
 (* {1 Queries} *)
 

@@ -265,8 +265,8 @@ let frame (which : [ `Name of string | `Url of string ]) (page : t) =
 
 (* {1 Events for the user} *)
 
-let on event listener (page : t) = Disposable.make (Emitter.on (emitter page event) listener)
-let once event listener (page : t) = Disposable.make (Emitter.once (emitter page event) listener)
+let on event listener (page : t) = Disposable.listener (Emitter.on (emitter page event) listener)
+let once event listener (page : t) = Disposable.listener (Emitter.once (emitter page event) listener)
 
 let expect_event (type a) ?timeout ?predicate (event : a event) action (page : t) : a =
     let timeout = Timeouts.action ?timeout page.p_timeouts in
@@ -394,9 +394,11 @@ let remove_routes ?(behavior = `Default) removed (page : t) =
 
 let add_route ?times matcher handler (page : t) =
     let handler = Route.Handler.make ?base_url:page.context.base_url ?times matcher handler in
+    let remove () = remove_routes (fun h -> h == handler) page in
     page.p_routes <- handler :: page.p_routes;
-    update_interception page;
-    Disposable.make (fun () -> remove_routes (fun h -> h == handler) page)
+    (* A handler that the driver could not be told about is taken back: nothing else could do that. *)
+    Connection.guard (conn page) "taking back a route" ~undo:remove (fun () -> update_interception page);
+    Disposable.registration (conn page) remove
 
 let route ?times glob handler page = add_route ?times (Glob glob) handler page
 let route_matching ?times predicate handler page = add_route ?times (Predicate predicate) handler page
@@ -414,11 +416,13 @@ let unroute_all ?behavior page = remove_routes ?behavior (fun _ -> true) page
 
 let add_web_socket_route matcher handler (page : t) =
     let handler = Route.Web_socket.make_handler ?base_url:page.context.base_url matcher handler in
-    page.p_ws_routes <- handler :: page.p_ws_routes;
-    update_web_socket_interception page;
-    Disposable.make (fun () ->
+    let remove () =
         page.p_ws_routes <- List.filter (fun h -> h != handler) page.p_ws_routes;
-        update_web_socket_interception page)
+        update_web_socket_interception page
+    in
+    page.p_ws_routes <- handler :: page.p_ws_routes;
+    Connection.guard (conn page) "taking back a WebSocket route" ~undo:remove (fun () -> update_web_socket_interception page);
+    Disposable.registration (conn page) remove
 
 let route_web_socket glob handler page = add_web_socket_route (Glob glob) handler page
 let route_web_socket_matching predicate handler page = add_web_socket_route (Predicate predicate) handler page
