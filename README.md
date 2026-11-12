@@ -72,6 +72,9 @@ is then enough to get the driver.
 
 ## A short tour
 
+One rule tells where the arguments go: locators and `Js` values go last, so that calls chain
+with `|>`, and everything else, such as a page, a context or a browser, goes first.
+
 Elements are found with locators, the way a user would describe them. Actions wait until the
 element is there and ready, so there is no need for sleeps:
 

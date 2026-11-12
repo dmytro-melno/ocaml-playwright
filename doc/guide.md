@@ -443,6 +443,9 @@ Expect.to_have_url page "https://example.com/dashboard";
 Expect.to_have_title_regex page "/dashboard/i"
 ```
 
+An assertion about a locator takes the locator last, like the functions of `Locator`; the
+four about a page (its title and its URL) take the page first, like the functions of `Page`.
+
 Each assertion has its negation in `Expect.Not`:
 
 ```ocaml
@@ -450,9 +453,10 @@ Expect.Not.to_be_visible (Page.get_by_text page "Loading");
 Expect.Not.to_have_class "disabled" (Page.get_by_role page `Button ~name:"Send")
 ```
 
-`~timeout` changes the time allowed for one assertion, and `Expect.set_default_timeout pw 10_000.`
-that of all assertions about the pages of a driver. An assertion that fails raises `Playwright.Error` with the kind
-`Assertion_failed` and a message like this one:
+`~timeout` changes the time allowed for one assertion, and
+`Expect.set_default_timeout pw 10_000.` that of all assertions about the pages of a driver.
+An assertion that fails raises `Playwright.Error` with the kind `Assertion_failed` and a
+message like this one:
 
 ```text
 Locator expected to have text "Saved"
@@ -494,7 +498,13 @@ Values cross the boundary as `Js.t`, a variant that covers what JSON cannot expr
 `Js.to_int`, `Js.to_string`, `Js.to_list`, `Js.member` and so on take results apart; the
 latter raise `Playwright.Error` if the value is of another kind. For results that are plain
 JSON, `Js.to_json` converts to `Yojson.Safe.t` in one go; it refuses any other, naming the
-place of what JSON has no notion of, rather than turn it into something else.
+place of what JSON has no notion of, rather than turn it into something else. Where a value
+has an `undefined` somewhere and JSON is wanted all the same, let the page serialise it,
+which leaves such members out:
+
+```ocaml
+Page.evaluate page "JSON.stringify(window.state)" |> Js.to_string |> Yojson.Safe.from_string
+```
 
 Two things to keep in mind. A JavaScript number is a float, so `Js.int` refuses, with
 `Invalid_argument`, an integer beyond ±(2⁵³ − 1) that a float would round: pass it as
@@ -541,8 +551,8 @@ contexts too, where they apply to all pages.
 
 ## Events
 
-Pages, contexts, WebSockets and workers emit events. A listener is registered with `on`, or
-with `once` for the next occurrence only:
+Pages, contexts, browsers, WebSockets and workers emit events. A listener is registered with
+`on`, or with `once` for the next occurrence only:
 
 ```ocaml
 Page.on page Page.Console (fun message -> Printf.printf "console.%s: %s\n" (ConsoleMessage.type_ message) (ConsoleMessage.text message)) |> ignore;
