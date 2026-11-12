@@ -101,66 +101,45 @@ conventions do not tell:
 
 ## Where the behaviour differs
 
-**Handlers and listeners**
+What somebody who knows Playwright would not expect. The guide explains each at length.
 
-- Each call of a listener or handler runs in a fiber of its own, so it may block and may call
-  back into Playwright, and several are in progress at a time. How many, and how many more
-  may wait, is bounded: 1024 in progress and 65536 waiting. When both are exhausted the
-  connection is closed with an error rather than left to grow without limit.
-- An exception that escapes from a listener goes to the function `~on_error` of
-  `Playwright.run`, which prints it by default. Nothing else happens: there is no unhandled
-  rejection that ends the process.
-- A route handler that raises before it has settled its route **aborts the request**, and its
-  exception goes to `~on_error`. Playwright for Node.js leaves such a request pending.
-- A listener that was removed is not called any more, not even for events that had arrived
-  before it was removed.
-- `Tracing.start`, `Tracing.group` and `Page.add_locator_handler` return `unit` where
-  Playwright returns a disposable; they have their counterparts `stop`, `group_end` and
-  `remove_locator_handler`. `route_web_socket` returns a disposable where Playwright
-  returns nothing.
-
-**Waiting for events**
-
-- `expect_event`, `Page.expect_request` and `Page.expect_response` take the action as a
-  function. The timeout counts from before the action and limits when the event may arrive;
-  the action is not interrupted, and when it fails, its failure is the one that is raised.
-- A predicate is called for the events as they arrive, also while the action is running.
-
-**Closing and cancelling**
-
-- `close` of a driver, a browser, a context and a page can be called any number of times and
-  from several fibers at once, and does its work even if the fiber that calls it is
-  cancelled. It is therefore safe in `Fun.protect ~finally` and `Switch.on_release`.
-- Cancelling a fiber cancels the call that it is blocked in. An object that was being created
-  by such a call is closed again in the background.
-- When the driver ends, by `Playwright.close`, by the end of its switch or by a crash of the
-  process, every object says that it is closed, the `Close` and `on_disconnected` listeners are
-  called, and the handlers that are still at work are cancelled.
-
-**Values**
-
-- `Js.t` is a tree. An object that the page reaches twice arrives twice, and a reference back
-  into an object that contains it arrives as `Undefined`.
-- `Js.int` refuses integers that a JavaScript number cannot hold exactly, beyond ±(2⁵³ − 1).
-- `Js.to_json` converts what JSON can express and nothing else. For a value with an
-  `undefined`, a date or a handle in it, it fails and says where that is.
-- Regular expressions are passed on to the browser as their source, so their syntax is
-  JavaScript's, not that of an OCaml library.
-
-**Smaller things**
-
-- `Page.video` is `None` unless the context records videos.
-- `~http_credentials` is always a list, and `Client_certificate` values carry the bytes of
-  the certificates.
-- The driver is told that its client speaks Python. That is where the notation of selectors
-  in error messages and call logs comes from: `get_by_role("button", name="Save")`.
-- Traces show the calls of the library, but not the places in the OCaml source that made
+- **Handlers run in fibers of their own.** A listener, a route handler or an exposed function
+  may block and may call the library. At most 1024 calls are in progress and 65536 waiting;
+  beyond that the connection is closed with an error rather than left to grow
+  ([How listeners run](guide.md#how-listeners-run)).
+- **An exception from a handler goes to `~on_error`** of `Playwright.run`, which prints it by
+  default; there is no unhandled rejection that ends the process. A route handler that raises
+  before it has settled its route **aborts the request**, where Playwright for Node.js leaves
+  it pending.
+- **A listener that was removed is not called any more**, not even for events that had
+  arrived before it was removed.
+- **Waiting takes the action as a function**: `expect_event`, `Page.expect_request` and
+  `Page.expect_response`. The timeout counts from before the action and limits when the event
+  may arrive; the action is not interrupted, and when it fails, its failure is the one that
+  is raised ([Waiting for an event](guide.md#waiting-for-an-event)).
+- **Closing always works.** `close` can be called any number of times and from several fibers
+  at once, and does its work even if the fiber that calls it is cancelled. When the driver
+  ends, however it ends, every object says that it is closed and the `Close` listeners are
+  called ([Life cycle](guide.md#life-cycle)).
+- **Cancelling a fiber cancels the call that it is blocked in.** What that call was creating
+  is closed again in the background ([Cancellation](guide.md#cancellation)).
+- **`Js.t` is a tree.** An object that the page reaches twice arrives twice, and a reference
+  back into an object that contains it arrives as `Undefined`. `Js.int` refuses integers that
+  a JavaScript number cannot hold exactly, and `Js.to_json` converts what JSON can express
+  and nothing else ([JavaScript](guide.md#javascript)).
+- **Some registrations differ.** `Tracing.start`, `Tracing.group` and
+  `Page.add_locator_handler` return `unit` where Playwright returns a disposable; they have
+  their counterparts `stop`, `group_end` and `remove_locator_handler`. `route_web_socket`
+  returns a disposable where Playwright returns nothing.
+- **Some values differ.** `Page.video` is `None` unless the context records videos;
+  `~http_credentials` is always a list; `Client_certificate` values carry the bytes of the
+  certificates.
+- **The driver is told that its client speaks Python.** That is where the notation of
+  selectors in error messages and call logs comes from: `get_by_role("button", name="Save")`.
+- **Traces show the calls of the library, not the places in the OCaml source** that made
   them. `Tracing.group ~location:__POS__` attaches one to a group.
-- The driver is not bundled, and not downloaded behind the program's back.
-  `ocaml-playwright install` and `Playwright.Driver.install` download the package
-  `playwright-core` from the npm registry into the cache directory of the user, and the
-  library runs it with the `node` it finds; see [Configuration](guide.md#configuration)
-  for how to provide both differently.
+- **The driver is not bundled, and not downloaded behind the program's back**: see
+  [Configuration](guide.md#configuration).
 
 ## What is left out
 
@@ -240,11 +219,8 @@ look for; they are not a ledger of Playwright's interface.
 
 ## How this is kept true
 
-- The protocol between the library and the driver is generated from the description that
-  Playwright publishes with each version. [dev/protocol-coverage.md](dev/protocol-coverage.md)
-  is generated with it: an inventory of the commands and events of the protocol that the
-  library does not use. `dune runtest` fails when that file is out of date, so an update of
-  Playwright shows what it added.
-- [dev/protocol.md](dev/protocol.md) describes how the library is moved to a new version of
-  Playwright, and how the rule above decides what is done with the additions.
-- The code in this document, in the guide and in the reference is compiled by `dune runtest`.
+The layer that speaks the protocol is generated from the description that Playwright
+publishes with each version, and with it [dev/protocol-coverage.md](dev/protocol-coverage.md),
+the inventory of what the library does not use; `dune runtest` fails when either is out of
+date. [dev/protocol.md](dev/protocol.md) describes the move to a new version of Playwright.
+The code in this document, in the guide and in the reference is compiled by `dune runtest`.

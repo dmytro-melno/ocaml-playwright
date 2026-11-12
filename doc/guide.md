@@ -82,10 +82,9 @@ The browser runs headless, that is without a window. To watch it work, launch it
 
 ## How the API maps to OCaml
 
-Whoever knows Playwright from another language will find things in their usual place: the
-same objects, the same operations, the same options and the same waiting. What Playwright has
-and this library leaves out, such as the test runner, is listed in [scope.md](scope.md). The
-rules of translation:
+Whoever knows Playwright from another language will find the same objects, the same
+locators and the same waiting, under names that follow from a few rules. What the library
+leaves out, and where it behaves differently, is in [scope.md](scope.md). The rules:
 
 - **Classes are modules.** `Page`, `Locator`, `BrowserContext`, `Request` and so on; a method
   `page.waitForURL` is a function `Page.wait_for_url`. Names that are OCaml keywords get a
@@ -124,15 +123,12 @@ rules of translation:
   listener, a route, an init script or an exposed function, returns a value that takes it back:
   `Disposable.dispose`. Most registrations last as long as their page, and the value is
   ignored: `Page.on Page.Console print page |> ignore`.
-- **Objects have identity.** A page, a frame, a request is the same thing however it was
-  obtained, and the modules of what lives in the browser have `equal`, `compare` and `hash`
-  to say so. See [Identity](#identity).
-- **Files are the program's business.** The library returns bytes and takes bytes: a
-  screenshot or a PDF is a string, the state of a context a JSON value, a script or a
-  certificate its text. Reading and writing them is a line of `Eio.Path` or `Yojson`, with the
-  program's own choice of where, and of what to do when it fails. Only what the driver
-  itself reads or writes is named by path: uploads (`set_input_files`), downloads and videos
-  (`save_as`), traces (`Tracing.stop ~path`), and the directories of profiles and videos.
+- **Objects have identity**: `equal`, `compare` and `hash`, see [Identity](#identity).
+- **Files are the program's business.** The library takes and returns content: a screenshot
+  or a PDF is a string of bytes, the state of a context a JSON value, a script or a
+  certificate its text. Only what the driver itself reads or writes is named by path:
+  uploads (`set_input_files`), downloads and videos (`save_as`), traces
+  (`Tracing.stop ~path`), and the directories of profiles and videos.
 - **Misuse raises `Invalid_argument`.** Options that exclude each other, a number out of
   range: what is wrong with a call whatever the browser does is reported this way, and at
   once.
@@ -944,7 +940,7 @@ Eio.Fiber.List.map ~max_fibers:4 check [ "https://ocaml.org"; "https://example.c
 ```
 
 Fibers can also share a page, for example one that waits for a response while another
-clicks; the `expect_...` functions are built this way.
+clicks; `expect_event` is built this way.
 
 Things to know:
 
