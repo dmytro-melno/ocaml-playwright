@@ -92,7 +92,6 @@ and browser = {
     mutable contexts : browser_context list;
     b_close_state : Closing.t;
     mutable b_close_reason : string option;
-    mutable b_traces_dir : string option;
     b_closed : unit Promise.t;
     b_closed_resolver : unit Promise.u;
     e_disconnected : browser Emitter.t;
@@ -385,10 +384,6 @@ and binding = binding_source -> js list -> js
 and tracing = {
     t_channel : Protocol.Tracing.t;
     t_session : session;
-    mutable include_sources : bool;
-    mutable is_live : bool;
-    mutable traces_dir : string option;
-    mutable stacks_id : string option;
 }
 
 and api_request_context = {

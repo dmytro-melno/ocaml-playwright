@@ -76,7 +76,7 @@ let explain_missing_browser f =
         in
         raise (Error.E { error with message })
 
-let adopt (t : t) ?traces_dir (browser : browser) = Browser.adopt t ?traces_dir browser
+let adopt (t : t) (browser : browser) = Browser.adopt t browser
 
 let launch =
     collect_launch_options (fun o (t : t) ->
@@ -89,7 +89,7 @@ let launch =
                     ?firefox_user_prefs:o.firefox_user_prefs ?slow_mo:o.slow_mo t.bt_channel)
             |> Types.browser
         in
-        adopt t ?traces_dir:o.traces_dir browser;
+        adopt t browser;
         browser)
 
 (* Launches a browser that keeps its profile in [user_data_dir] and returns its only context. *)
@@ -118,8 +118,8 @@ let launch_persistent_context =
             in
             let browser = Types.browser result.browser in
             let context = Types.browser_context result.context in
-            adopt t ?traces_dir:o.traces_dir browser;
-            Browser.setup_context browser context;
+            adopt t browser;
+            Ownership.add_context browser context;
             context))
 
 (* Attaches to a running browser through the Chrome DevTools Protocol. *)

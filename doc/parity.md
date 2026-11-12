@@ -148,6 +148,7 @@ of the module `Playwright`, built with `dune build @doc`.
 | `context.debugger`, `page.webmcp` | Not covered. |
 | `browser.startTracing`, `browser.stopTracing` | Not covered. This is Chromium's own tracing; Playwright's traces are covered by `Tracing`. |
 | `download.createReadStream()` | Not there. Use `Download.path` or `Download.save_as`. |
+| `tracing.start({ sources })` | Not covered: the library collects no call stacks, so there are no sources to put into a trace. `Tracing.group ~location` names a place in the source. |
 | `routeFromHAR()`, the `recordHar` options, `tracing.startHar()` | Not covered: recording and replaying HAR files. `Page.route` with `Route.fulfill` mocks; traces record the network. |
 | `browserType.connect()`, `browserType.launchServer()`, `BrowserServer`, `browser.bind()` | Not covered: browsers behind a Playwright server. `BrowserType.connect_over_cdp` reaches a remote Chromium. |
 | `connectOverCDP` with a transport object | Not covered. `BrowserType.connect_over_cdp` takes an endpoint. |

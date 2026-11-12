@@ -9,17 +9,10 @@ let hash (t : t) = Channel.hash t.b_channel
 
 let default_test_id_attribute = "data-testid"
 
-(* Applies what the browser was launched with to a context of its own. *)
-let setup_context (browser : t) (context : browser_context) =
-    Ownership.add_context browser context;
-    Tracing.set_traces_dir context.tracing browser.b_traces_dir;
-    Tracing.set_traces_dir context.request.a_tracing browser.b_traces_dir
-
 (* The browser was launched by, or connected to through, this browser type. *)
-let adopt (browser_type : browser_type) ?traces_dir (browser : t) =
+let adopt (browser_type : browser_type) (browser : t) =
     browser.browser_type <- Some browser_type;
-    browser.b_traces_dir <- traces_dir;
-    List.iter (setup_context browser) browser.contexts
+    List.iter (Ownership.add_context browser) browser.contexts
 
 (* The browser is gone: it was closed, it crashed, or the connection to it ended. *)
 let did_close (browser : t) =
@@ -31,7 +24,7 @@ let did_close (browser : t) =
 let handle_event (browser : t) : Protocol.Browser.event -> unit = function
     | Context { context } ->
         let context = Types.browser_context context in
-        setup_context browser context;
+        Ownership.add_context browser context;
         ignore (Emitter.emit browser.b_session.conn browser.e_context context)
     | Close -> did_close browser
 
@@ -41,7 +34,7 @@ let create session (channel : Protocol.Browser.t) : t =
     let b_closed, b_closed_resolver = Promise.create () in
     let browser =
         { b_channel = channel; b_session = session; browser_type; b_name = init.name; version = init.version; contexts = []; b_close_state = Closing.create ();
-          b_close_reason = None; b_traces_dir = None; b_closed; b_closed_resolver; e_disconnected = Emitter.create (); e_context = Emitter.create () }
+          b_close_reason = None; b_closed; b_closed_resolver; e_disconnected = Emitter.create (); e_context = Emitter.create () }
     in
     Protocol.Browser.listen channel (handle_event browser);
     Channel.on_lost channel (fun _ -> did_close browser);
@@ -87,7 +80,7 @@ let new_context_with (o : Context_options.t) (browser : t) =
             ?selector_engines ?test_id_attribute_name ?proxy ?storage_state browser.b_channel
         |> Types.browser_context
     in
-    setup_context browser context;
+    Ownership.add_context browser context;
     context
 
 let new_context ?proxy = Context_options.collect (fun options browser -> new_context_with { options with proxy } browser)

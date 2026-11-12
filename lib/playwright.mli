@@ -1949,7 +1949,7 @@ end
 and Tracing : sig
     type t
 
-    val start : ?name:string -> ?title:string -> ?snapshots:bool -> ?screenshots:bool -> ?sources:bool -> ?live:bool -> t -> unit
+    val start : ?name:string -> ?title:string -> ?snapshots:bool -> ?screenshots:bool -> ?live:bool -> t -> unit
 
     val stop : ?path:string -> t -> unit
     (** Stops tracing, and writes the trace to [path] if that is given. *)
