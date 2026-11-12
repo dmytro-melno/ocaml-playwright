@@ -5,9 +5,6 @@ open Types
 module Console_message = struct
     type t = console_message
 
-    let equal (a : t) (b : t) = Int.equal a.cm_serial b.cm_serial
-    let compare (a : t) (b : t) = Int.compare a.cm_serial b.cm_serial
-    let hash (message : t) = message.cm_serial
 
     type location = { url : string; line_number : int; column_number : int }
 
@@ -72,9 +69,6 @@ end
 module Web_error = struct
     type t = web_error
 
-    let equal (a : t) (b : t) = Int.equal a.we_serial b.we_serial
-    let compare (a : t) (b : t) = Int.compare a.we_serial b.we_serial
-    let hash (error : t) = error.we_serial
 
     let page (e : t) = e.we_page
     let error (e : t) = e.we_error

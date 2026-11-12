@@ -490,11 +490,7 @@ let test_identity t page =
     Alcotest.(check bool) "an element as a handle" true
         (Option.equal ElementHandle.equal (JSHandle.as_element (ElementHandle.as_js_handle element)) (Some element));
     Alcotest.(check bool) "two handles to one element" false (ElementHandle.equal element (Locator.element_handle (Locator.first (Page.locator "li" page))));
-    Alcotest.(check bool) "the parts of a page" true
-        (Keyboard.equal (Page.keyboard page) (Page.keyboard again)
-        && (not (Mouse.equal (Page.mouse page) (Page.mouse other)))
-        && WebStorage.equal (Page.local_storage page) (Page.local_storage again)
-        && not (WebStorage.equal (Page.local_storage page) (Page.session_storage page)))
+    JSHandle.dispose (ElementHandle.as_js_handle element)
 
 let tests t =
     [ "rendering", [ case t "screenshots" (test_screenshots t); page_case t "PDF and ARIA snapshots" test_pdf_and_aria ];

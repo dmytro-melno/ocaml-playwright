@@ -2,9 +2,6 @@ open Types
 
 type t = tracing
 
-let equal (a : t) (b : t) = Channel.equal a.t_channel b.t_channel
-let compare (a : t) (b : t) = Channel.compare a.t_channel b.t_channel
-let hash (t : t) = Channel.hash t.t_channel
 
 let create session (channel : Protocol.Tracing.t) : t = { t_channel = channel; t_session = session }
 

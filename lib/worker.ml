@@ -35,7 +35,7 @@ let handle_event (worker : t) : Protocol.Worker.event -> unit = function
     | Console { type_; text; args; location; timestamp } ->
         (* Only workers attached to directly report their console here; others go through the context. *)
         let message =
-            { cm_serial = Serial.next (); cm_type = type_; cm_text = text; cm_args = List.map Types.js_handle args; cm_location = location; cm_timestamp = timestamp;
+            { cm_type = type_; cm_text = text; cm_args = List.map Types.js_handle args; cm_location = location; cm_timestamp = timestamp;
               cm_page = None; cm_worker = Some worker }
         in
         ignore (Emitter.emit worker.w_session.conn worker.we_console message)

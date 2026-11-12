@@ -41,7 +41,7 @@ of the module `Playwright`, built with `dune build @doc`.
 | `expect(locator).toBeVisible()` | `Expect.to_be_visible locator` |
 | `expect(locator).not.toBeVisible()` | `Expect.Not.to_be_visible locator` |
 | `playwright.chromium`, `playwright.devices`, `playwright.request`, `playwright.selectors` | `Playwright.chromium pw`, `Playwright.device "iPhone 15" pw`, `APIRequest.new_context pw`, `Selectors.register name script pw`, for a driver `pw` from `Playwright.run` or `Playwright.create`. |
-| Comparing objects with `===` | `Page.equal`, `Frame.equal`, …; every such module also has `compare` and `hash`, and so goes into `Set.Make` and `Hashtbl.Make`. |
+| Comparing objects with `===` | `Page.equal`, `Frame.equal`, …; every module of objects of the browser also has `compare` and `hash`, and so goes into `Set.Make` and `Hashtbl.Make`. |
 
 ## Members under another name
 

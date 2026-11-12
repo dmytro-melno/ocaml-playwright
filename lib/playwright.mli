@@ -76,10 +76,10 @@
 
     {2 Identity}
 
-    - Pages, frames, requests and the other objects have identity. Each of their modules has [equal], [compare] and
-      [hash], see {!Identity}, which also makes it an argument for [Set.Make], [Map.Make] and [Hashtbl.Make]. The
-      polymorphic [=], [compare] and [Hashtbl.hash] must not be used on objects: they look into values that are
-      none of their business, and may fail or not return. *)
+    - Pages, frames, requests and the other objects of the browser have identity. Each of their modules has [equal],
+      [compare] and [hash], see {!Identity}, which also makes it an argument for [Set.Make], [Map.Make] and
+      [Hashtbl.Make]. The polymorphic [=], [compare] and [Hashtbl.hash] must not be used on objects: they look into
+      values that are none of their business, and may fail or not return. *)
 
 (** {1 Errors} *)
 
@@ -409,8 +409,10 @@ end
 
 (** {1 Shared signatures} *)
 
-(** What makes two values the same object. The module of every kind of object includes this signature, so that
-    objects can be compared, collected in sets and used as keys:
+(** What makes two values the same object. The module of every kind of object of the browser includes this
+    signature, so that objects can be compared, collected in sets and used as keys. What is a part of another object,
+    such as the keyboard of a page, and what is a record of something that happened, such as a console message, has
+    no identity of its own.
     {[
       let module Pages = Set.Make (Page) in
       let seen = ref Pages.empty in
@@ -1415,8 +1417,6 @@ and Keyboard : sig
 
     val down : string -> t -> unit
     val up : string -> t -> unit
-
-    include Identity with type t := t
 end
 
 (** The mouse of a page, see {!Page.mouse}. Coordinates are in CSS pixels relative to the top left corner of the
@@ -1432,8 +1432,6 @@ and Mouse : sig
 
     val wheel : delta_x:float -> delta_y:float -> t -> unit
     (** Scrolls. *)
-
-    include Identity with type t := t
 end
 
 (** The touchscreen of a page, see {!Page.touchscreen}. It takes a context that was created with [has_touch]. *)
@@ -1441,8 +1439,6 @@ and Touchscreen : sig
     type t
 
     val tap : x:float -> y:float -> t -> unit
-
-    include Identity with type t := t
 end
 
 (** {1 Network} *)
@@ -1663,8 +1659,6 @@ and ConsoleMessage : sig
 
     val timestamp : t -> float
     (** Milliseconds since the Unix epoch. *)
-
-    include Identity with type t := t
 end
 
 (** A file that a page downloads. Downloads are stored in a temporary directory and deleted when the context is
@@ -1713,8 +1707,6 @@ and WebError : sig
 
     val location : t -> ConsoleMessage.location
     (** Where in the page's code the exception was thrown. *)
-
-    include Identity with type t := t
 end
 
 (** A web worker or a service worker. *)
@@ -1744,8 +1736,6 @@ and WebStorage : sig
     val set_item : string -> value:string -> t -> unit
     val remove_item : string -> t -> unit
     val clear : t -> unit
-
-    include Identity with type t := t
 end
 
 (** The video recording of a page. The file is complete once the page has been closed. *)
@@ -1759,8 +1749,6 @@ and Video : sig
     (** Waits for the page to close and copies the video to the given path. *)
 
     val delete : t -> unit
-
-    include Identity with type t := t
 end
 
 (** {1 Tools} *)
@@ -1793,8 +1781,6 @@ and Tracing : sig
         has, so that [~location:__POS__] stands for the place of the call itself. *)
 
     val group_end : t -> unit
-
-    include Identity with type t := t
 end
 
 (** The response to a request made with {!APIRequestContext}. *)
