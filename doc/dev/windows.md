@@ -77,6 +77,10 @@ needs no cross compiler. If the environment sets `OCAMLLIB`, `OCAMLPATH`, `OCAML
 or `OCAMLFIND_TOOLCHAIN`, as some tools do, unset them for the build; they make findlib mix
 up host and target.
 
+The install manifest of the cross build (`playwright-windows.install`) names the command
+`ocaml-playwright`, without `.exe`: dune adds the suffix by the system it runs on. Rename
+the file when shipping it.
+
 ## Trying it under Wine
 
 A Windows build of Node.js is needed; the zip archive from nodejs.org unpacks to a
