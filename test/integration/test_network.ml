@@ -228,7 +228,7 @@ let test_api_requests t page =
     let response = APIRequestContext.get url ~params:[ "q", "a b"; "n", "1" ] ~headers:[ "x-custom", "yes" ] request in
     Alcotest.(check bool) "ok" true (APIResponse.ok response && APIResponse.status response = 200 && APIResponse.status_text response = "OK");
     Alcotest.(check string) "url" (url ^ "?q=a+b&n=1") (APIResponse.url response);
-    Alcotest.(check (option string)) "response header" (Some "application/json") (APIResponse.header_value "Content-Type" response);
+    Alcotest.(check (option string)) "response header" (Some "application/json") (List.assoc_opt "content-type" (APIResponse.headers response));
     Alcotest.check json "query" (`String "q=a+b&n=1") (member "query" (described response));
     let address = Option.get (APIResponse.server_addr response) in
     Alcotest.(check bool) "the server's address" true (address.ip_address = "127.0.0.1" && Server.origin t.server = Printf.sprintf "http://127.0.0.1:%d" address.port);
@@ -261,7 +261,7 @@ let test_api_requests t page =
     in
     Alcotest.(check (list string)) "methods" [ "PUT"; "PATCH"; "DELETE"; "OPTIONS" ]
         (List.map (fun response -> member "method" (described response) |> Yojson.Safe.Util.to_string) methods);
-    Alcotest.(check string) "HEAD has no body" "" (APIRequestContext.head url request |> APIResponse.text);
+    Alcotest.(check string) "HEAD has no body" "" (APIRequestContext.head url request |> APIResponse.body);
     (* Status codes are results, unless asked otherwise. *)
     let missing = APIRequestContext.get (Server.url t.server "/nothing-here") request in
     Alcotest.(check bool) "404" true (APIResponse.status missing = 404 && not (APIResponse.ok missing));
@@ -345,7 +345,7 @@ let test_client_certificates t () =
     Alcotest.(check string) "an archive" known (shown [ Client_certificate.pfx ~passphrase:Tls_server.archive_passphrase ~origin Tls_server.archive ]);
     Alcotest.(check string) "of another origin" "client: nobody" (shown [ Client_certificate.pem ~origin:"https://elsewhere.test" ~cert ~key () ]);
     let request = APIRequest.new_context ~ignore_https_errors:true ~client_certificates:[ certificate ] t.pw in
-    Alcotest.(check string) "a request context" known (APIRequestContext.get origin request |> APIResponse.text);
+    Alcotest.(check string) "a request context" known (APIRequestContext.get origin request |> APIResponse.body);
     APIRequestContext.dispose request;
     check_failure "what is no key" ~message:"Failed to load client certificate" (fun () -> shown [ Client_certificate.pem ~origin ~cert ~key:"nonsense" () ])
 

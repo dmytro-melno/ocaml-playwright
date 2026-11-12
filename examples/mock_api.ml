@@ -32,7 +32,7 @@ let () =
             let request = Route.request route in
             match Request.method_ request with
             | "POST" ->
-                let title = Request.post_data_json request |> Option.get |> Yojson.Safe.Util.member "title" in
+                let title = Request.post_data request |> Option.get |> Yojson.Safe.from_string |> Yojson.Safe.Util.member "title" in
                 Route.fulfill ~status:201 ~json:(`Assoc [ "id", `Int 3; "title", title ]) route
             | _ -> Route.fulfill ~json:(`List [ `Assoc [ "id", `Int 1; "title", `String "Water the plants" ] ]) route)
         page

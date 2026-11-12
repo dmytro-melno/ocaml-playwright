@@ -154,6 +154,8 @@ of the module `Playwright`, built with `dune build @doc`.
 | The operations of `ElementHandle` | Not there: Playwright discourages them. A handle can be passed to JavaScript and asked for its frames; a `Locator` acts on elements. `locator.elementHandles()` is `Locator.all`. |
 | `page.waitForNavigation()`, `page.waitForTimeout()`, `page.type()` | Not there: deprecated in Playwright. `Page.wait_for_url`, `Eio.Time.sleep` and `Locator.press_sequentially` take their places. |
 | `page.waitForEvent()`, `page.waitForRequest()` and the `expect_<event>` methods of Python | One function, `expect_event`, with the event as a value and `ignore` for no action; `Page.expect_request` and `Page.expect_response` match URLs. |
+| `allHeaders()`, `headerValue()`, `headerValues()` | Not there. `headers` has lower-case names and merged values, for `List.assoc_opt`; `headers_array` has the headers as they went over the network. |
+| `request.postDataJSON()`, `response.text()` | Not there. `Request.post_data` and `Response.body` are strings; `Yojson.Safe.from_string` parses them. |
 | `context.backgroundPages()`, the event `backgroundpage` | Not there: deprecated in Playwright. |
 | `context.setHTTPCredentials()` | Not there: deprecated in Playwright. Credentials are given when the context is created. |
 | The option `noWaitAfter` | Only where Playwright still honours it: `click`, `press` and `add_locator_handler`. |

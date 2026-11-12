@@ -1473,18 +1473,14 @@ and Request : sig
     (** How the page uses the resource: ["document"], ["stylesheet"], ["image"], ["script"], ["xhr"], ["fetch"], ... *)
 
     val headers : t -> (string * string) list
-    (** The headers as the page set them, with names in lower case. This does not include what the browser adds on
-        its own, such as cookies; see {!all_headers}. *)
-
-    val all_headers : t -> (string * string) list
-    (** All headers that are sent, names in lower case, repeated headers merged. Asks the browser. *)
+    (** The headers as the page set them, with names in lower case and repeated headers merged, so that
+        [List.assoc_opt "content-type"] finds one. This does not include what the browser adds on its own, such as
+        cookies; see {!headers_array}. *)
 
     val headers_array : t -> (string * string) list
-    (** All headers as they are sent, with their original names and repetitions. *)
+    (** All headers as they are sent, with their original names and repetitions. Asks the browser. *)
 
-    val header_value : string -> t -> string option
     val post_data : t -> string option
-    val post_data_json : t -> Yojson.Safe.t option
 
     val response : t -> Response.t option
     (** Waits for the response. [None] if the request failed. *)
@@ -1536,15 +1532,14 @@ and Response : sig
     (** The status is in the range 200-299. *)
 
     val headers : t -> (string * string) list
-    val all_headers : t -> (string * string) list
+    (** The headers that came with the event, with names in lower case and repeated headers merged. The browser may
+        leave out those that concern security, such as [set-cookie]; see {!headers_array}. *)
+
     val headers_array : t -> (string * string) list
-    val header_value : string -> t -> string option
-    val header_values : string -> t -> string list
+    (** All headers as they were received, with their original names and repetitions. Asks the browser. *)
 
     val body : t -> string
     (** The body, after waiting for it to arrive. Fails for redirects. *)
-
-    val text : t -> string
 
     val json : t -> Yojson.Safe.t
     (** The body parsed as JSON. *)
@@ -1824,10 +1819,12 @@ and APIResponse : sig
     val status_text : t -> string
     val ok : t -> bool
     val headers : t -> (string * string) list
+    (** Names in lower case, repeated headers merged. *)
+
     val headers_array : t -> (string * string) list
-    val header_value : string -> t -> string option
+    (** With their original names and repetitions. *)
+
     val body : t -> string
-    val text : t -> string
     val json : t -> Yojson.Safe.t
 
     val server_addr : t -> Response.server_addr option

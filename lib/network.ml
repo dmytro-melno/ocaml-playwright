@@ -17,28 +17,6 @@ let merge_headers headers =
             name, String.concat (if name = "set-cookie" then "\n" else ", ") values)
         names
 
-let header_value headers name = List.assoc_opt (String.lowercase_ascii name) (merge_headers headers)
-
-let header_values headers name =
-    let name = String.lowercase_ascii name in
-    List.filter_map (fun (n, value) -> if String.lowercase_ascii n = name then Some value else None) headers
-
-let url_decode s =
-    let buffer = Buffer.create (String.length s) in
-    let n = String.length s in
-    let hex c = match c with '0' .. '9' -> Some (Char.code c - 48) | 'a' .. 'f' -> Some (Char.code c - 87) | 'A' .. 'F' -> Some (Char.code c - 55) | _ -> None in
-    let rec go i =
-        if i < n then
-            match s.[i] with
-            | '+' -> Buffer.add_char buffer ' '; go (i + 1)
-            | '%' when i + 2 < n && Option.is_some (hex s.[i + 1]) && Option.is_some (hex s.[i + 2]) ->
-                Buffer.add_char buffer (Char.chr ((Option.get (hex s.[i + 1]) * 16) + Option.get (hex s.[i + 2])));
-                go (i + 3)
-            | c -> Buffer.add_char buffer c; go (i + 1)
-    in
-    go 0;
-    Buffer.contents buffer
-
 module Request = struct
     type t = request
 
@@ -80,32 +58,6 @@ module Request = struct
             let headers = pairs (Protocol.Request.raw_request_headers r.r_channel) in
             r.raw_headers <- Some headers;
             headers
-
-    let all_headers r = merge_headers (headers_array r)
-    let header_value name r = header_value (headers_array r) name
-
-    let post_data_json (r : t) : Yojson.Safe.t option =
-        match post_data r with
-        | None | Some "" -> None
-        | Some data ->
-            let content_type = Option.value (List.assoc_opt "content-type" (headers r)) ~default:"" in
-            let contains s sub =
-                let n = String.length s and m = String.length sub in
-                let rec at i = i + m <= n && (String.sub s i m = sub || at (i + 1)) in
-                at 0
-            in
-            if contains content_type "application/x-www-form-urlencoded" then
-                Some
-                    (`Assoc
-                        (String.split_on_char '&' data
-                        |> List.filter (fun field -> field <> "")
-                        |> List.map (fun field ->
-                               match String.index_opt field '=' with
-                               | Some i -> url_decode (String.sub field 0 i), `String (url_decode (String.sub field (i + 1) (String.length field - i - 1)))
-                               | None -> url_decode field, `String "")))
-            else
-                try Some (Yojson.Safe.from_string data)
-                with Yojson.Json_error _ -> Error.raise_ "POST data is not a valid JSON object: %s" data
 
     let response (r : t) = Protocol.Request.response r.r_channel |> Option.map Types.response
     let existing_response (r : t) = r.r_response
@@ -201,13 +153,9 @@ module Response = struct
             r.rs_raw_headers <- Some headers;
             headers
 
-    let all_headers r = merge_headers (headers_array r)
-    let header_value name r = header_value (headers_array r) name
-    let header_values name r = header_values (headers_array r) name
     let request (r : t) = r.rs_request
     let frame (r : t) = Request.frame r.rs_request
     let body (r : t) = Protocol.Response.body r.rs_channel
-    let text = body
 
     let json r : Yojson.Safe.t =
         try Yojson.Safe.from_string (body r) with Yojson.Json_error message -> Error.raise_ "The response body is not valid JSON: %s" message

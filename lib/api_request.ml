@@ -97,7 +97,6 @@ module Response = struct
     let ok (r : t) = r.ar_init.status >= 200 && r.ar_init.status <= 299
     let headers_array (r : t) = Network.pairs r.ar_init.headers
     let headers r = Network.merge_headers (headers_array r)
-    let header_value name r = Network.header_value (headers_array r) name
     let fetch_uid (r : t) = r.ar_init.fetch_uid
     let security_details (r : t) = r.ar_init.security_details
     let server_addr (r : t) = r.ar_init.server_addr
@@ -120,7 +119,6 @@ module Response = struct
         | None -> Error.raise_ "Response has been disposed"
         | exception Error.E { kind = Target_closed; _ } -> Error.raise_ "Response has been disposed"
 
-    let text = body
 
     let json r : Yojson.Safe.t =
         try Yojson.Safe.from_string (body r) with Yojson.Json_error message -> Error.raise_ "The response body is not valid JSON: %s" message

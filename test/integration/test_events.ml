@@ -122,12 +122,12 @@ let test_requests t page =
     Alcotest.(check string) "method" "POST" (Request.method_ request);
     Alcotest.(check string) "resource type" "fetch" (Request.resource_type request);
     Alcotest.(check (option string)) "post data" (Some {|{"n":1}|}) (Request.post_data request);
-    Alcotest.(check (option json)) "post data as JSON" (Some (`Assoc [ "n", `Int 1 ])) (Request.post_data_json request);
-    Alcotest.(check (option string)) "request header" (Some "yes") (Request.header_value "X-Custom" request);
-    Alcotest.(check bool) "all request headers include the browser's own" true (List.mem_assoc "user-agent" (Request.all_headers request));
+    Alcotest.(check (option string)) "request header" (Some "yes") (List.assoc_opt "x-custom" (Request.headers request));
+    let named name headers = List.filter_map (fun (n, value) -> if String.lowercase_ascii n = name then Some value else None) headers in
+    Alcotest.(check bool) "the headers as sent include the browser's own" true (named "user-agent" (Request.headers_array request) <> []);
     Alcotest.check json "response body" (`Assoc [ "echo", `String {|{"n":1}|} ]) (Response.json response);
-    Alcotest.(check (option string)) "response header" (Some "yes") (Response.header_value "x-served" response);
-    Alcotest.(check (list string)) "repeated response headers" [ "a=1"; "b=2" ] (Response.header_values "set-cookie" response);
+    Alcotest.(check (option string)) "response header" (Some "yes") (List.assoc_opt "x-served" (Response.headers response));
+    Alcotest.(check (list string)) "repeated response headers" [ "a=1"; "b=2" ] (named "set-cookie" (Response.headers_array response));
     Response.finished response;
     Alcotest.(check bool) "server address" true
         (match Response.server_addr response with Some { ip_address = "127.0.0.1"; port } -> port = t.server.port | _ -> false);
@@ -226,7 +226,7 @@ let test_waiting t page =
     Server.route t.server "/answer" (fun request -> Server.respond ("answer to " ^ request.query));
     let response =
         Page.expect_event Page.Response
-            ~predicate:(fun response -> Response.text response = "answer to b")
+            ~predicate:(fun response -> Response.body response = "answer to b")
             (fun () -> ignore (Page.evaluate "Promise.all(['a', 'b', 'c'].map(q => fetch('/answer?' + q)))" page))
             page
     in

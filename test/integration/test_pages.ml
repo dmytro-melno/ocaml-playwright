@@ -9,8 +9,8 @@ let test_goto t page =
     Alcotest.(check int) "status" 200 (Response.status response);
     Alcotest.(check bool) "ok" true (Response.ok response);
     Alcotest.(check string) "response url" (Server.url t.server "/hello") (Response.url response);
-    Alcotest.(check (option string)) "header, any case" (Some "text/html; charset=utf-8") (Response.header_value "Content-Type" response);
-    check_contains "body" ~sub:"<h1>Hello, world</h1>" (Response.text response);
+    Alcotest.(check (option string)) "header" (Some "text/html; charset=utf-8") (List.assoc_opt "content-type" (Response.headers response));
+    check_contains "body" ~sub:"<h1>Hello, world</h1>" (Response.body response);
     Alcotest.(check string) "title" "Hello" (Page.title page);
     Alcotest.(check string) "url" (Server.url t.server "/hello") (Page.url page);
     check_contains "content" ~sub:"<h1>Hello, world</h1>" (Page.content page);
