@@ -22,14 +22,14 @@ let test_cookies t page =
     Alcotest.(check (list string)) "attributes" [ "2"; "127.0.0.1"; "/private"; "true"; "false"; "Strict"; Printf.sprintf "%.0f" expires ]
         [ guarded.value; guarded.domain; guarded.path; string_of_bool guarded.http_only; string_of_bool guarded.secure;
           (match guarded.same_site with `Strict -> "Strict" | `Lax -> "Lax" | `None -> "None"); Printf.sprintf "%.0f" guarded.expires ];
-    Alcotest.(check (list string)) "for a URL" [ "plain" ] (List.map (fun (c : Cookie.t) -> c.name) (BrowserContext.cookies ~urls:[ origin ^ "/other" ] context));
+    Alcotest.(check (list string)) "for a URL" [ "plain" ] (List.map (fun (c : Cookie.t) -> c.name) (BrowserContext.cookies context ~urls:[ origin ^ "/other" ]));
     (* A cookie read from one context can be set in another. *)
     let other = Browser.new_context t.browser in
     Alcotest.(check int) "contexts are isolated" 0 (List.length (BrowserContext.cookies other));
     BrowserContext.add_cookies other (List.map Cookie.to_init cookies);
     Alcotest.(check int) "copied" 2 (List.length (BrowserContext.cookies other));
     BrowserContext.close other;
-    BrowserContext.clear_cookies ~name:"plain" context;
+    BrowserContext.clear_cookies context ~name:"plain";
     Alcotest.(check (list string)) "cleared by name" [ "guarded" ] (List.map (fun (c : Cookie.t) -> c.name) (BrowserContext.cookies context));
     BrowserContext.clear_cookies context;
     Alcotest.(check int) "cleared" 0 (List.length (BrowserContext.cookies context));
@@ -76,7 +76,7 @@ let test_storage_state t page =
     in
     Alcotest.(check string) "files are left out" "NotFoundError" (restored_from ~expression:note (Browser.new_context ~storage_state:(BrowserContext.storage_state context)));
     Alcotest.(check string) "unless asked for" "remember"
-        (restored_from ~expression:note (Browser.new_context ~storage_state:(BrowserContext.storage_state ~indexed_db:true ~opfs:true ~credentials:true context)))
+        (restored_from ~expression:note (Browser.new_context ~storage_state:(BrowserContext.storage_state context ~indexed_db:true ~opfs:true ~credentials:true)))
 
 let test_web_storage t page =
     visit t page;
@@ -97,8 +97,8 @@ let test_web_storage t page =
 
 let test_emulation t () =
     let context =
-        Browser.new_context ~viewport:(400, 300) ~device_scale_factor:2. ~locale:"de-DE" ~timezone_id:"Asia/Tokyo" ~color_scheme:`Dark
-            ~has_touch:true ~user_agent:"Emulated/1.0" t.browser
+        Browser.new_context t.browser ~viewport:(400, 300) ~device_scale_factor:2. ~locale:"de-DE" ~timezone_id:"Asia/Tokyo" ~color_scheme:`Dark
+            ~has_touch:true ~user_agent:"Emulated/1.0"
     in
     let page = BrowserContext.new_page context in
     visit t page;
@@ -114,14 +114,14 @@ let test_emulation t () =
     check "user agent" "Emulated/1.0" "navigator.userAgent";
     Page.set_viewport_size page (640, 480);
     check "resized" "640x480" "innerWidth + 'x' + innerHeight";
-    Page.emulate_media ~media:`Print ~color_scheme:`Light page;
+    Page.emulate_media page ~media:`Print ~color_scheme:`Light;
     check "print media" "true" "matchMedia('print').matches";
     check "light scheme" "false" "matchMedia('(prefers-color-scheme: dark)').matches";
     BrowserContext.close context;
     (* A device descriptor sets several of these at once; explicit options win. *)
     let device = Playwright.device t.pw "iPhone 13" |> Option.get in
     Alcotest.(check bool) "descriptor" true (Device.is_mobile device && Device.has_touch device && Device.default_browser_type device = `Webkit);
-    let context = Browser.new_context ~device ~locale:"fr-FR" t.browser in
+    let context = Browser.new_context t.browser ~device ~locale:"fr-FR" in
     let page = BrowserContext.new_page context in
     visit t page;
     let width, height = Device.viewport device in
@@ -134,7 +134,7 @@ let test_emulation t () =
 
 let test_geolocation_and_permissions t () =
     let context =
-        Browser.new_context ~geolocation:(Geolocation.make ~latitude:52.52 ~longitude:13.405 ()) ~permissions:[ "geolocation" ] t.browser
+        Browser.new_context t.browser ~geolocation:(Geolocation.make ~latitude:52.52 ~longitude:13.405 ()) ~permissions:[ "geolocation" ]
     in
     let page = BrowserContext.new_page context in
     visit t page;
@@ -156,7 +156,7 @@ let test_geolocation_and_permissions t () =
 let test_clock t page =
     let context = Page.context page in
     let start = 1_700_000_000_000. in
-    Clock.install ~time:start context;
+    Clock.install context ~time:start;
     visit t page;
     Clock.pause_at context (start +. 1000.);
     Alcotest.(check (float 0.)) "paused at a point in time" (start +. 1000.) (Page.evaluate page "Date.now()" |> Js.to_float);
@@ -239,7 +239,7 @@ let test_browser t () =
     let before = List.length (Browser.contexts t.browser) in
     let created = ref [] in
     let listening = Browser.on t.browser Browser.Context (fun context -> created := context :: !created) in
-    let context = Browser.new_context ~viewport:(300, 200) t.browser in
+    let context = Browser.new_context t.browser ~viewport:(300, 200) in
     eventually t "the context is announced" (fun () -> List.equal BrowserContext.equal !created [ context ]);
     Disposable.dispose listening;
     let other = ref None in
@@ -259,25 +259,25 @@ let test_browser t () =
 
 let test_tracing t page =
     let tracing = BrowserContext.tracing (Page.context page) in
-    Tracing.start ~screenshots:true ~snapshots:true ~title:"A trace" tracing;
+    Tracing.start tracing ~screenshots:true ~snapshots:true ~title:"A trace";
     visit t page;
     Tracing.group tracing ~location:__POS__ "interaction";
     Page.set_content page "<button>Press</button>";
     Page.get_by_role page `Button |> Locator.click;
     Tracing.group_end tracing;
     let first = scratch_file t "first.zip" in
-    Tracing.stop_chunk ~path:first tracing;
+    Tracing.stop_chunk tracing ~path:first;
     Tracing.start_chunk tracing;
     ignore (Page.evaluate page "1 + 1");
     let second = scratch_file t "nested/second.zip" in
-    Tracing.stop ~path:second tracing;
+    Tracing.stop tracing ~path:second;
     let is_zip path = String.sub (read_file path) 0 2 = "PK" in
     Alcotest.(check bool) "archives" true (is_zip first && is_zip second);
     Alcotest.(check bool) "the first part holds the page and its screenshots" true ((Unix.stat first).st_size > 2000)
 
 let test_video t () =
     let dir = scratch_file t "videos" in
-    let context = Browser.new_context ~record_video_dir:dir ~record_video_size:(320, 240) t.browser in
+    let context = Browser.new_context t.browser ~record_video_dir:dir ~record_video_size:(320, 240) in
     match BrowserContext.new_page context with
     | exception Playwright.Error error when contains ~sub:"ffmpeg" error.message ->
         (* Recording needs the ffmpeg build that comes with Playwright's own browsers. *)

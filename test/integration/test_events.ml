@@ -42,7 +42,7 @@ let test_dialogs _ page =
     let seen = ref [] in
     let handler dialog =
         seen := (Dialog.type_ dialog, Dialog.message dialog, Dialog.default_value dialog) :: !seen;
-        if Dialog.type_ dialog = "prompt" then Dialog.accept ~prompt_text:"Ada" dialog else Dialog.dismiss dialog
+        if Dialog.type_ dialog = "prompt" then Dialog.accept dialog ~prompt_text:"Ada" else Dialog.dismiss dialog
     in
     let listening = Page.on page Page.Dialog handler in
     Alcotest.check js "prompt accepted with text" (Js.String "Ada") (Page.evaluate page "prompt('Name?', 'nobody')");
@@ -268,7 +268,7 @@ let test_closing t () =
     let other = BrowserContext.new_page context in
     let pending = Fiber.fork_promise ~sw:t.sw (fun () -> Locator.wait_for (Page.locator other "#never")) in
     Fiber.yield ();
-    BrowserContext.close ~reason:"done with it" context;
+    BrowserContext.close context ~reason:"done with it";
     (match Promise.await pending with
     | Error (Playwright.Error error) ->
         Alcotest.check error_kind "interrupted by the context" Error.Target_closed error.kind;
@@ -300,7 +300,7 @@ let test_history t page =
     ignore (Page.goto page (Server.url t.server "/noisy"));
     ignore (Page.evaluate page "console.warn('careful', 1)");
     ignore (Page.expect_event page Page.Page_error (fun () -> ignore (Page.evaluate page "setTimeout(() => { throw new RangeError('too late') }, 0)")));
-    let texts filter = Page.console_messages ?filter page |> List.map (fun m -> ConsoleMessage.type_ m ^ ": " ^ ConsoleMessage.text m) in
+    let texts filter = Page.console_messages page ?filter |> List.map (fun m -> ConsoleMessage.type_ m ^ ": " ^ ConsoleMessage.text m) in
     Alcotest.(check (list string)) "console messages" [ "log: loaded"; "warning: careful 1" ] (texts None);
     Alcotest.(check bool) "they belong to the page" true
         (List.for_all (fun m -> Option.equal Page.equal (ConsoleMessage.page m) (Some page)) (Page.console_messages page));
@@ -309,7 +309,7 @@ let test_history t page =
     ignore (Page.goto page (Server.url t.server "/noisy"));
     Alcotest.(check (list string)) "since the navigation" [ "log: loaded" ] (texts (Some `Since_navigation));
     Alcotest.(check int) "everything" 3 (List.length (texts (Some `All)));
-    Alcotest.(check int) "no errors since the navigation" 0 (List.length (Page.page_errors ~filter:`Since_navigation page));
+    Alcotest.(check int) "no errors since the navigation" 0 (List.length (Page.page_errors page ~filter:`Since_navigation));
     Page.clear_console_messages page;
     Page.clear_page_errors page;
     Alcotest.(check int) "cleared" 0 (List.length (texts None) + List.length (Page.page_errors page))

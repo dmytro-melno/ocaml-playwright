@@ -35,7 +35,7 @@
     - Required arguments are positional, in the order that they have in Playwright. Everything optional is an
       optional labelled argument, which a call may put wherever it reads best: [Page.goto page url ~timeout:5000.].
       Where two required arguments of the same type follow each other, a label tells them apart:
-      [WebStorage.set_item storage "theme" ~value:"dark"], [Mouse.move ~x:10. ~y:20. mouse].
+      [WebStorage.set_item storage "theme" ~value:"dark"], [Mouse.move mouse ~x:10. ~y:20.].
     - Timeouts and other durations are in milliseconds, as in Playwright. A timeout of [0.] disables the timeout.
     - JavaScript regular expressions are given as literals in a string, such as ["/sign (in|up)/i"], to the
       functions and arguments named [..._regex].
@@ -680,7 +680,7 @@ and BrowserType : sig
         [playwright install]; here that is [ocaml-playwright install].
 
         {[
-          BrowserType.launch ~headless:false ~args:[ "--start-maximized" ] (Playwright.chromium pw)
+          BrowserType.launch (Playwright.chromium pw) ~headless:false ~args:[ "--start-maximized" ]
         ]} *)
 
     val launch_persistent_context : (t -> string -> BrowserContext.t) with_context_options with_launch_options
@@ -1810,9 +1810,9 @@ end
 
     {[
       let tracing = BrowserContext.tracing context in
-      Tracing.start ~screenshots:true ~snapshots:true tracing;
+      Tracing.start tracing ~screenshots:true ~snapshots:true;
       (* ... *)
-      Tracing.stop ~path:"trace.zip" tracing
+      Tracing.stop tracing ~path:"trace.zip"
     ]} *)
 and Tracing : sig
     type t

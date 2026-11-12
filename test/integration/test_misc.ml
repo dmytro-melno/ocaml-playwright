@@ -4,7 +4,7 @@ open Eio.Std
 open Playwright
 open Harness
 
-let launch t = BrowserType.launch ?executable_path:t.executable_path (chromium t.pw)
+let launch t = BrowserType.launch (chromium t.pw) ?executable_path:t.executable_path
 
 (* {1 Rendering} *)
 
@@ -13,22 +13,22 @@ let png_size image =
     Int32.to_int (String.get_int32_be image 16), Int32.to_int (String.get_int32_be image 20)
 
 let test_screenshots t () =
-    let context = Browser.new_context ~viewport:(500, 400) t.browser in
+    let context = Browser.new_context t.browser ~viewport:(500, 400) in
     let page = BrowserContext.new_page context in
     Page.set_content page {|<body style="margin: 0"><div id="box" style="width: 120px; height: 80px; background: teal"></div><div style="height: 2000px"></div></body>|};
     Alcotest.(check (pair int int)) "viewport" (500, 400) (png_size (Page.screenshot page));
-    Alcotest.(check (pair int int)) "full page" (500, 2080) (png_size (Page.screenshot ~full_page:true page));
-    Alcotest.(check (pair int int)) "clip" (50, 60) (png_size (Page.screenshot ~clip:{ x = 10.; y = 10.; width = 50.; height = 60. } page));
+    Alcotest.(check (pair int int)) "full page" (500, 2080) (png_size (Page.screenshot page ~full_page:true));
+    Alcotest.(check (pair int int)) "clip" (50, 60) (png_size (Page.screenshot page ~clip:{ x = 10.; y = 10.; width = 50.; height = 60. }));
     Alcotest.(check (pair int int)) "element" (120, 80) (png_size (Page.locator page "#box" |> Locator.screenshot));
-    let jpeg = Page.screenshot ~type_:`Jpeg ~quality:50 page in
+    let jpeg = Page.screenshot page ~type_:`Jpeg ~quality:50 in
     Alcotest.(check string) "jpeg" "\xFF\xD8\xFF" (String.sub jpeg 0 3);
-    Alcotest.(check (pair int int)) "masked" (500, 400) (png_size (Page.screenshot ~mask:[ Page.locator page "#box" ] ~mask_color:"black" page));
-    check_failure "quality is not for PNG" ~message:"quality" (fun () -> Page.screenshot ~quality:50 page);
+    Alcotest.(check (pair int int)) "masked" (500, 400) (png_size (Page.screenshot page ~mask:[ Page.locator page "#box" ] ~mask_color:"black"));
+    check_failure "quality is not for PNG" ~message:"quality" (fun () -> Page.screenshot page ~quality:50);
     BrowserContext.close context
 
 let test_pdf_and_aria page =
     Page.set_content page {|<title>Doc</title><h1>Report</h1><ul><li>One</li><li><a href="/two">Two</a></li></ul><button disabled>Print</button>|};
-    let pdf = Page.pdf ~format:"A5" ~landscape:true ~margin_top:"1cm" page in
+    let pdf = Page.pdf page ~format:"A5" ~landscape:true ~margin_top:"1cm" in
     Alcotest.(check string) "pdf" "%PDF-" (String.sub pdf 0 5);
     let snapshot = Page.aria_snapshot page in
     List.iter
@@ -52,7 +52,7 @@ let test_keyboard_and_mouse _ page =
             </script>
           </body>|};
     let keyboard = Page.keyboard page and mouse = Page.mouse page in
-    Mouse.click ~x:30. ~y:30. mouse;
+    Mouse.click mouse ~x:30. ~y:30.;
     Alcotest.(check string) "a click focuses" "field" (eval_string "document.activeElement.id" page);
     Keyboard.type_ keyboard "hello";
     Keyboard.down keyboard "Shift";
@@ -63,25 +63,25 @@ let test_keyboard_and_mouse _ page =
     Keyboard.press keyboard "ControlOrMeta+A";
     Keyboard.press keyboard "Backspace";
     Alcotest.(check string) "select all and delete" "" (Locator.input_value (Page.locator page "#field"));
-    Mouse.move ~x:50. ~y:120. mouse;
+    Mouse.move mouse ~x:50. ~y:120.;
     Mouse.down mouse;
-    Mouse.move ~steps:2 ~x:70. ~y:140. mouse;
+    Mouse.move mouse ~steps:2 ~x:70. ~y:140.;
     Mouse.up mouse;
-    Mouse.click ~button:`Middle ~x:100. ~y:150. mouse;
-    Mouse.dblclick ~x:30. ~y:110. mouse;
+    Mouse.click mouse ~button:`Middle ~x:100. ~y:150.;
+    Mouse.dblclick mouse ~x:30. ~y:110.;
     Alcotest.(check (list string)) "mouse events"
         [ "mousemove 50,120 0"; "mousedown 50,120 0"; "mousemove 60,130 0"; "mousemove 70,140 0"; "mouseup 70,140 0"; "click 70,140 0";
           "mousemove 100,150 0"; "mousedown 100,150 1"; "mouseup 100,150 1"; "mousemove 30,110 0"; "mousedown 30,110 0"; "mouseup 30,110 0";
           "click 30,110 0"; "mousedown 30,110 0"; "mouseup 30,110 0"; "click 30,110 0"; "dblclick 30,110 0" ]
         (Page.evaluate page "window.log" |> Js.to_list Js.to_string);
-    Mouse.wheel ~delta_x:0. ~delta_y:500. mouse;
+    Mouse.wheel mouse ~delta_x:0. ~delta_y:500.;
     ignore (Page.wait_for_function page "window.scrollY === 500")
 
 let test_touch t () =
-    let context = Browser.new_context ~has_touch:true t.browser in
+    let context = Browser.new_context t.browser ~has_touch:true in
     let page = BrowserContext.new_page context in
     Page.set_content page {|<button style="width: 100px; height: 100px" ontouchstart="this.textContent = 'touched'">Tap</button>|};
-    Touchscreen.tap ~x:50. ~y:50. (Page.touchscreen page);
+    Touchscreen.tap (Page.touchscreen page) ~x:50. ~y:50.;
     Expect.to_have_text "touched" (Page.locator page "button");
     Page.set_content page {|<button ontouchstart="this.textContent = 'tapped'">Tap</button>|};
     Page.locator page "button" |> Locator.tap;
@@ -115,7 +115,7 @@ let test_picking t page =
     (* The person who points at an element is played by the mouse of the page. *)
     let picking = Fiber.fork_promise ~sw:t.sw (fun () -> Page.pick_locator page) in
     eventually t "picked" (fun () ->
-        if not (Promise.is_resolved picking) then Mouse.click ~x:60. ~y:40. (Page.mouse page);
+        if not (Promise.is_resolved picking) then Mouse.click (Page.mouse page) ~x:60. ~y:40.;
         Promise.is_resolved picking);
     let locator = Promise.await_exn picking in
     Alcotest.(check string) "the element that was clicked" "Pick me" (Locator.inner_text locator);
@@ -193,11 +193,11 @@ let test_cancellation t page =
 (* {1 Browsers and drivers} *)
 
 let test_launch_failures t () =
-    let error = failure "no such executable" (fun () -> BrowserType.launch ~executable_path:"/no/such/browser" (chromium t.pw)) in
+    let error = failure "no such executable" (fun () -> BrowserType.launch (chromium t.pw) ~executable_path:"/no/such/browser") in
     check_contains "names the path" ~sub:"/no/such/browser" error.message;
     if not (Sys.file_exists (BrowserType.executable_path (firefox t.pw))) then
         check_failure "a browser that is not installed" ~message:"playwright install" (fun () -> BrowserType.launch (firefox t.pw));
-    check_failure "an executable that is no browser" (fun () -> BrowserType.launch ~timeout:5000. ~executable_path:"/bin/false" (chromium t.pw))
+    check_failure "an executable that is no browser" (fun () -> BrowserType.launch (chromium t.pw) ~timeout:5000. ~executable_path:"/bin/false")
 
 let test_browser_closing t () =
     let browser = launch t in
@@ -207,7 +207,7 @@ let test_browser_closing t () =
     let page = BrowserContext.new_page (Browser.new_context browser) in
     let pending = Fiber.fork_promise ~sw:t.sw (fun () -> Locator.wait_for (Page.locator page "#never")) in
     Fiber.yield ();
-    let gone = Browser.expect_event browser Browser.Disconnected (fun () -> Browser.close ~reason:"the test is over" browser) in
+    let gone = Browser.expect_event browser Browser.Disconnected (fun () -> Browser.close browser ~reason:"the test is over") in
     Alcotest.(check bool) "the event carries the browser" true (Browser.equal gone browser);
     (match Promise.await pending with
     | Error (Playwright.Error error) ->
@@ -248,7 +248,7 @@ let test_persistent_context t () =
 let test_artifacts_dir t () =
     Server.route t.server "/artifact" (fun _ -> Server.respond ~headers:[ "content-disposition", "attachment; filename=artifact.txt" ] "kept");
     let dir = scratch_file t "artifacts" in
-    let browser = BrowserType.launch ?executable_path:t.executable_path ~artifacts_dir:dir (chromium t.pw) in
+    let browser = BrowserType.launch (chromium t.pw) ?executable_path:t.executable_path ~artifacts_dir:dir in
     let page = BrowserContext.new_page (Browser.new_context browser) in
     Page.set_content page (Printf.sprintf {|<a href="%s">download</a>|} (Server.url t.server "/artifact"));
     let download = Page.expect_event page Page.Download (fun () -> Locator.click (Page.locator page "a")) in
@@ -259,7 +259,7 @@ let test_artifacts_dir t () =
 
 let test_connect_over_cdp t () =
     let port = closed_port t in
-    let browser = BrowserType.launch ?executable_path:t.executable_path ~args:[ Printf.sprintf "--remote-debugging-port=%d" port ] (chromium t.pw) in
+    let browser = BrowserType.launch (chromium t.pw) ?executable_path:t.executable_path ~args:[ Printf.sprintf "--remote-debugging-port=%d" port ] in
     let original = BrowserContext.new_page (Browser.new_context browser) in
     Page.set_content original "<title>Original</title>";
     let attached = BrowserType.connect_over_cdp (chromium t.pw) ~is_local:true ~no_defaults:true (Printf.sprintf "http://127.0.0.1:%d" port) in
@@ -349,7 +349,7 @@ let create_with_driver_pid t ~on_error =
 
 let test_instance_end t () =
     let create ~on_error = Playwright.create ~sw:t.sw ~env:t.env ~on_error () in
-    let launch pw = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
+    let launch pw = BrowserType.launch (chromium pw) ?executable_path:t.executable_path in
     check_instance_end t "closed" ~create ~obtain:launch (fun pw _ -> Playwright.close pw);
     check_instance_end t "closed by one of its handlers" ~create ~obtain:launch (fun pw page ->
         Page.on page Page.Request (fun _ -> Playwright.close pw) |> ignore;
@@ -397,7 +397,7 @@ let test_error_hook t () =
                 Printexc.record_backtrace recording;
                 Playwright.close pw)
             (fun () ->
-                let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
+                let browser = BrowserType.launch (chromium pw) ?executable_path:t.executable_path in
                 let page = BrowserContext.new_page (Browser.new_context browser) in
                 (* Not in tail position, or there would be no trace of this file. *)
                 Page.on page Page.Console (fun _ -> ignore (failwith "the listener fails" : int)) |> ignore;
@@ -423,7 +423,7 @@ let test_second_driver t () =
     Server.page t.server "/blank" "<title>Blank</title>";
     let title =
         Playwright.run ~env:t.env (fun pw ->
-            let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
+            let browser = BrowserType.launch (chromium pw) ?executable_path:t.executable_path in
             let page = BrowserContext.new_page (Browser.new_context browser) in
             ignore (Page.goto page (Server.url t.server "/blank"));
             (* Left open on purpose: stopping the driver closes it. *)
@@ -431,7 +431,7 @@ let test_second_driver t () =
     in
     Alcotest.(check string) "an independent driver" "Blank" title;
     let pw = Playwright.create ~sw:t.sw ~env:t.env () in
-    let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
+    let browser = BrowserType.launch (chromium pw) ?executable_path:t.executable_path in
     let page = BrowserContext.new_page (Browser.new_context browser) in
     Alcotest.(check bool) "the objects of two drivers are different ones" false (BrowserType.equal (chromium pw) (chromium t.pw));
     (* A response that the other driver fetched is not known to this one: its body is sent over. *)

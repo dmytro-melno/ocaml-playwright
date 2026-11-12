@@ -241,7 +241,7 @@ let test_references _ page =
     Alcotest.(check (option string)) "the description of the last part only" None (Locator.description (Locator.describe name button |> Locator.first));
     Alcotest.(check string) "a described locator still works" "Submit" (Locator.inner_text (Locator.describe name button));
     (* A snapshot for machines gives every element a reference, which finds the element again. *)
-    let snapshot = Page.aria_snapshot ~mode:`Ai page in
+    let snapshot = Page.aria_snapshot page ~mode:`Ai in
     let reference =
         let line = List.find (contains ~sub:{|button "Submit"|}) (String.split_on_char '\n' snapshot) in
         let start = Option.get (String.index_opt line '=') + 1 in

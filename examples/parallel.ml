@@ -11,7 +11,7 @@ let () =
     let urls = match List.tl (Array.to_list Sys.argv) with [] -> [ "https://example.com"; "https://ocaml.org"; "https://playwright.dev" ] | urls -> urls in
     Eio_main.run @@ fun env ->
     Playwright.run ~env @@ fun pw ->
-    let browser = BrowserType.launch ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") (chromium pw) in
+    let browser = BrowserType.launch (chromium pw) ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") in
     let started = Unix.gettimeofday () in
     let visit url =
         let context = Browser.new_context browser in

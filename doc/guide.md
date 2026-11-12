@@ -154,8 +154,8 @@ There are four levels of objects:
 - A *page* (`Page.t`) is a tab in a context.
 
 ```ocaml
-let browser = BrowserType.launch ~headless:false (chromium pw) in
-let context = Browser.new_context ~locale:"de-DE" ~viewport:(1280, 720) browser in
+let browser = BrowserType.launch (chromium pw) ~headless:false in
+let context = Browser.new_context browser ~locale:"de-DE" ~viewport:(1280, 720) in
 let page = BrowserContext.new_page context in
 let other_page = BrowserContext.new_page context in
 ignore (page, other_page);
@@ -250,7 +250,7 @@ With the context option `~base_url`, relative URLs can be used in `Page.goto` an
 patterns:
 
 ```ocaml
-let context = Browser.new_context ~base_url:"http://localhost:8080" browser in
+let context = Browser.new_context browser ~base_url:"http://localhost:8080" in
 let page = BrowserContext.new_page context in
 ignore (Page.goto page "/settings")
 ```
@@ -328,7 +328,7 @@ snapshot for that purpose is a rendering of the accessibility tree in which ever
 carries a reference:
 
 ```ocaml
-let snapshot = Page.aria_snapshot ~mode:`Ai page in
+let snapshot = Page.aria_snapshot page ~mode:`Ai in
 (* - generic [active] [ref=e1]:
      - heading "Sign up" [level=1] [ref=e2]
      - textbox "Name" [ref=e4]
@@ -401,8 +401,8 @@ Lower-level input goes through the keyboard, mouse and touchscreen of the page:
 
 ```ocaml
 Keyboard.press (Page.keyboard page) "Escape";
-Mouse.move ~x:100. ~y:200. (Page.mouse page);
-Mouse.wheel ~delta_x:0. ~delta_y:500. (Page.mouse page)
+Mouse.move (Page.mouse page) ~x:100. ~y:200.;
+Mouse.wheel (Page.mouse page) ~delta_x:0. ~delta_y:500.
 ```
 
 ### Reading from the page
@@ -643,7 +643,7 @@ them otherwise:
 Page.on page Page.Dialog
     (fun dialog ->
         Printf.printf "%s: %s\n" (Dialog.type_ dialog) (Dialog.message dialog);
-        Dialog.accept ~prompt_text:"yes" dialog)
+        Dialog.accept dialog ~prompt_text:"yes")
 |> ignore
 ```
 
@@ -701,7 +701,7 @@ Page.route page "**/*.{png,jpg,jpeg,webp}" Route.abort |> ignore;
 Page.route page "**/api/**"
     (fun route ->
         let headers = ("x-test", "1") :: Request.headers (Route.request route) in
-        Route.continue ~headers route)
+        Route.continue route ~headers)
 |> ignore;
 
 (* Get the real response and change it on its way to the page. *)
@@ -709,7 +709,7 @@ Page.route page "**/api/items"
     (fun route ->
         let response = Route.fetch route in
         let items = match APIResponse.json response with `List items -> items | _ -> [] in
-        Route.fulfill ~response ~json:(`List (List.filteri (fun index _ -> index < 3) items)) route)
+        Route.fulfill route ~response ~json:(`List (List.filteri (fun index _ -> index < 3) items)))
 |> ignore
 ```
 
@@ -774,7 +774,7 @@ Expect.to_be_ok response;
 let id = APIResponse.json response |> Yojson.Safe.Util.member "id" in
 
 (* A context that is independent of any browser. *)
-let standalone = APIRequest.new_context ~base_url:"https://example.com" ~extra_http_headers:[ "authorization", "Bearer token" ] pw in
+let standalone = APIRequest.new_context pw ~base_url:"https://example.com" ~extra_http_headers:[ "authorization", "Bearer token" ] in
 let items = APIRequestContext.get standalone "/api/items" ~params:[ "page", "2" ] |> APIResponse.json in
 APIRequestContext.dispose standalone;
 (id, items)
@@ -786,12 +786,12 @@ The options of `Browser.new_context` set up what the pages of the
 context see. A selection:
 
 ```ocaml
-Browser.new_context ~viewport:(1920, 1080) ~locale:"fr-FR" ~timezone_id:"Europe/Paris" ~color_scheme:`Dark
+Browser.new_context browser ~viewport:(1920, 1080) ~locale:"fr-FR" ~timezone_id:"Europe/Paris" ~color_scheme:`Dark
     ~geolocation:(Geolocation.make ~latitude:48.8584 ~longitude:2.2945 ())
     ~permissions:[ "geolocation" ] ~user_agent:"MyCrawler/1.0"
     ~extra_http_headers:[ "x-requested-by", "tests" ]
     ~http_credentials:[ Http_credentials.make ~username:"ada" ~password:"secret" () ]
-    ~ignore_https_errors:true browser
+    ~ignore_https_errors:true
 ```
 
 A whole device is emulated with one of Playwright's device descriptors, which set the
@@ -799,7 +799,7 @@ viewport, user agent, pixel density and touch support together:
 
 ```ocaml
 let phone = Option.get (Playwright.device pw "iPhone 15") in
-let context = Browser.new_context ~device:phone ~locale:"en-GB" browser in
+let context = Browser.new_context browser ~device:phone ~locale:"en-GB" in
 BrowserContext.new_page context
 ```
 
@@ -814,16 +814,16 @@ certificate and its key as PEM text, or both in a PFX archive. The same option e
 ```ocaml
 let read name = Eio.Path.(load (Eio.Stdenv.cwd env / name)) in
 let certificate = Client_certificate.pem ~origin:"https://internal.example.com" ~cert:(read "client.pem") ~key:(read "client.key") () in
-Browser.new_context ~client_certificates:[ certificate ] browser
+Browser.new_context browser ~client_certificates:[ certificate ]
 ```
 
 ### Cookies and storage
 
 ```ocaml
 BrowserContext.add_cookies context [ Cookie.make ~url:"https://example.com" "session" ~value:"abc123" ];
-let cookies = BrowserContext.cookies ~urls:[ "https://example.com" ] context in
+let cookies = BrowserContext.cookies context ~urls:[ "https://example.com" ] in
 List.iter (fun (cookie : Cookie.t) -> Printf.printf "%s=%s\n" cookie.name cookie.value) cookies;
-BrowserContext.clear_cookies ~name:"session" context;
+BrowserContext.clear_cookies context ~name:"session";
 
 let storage = Page.local_storage page in
 WebStorage.set_item storage "theme" ~value:"dark";
@@ -848,7 +848,7 @@ Yojson.Safe.to_file "auth.json" (BrowserContext.storage_state context);
 BrowserContext.close context;
 
 (* In every test: *)
-Browser.new_context ~storage_state:(Yojson.Safe.from_file "auth.json") browser
+Browser.new_context browser ~storage_state:(Yojson.Safe.from_file "auth.json")
 ```
 
 ### Time
@@ -857,7 +857,7 @@ Browser.new_context ~storage_state:(Yojson.Safe.from_file "auth.json") browser
 animations that take minutes can be tested in an instant:
 
 ```ocaml
-Clock.install ~time:1_700_000_000_000. context;
+Clock.install context ~time:1_700_000_000_000.;
 ignore (Page.goto page "https://example.com/session");
 Clock.fast_forward context (30. *. 60_000.);
 Expect.to_be_visible (Page.get_by_text page "Your session has expired")
@@ -882,10 +882,10 @@ locators, evaluation.
 
 ```ocaml
 let save name bytes = Eio.Path.(save ~create:(`Or_truncate 0o644) (Eio.Stdenv.cwd env / name) bytes) in
-save "page.png" (Page.screenshot ~full_page:true page);
-save "detail.jpg" (Page.screenshot ~type_:`Jpeg ~quality:80 ~clip:{ x = 0.; y = 0.; width = 400.; height = 300. } page);
+save "page.png" (Page.screenshot page ~full_page:true);
+save "detail.jpg" (Page.screenshot page ~type_:`Jpeg ~quality:80 ~clip:{ x = 0.; y = 0.; width = 400.; height = 300. });
 save "table.png" (Page.get_by_role page `Table |> Locator.screenshot ~animations:`Disabled);
-save "page.pdf" (Page.pdf ~format:"A4" ~print_background:true page)
+save "page.pdf" (Page.pdf page ~format:"A4" ~print_background:true)
 ```
 
 Screenshots and PDFs are returned as strings of bytes: what a PNG, JPEG, WebP or PDF file
@@ -896,7 +896,7 @@ A context created with `~record_video_dir` records a video of each of its pages.
 is complete when the page has been closed:
 
 ```ocaml
-let context = Browser.new_context ~record_video_dir:"videos" ~record_video_size:(1280, 720) browser in
+let context = Browser.new_context browser ~record_video_dir:"videos" ~record_video_size:(1280, 720) in
 let page = BrowserContext.new_page context in
 ignore (Page.goto page "https://example.com");
 BrowserContext.close context;
@@ -913,10 +913,10 @@ console output. It is the best tool for finding out why a test failed on another
 
 ```ocaml
 let tracing = BrowserContext.tracing context in
-Tracing.start ~screenshots:true ~snapshots:true tracing;
+Tracing.start tracing ~screenshots:true ~snapshots:true;
 ignore (Page.goto page "https://example.com");
 Page.get_by_role page `Link |> Locator.first |> Locator.click;
-Tracing.stop ~path:"trace.zip" tracing
+Tracing.stop tracing ~path:"trace.zip"
 ```
 
 Open the trace with `ocaml-playwright show-trace trace.zip`, or drop the file onto

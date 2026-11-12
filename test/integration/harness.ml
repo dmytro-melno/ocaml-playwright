@@ -76,7 +76,7 @@ let run f =
     in
     let executable_path = match find_chromium pw with Some path -> path | None -> skip "no Chromium found; set PLAYWRIGHT_TEST_CHROMIUM" in
     let browser =
-        try BrowserType.launch ?executable_path (chromium pw)
+        try BrowserType.launch (chromium pw) ?executable_path
         with Playwright.Error error when not required -> skip (Playwright.Error.to_string error)
     in
     let scratch = Filename.temp_dir "playwright-test" "" in

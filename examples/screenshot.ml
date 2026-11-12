@@ -30,13 +30,13 @@ let () =
                     exit 2)
             device_name
     in
-    let browser = BrowserType.launch ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") (chromium pw) in
-    let context = match device with Some device -> Browser.new_context ~device browser | None -> Browser.new_context ~viewport:(1280, 800) browser in
+    let browser = BrowserType.launch (chromium pw) ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") in
+    let context = match device with Some device -> Browser.new_context browser ~device | None -> Browser.new_context browser ~viewport:(1280, 800) in
     let page = BrowserContext.new_page context in
     (match Page.goto page ~wait_until:`Networkidle url with
     | Some response -> Printf.printf "%d %s\n" (Response.status response) (Page.url page)
     | None -> ());
-    let image = Page.screenshot ~full_page:true ?type_ page in
+    let image = Page.screenshot page ~full_page:true ?type_ in
     Eio.Path.(save ~create:(`Or_truncate 0o644) (Eio.Stdenv.fs env / path) image);
     Printf.printf "%s: %d bytes\n" path (String.length image);
     Browser.close browser

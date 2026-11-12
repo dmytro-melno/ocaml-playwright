@@ -22,7 +22,7 @@ let test_goto t page =
     Alcotest.(check bool) "no response for about:blank" true (Option.is_none (Page.goto page "about:blank"));
     Page.set_content page {|<div id="host"></div><script>host.attachShadow({ mode: 'open' }).innerHTML = '<p>In the ' + 'shadow</p>'</script>|};
     Alcotest.(check bool) "shadow roots are not content" false (contains ~sub:"<p>In the shadow</p>" (Page.content page));
-    check_contains "unless asked for" ~sub:{|<template shadowrootmode="open"><p>In the shadow</p></template>|} (Page.content ~include_shadow:true page)
+    check_contains "unless asked for" ~sub:{|<template shadowrootmode="open"><p>In the shadow</p></template>|} (Page.content page ~include_shadow:true)
 
 let test_http_errors_and_redirects t page =
     Server.route t.server "/missing" (fun _ -> Server.html ~status:404 "<h1>Not here</h1>");
@@ -68,12 +68,12 @@ let test_history t page =
     Alcotest.(check int) "reload" 200 (Page.reload page |> Option.get |> Response.status);
     Page.wait_for_url page "**/two";
     Page.wait_for_url_matching page (fun url -> contains ~sub:"/two" url);
-    Page.wait_for_load_state ~state:`Networkidle page;
+    Page.wait_for_load_state page ~state:`Networkidle;
     check_failure "wait for another URL" ~kind:Timeout (fun () -> Page.wait_for_url page ~timeout:200. "**/three")
 
 let test_base_url t () =
     Server.page t.server "/app/index" "<title>App</title>";
-    let context = Browser.new_context ~base_url:(Server.url t.server "/app/") t.browser in
+    let context = Browser.new_context t.browser ~base_url:(Server.url t.server "/app/") in
     let page = BrowserContext.new_page context in
     ignore (Page.goto page "index");
     Alcotest.(check string) "relative to the base URL" (Server.url t.server "/app/index") (Page.url page);

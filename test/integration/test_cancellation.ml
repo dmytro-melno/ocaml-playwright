@@ -57,7 +57,7 @@ let test_closing t () =
     eventually t "a session is detached" (fun () -> !detached);
     BrowserContext.close context;
     (* A browser. *)
-    let browser = BrowserType.launch ?executable_path:t.executable_path (chromium t.pw) in
+    let browser = BrowserType.launch (chromium t.pw) ?executable_path:t.executable_path in
     let context = Browser.new_context browser in
     cancelled (fun () -> Browser.close browser);
     Browser.close browser;
@@ -109,7 +109,7 @@ let test_failures t () =
     let tracing = BrowserContext.tracing context in
     Tracing.start tracing;
     BrowserContext.close context;
-    check_failure "stopping a trace of a closed context" ~kind:Target_closed (fun () -> Tracing.stop ~path:(scratch_file t "late.zip") tracing);
+    check_failure "stopping a trace of a closed context" ~kind:Target_closed (fun () -> Tracing.stop tracing ~path:(scratch_file t "late.zip"));
     let context = Browser.new_context t.browser in
     let page = BrowserContext.new_page context in
     Page.set_content page "<button>Press</button>";

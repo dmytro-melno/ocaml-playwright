@@ -55,7 +55,7 @@ let test_abort_and_continue t page =
     Page.route page "**/echo?*"
         (fun route ->
             let request = Route.request route in
-            Route.continue ~method_:"POST" ~post_data:"changed" ~headers:(("x-added", "by the route") :: Request.headers request) route)
+            Route.continue route ~method_:"POST" ~post_data:"changed" ~headers:(("x-added", "by the route") :: Request.headers request))
     |> ignore;
     let seen = Yojson.Safe.from_string (body (fetch "/echo?q=1" page)) in
     let member name = Yojson.Safe.Util.member name seen in
@@ -74,7 +74,7 @@ let test_handler_order t page =
     in
     BrowserContext.route context "**/chain" (fun route ->
         order := "context" :: !order;
-        Route.fulfill ~body:"from the context" route)
+        Route.fulfill route ~body:"from the context")
     |> ignore;
     Page.route page "**/chain" (passing "page, first") |> ignore;
     Page.route page "**/chain" (passing "page, second") |> ignore;
@@ -111,13 +111,13 @@ let test_modifying_responses t page =
             let response = Route.fetch route in
             Alcotest.(check int) "fetched" 200 (APIResponse.status response);
             let items = APIResponse.json response |> Yojson.Safe.Util.member "items" |> Yojson.Safe.Util.to_list in
-            Route.fulfill ~response ~json:(`Assoc [ "items", `List (items @ [ `Int 3 ]) ]) route)
+            Route.fulfill route ~response ~json:(`Assoc [ "items", `List (items @ [ `Int 3 ]) ]))
     |> ignore;
     let response = fetch "/api/items" page in
     Alcotest.(check string) "modified body" {|{"items":[1,2,3]}|} (body response);
     Alcotest.(check string) "other parts of the response are kept" "from the server" (field "test" response |> Js.to_string);
     (* A response that is passed on as it is has its body replayed by the driver. *)
-    Page.route page "**/api/items" (fun route -> Route.fulfill ~response:(Route.fetch route) ~headers:[ "x-test", "replayed" ] route) |> ignore;
+    Page.route page "**/api/items" (fun route -> Route.fulfill route ~response:(Route.fetch route) ~headers:[ "x-test", "replayed" ]) |> ignore;
     let response = fetch "/api/items" page in
     Alcotest.(check string) "the body of the response" {|{"items":[1,2]}|} (body response);
     Alcotest.(check string) "with headers of our own" "replayed" (field "test" response |> Js.to_string)
@@ -136,14 +136,14 @@ let test_failing_handler t page =
     one_report "reported" "handler failed";
     (* Failing after the route was settled changes nothing about the request. *)
     Page.unroute_all page;
-    Page.route page "**/echo" (fun route -> Route.fulfill ~body:"settled" route; failwith "failed afterwards") |> ignore;
+    Page.route page "**/echo" (fun route -> Route.fulfill route ~body:"settled"; failwith "failed afterwards") |> ignore;
     Alcotest.(check string) "the answer stands" "settled" (body (fetch "/echo" page));
     one_report "reported all the same" "failed afterwards";
     (* Concluding a route twice is a programming error that is pointed out. *)
     Page.unroute_all page;
     Page.route page "**/echo"
         (fun route ->
-            Route.fulfill ~body:"once" route;
+            Route.fulfill route ~body:"once";
             check_failure "handled twice" ~message:"already handled" (fun () -> Route.continue route))
     |> ignore;
     Alcotest.(check string) "first conclusion counts" "once" (body (fetch "/echo" page))
@@ -159,11 +159,11 @@ let test_unrouting_at_work t page =
             Promise.resolve enter ();
             sleep t 0.2;
             finished := true;
-            Route.fulfill ~body:"slowly" route)
+            Route.fulfill route ~body:"slowly")
     |> ignore;
     let request = Fiber.fork_promise ~sw:t.sw (fun () -> body (fetch "/echo" page)) in
     Promise.await entered;
-    Page.unroute_all ~behavior:`Wait page;
+    Page.unroute_all page ~behavior:`Wait;
     Alcotest.(check bool) "waited for the handler" true !finished;
     Alcotest.(check string) "which answered" "slowly" (Promise.await_exn request);
     (* [`Ignore_errors] silences them, and their requests go on. *)
@@ -177,7 +177,7 @@ let test_unrouting_at_work t page =
     |> ignore;
     let request = Fiber.fork_promise ~sw:t.sw (fun () -> body (fetch "/echo" page)) in
     Promise.await entered;
-    Page.unroute_all ~behavior:`Ignore_errors page;
+    Page.unroute_all page ~behavior:`Ignore_errors;
     Promise.resolve remove ();
     Alcotest.(check bool) "the request reaches the server" true (contains ~sub:{|"method":"GET"|} (Promise.await_exn request));
     Alcotest.(check int) "and nothing is reported" 0 (List.length (take_reports t))
@@ -189,11 +189,10 @@ let test_context_network_settings t () =
         | Some "Basic YWRhOmxvdmVsYWNl" -> Server.html "<title>Welcome</title>"
         | _ -> Server.respond ~status:401 ~headers:[ "www-authenticate", {|Basic realm="test"|} ] "who are you?");
     let context =
-        Browser.new_context ~extra_http_headers:[ "x-context", "c" ] ~user_agent:"TestAgent/1.0"
+        Browser.new_context t.browser ~extra_http_headers:[ "x-context", "c" ] ~user_agent:"TestAgent/1.0"
             ~http_credentials:
               [ Http_credentials.make ~origin:"https://elsewhere.test" ~username:"eve" ~password:"guess" ();
                 Http_credentials.make ~origin:(Server.origin t.server) ~username:"ada" ~password:"lovelace" () ]
-            t.browser
     in
     let page = BrowserContext.new_page context in
     Alcotest.(check int) "credentials" 200 (Page.goto page (Server.url t.server "/secret") |> Option.get |> Response.status);
@@ -275,7 +274,7 @@ let test_api_requests t page =
         (APIRequestContext.get request url |> described |> member "headers" |> member "cookie" |> Yojson.Safe.Util.to_string);
     Alcotest.(check (list string)) "the cookies of the request context" [ "session"; "theme" ]
         (APIRequestContext.cookies request |> List.map (fun (c : Cookie.t) -> c.name) |> List.sort compare);
-    APIRequestContext.clear_cookies ~name:"theme" request;
+    APIRequestContext.clear_cookies request ~name:"theme";
     APIRequestContext.add_cookies request [ Cookie.make ~url:(Server.origin t.server) "added" ~value:"1" ];
     Alcotest.(check string) "changed through the request context" "added=1; session=abc"
         (eval_string "document.cookie.split('; ').sort().join('; ')" page);
@@ -284,12 +283,12 @@ let test_api_requests t page =
 
 let test_standalone_api_requests t () =
     Server.route t.server "/echo" echo;
-    let request = APIRequest.new_context ~base_url:(Server.origin t.server) ~extra_http_headers:[ "x-client", "tests" ] ~user_agent:"ApiAgent" t.pw in
+    let request = APIRequest.new_context t.pw ~base_url:(Server.origin t.server) ~extra_http_headers:[ "x-client", "tests" ] ~user_agent:"ApiAgent" in
     let tracing = APIRequestContext.tracing request in
     Tracing.start tracing;
     let seen = APIRequestContext.get request "/echo" |> APIResponse.json |> Yojson.Safe.Util.member "headers" in
     let trace = scratch_file t "requests.zip" in
-    Tracing.stop ~path:trace tracing;
+    Tracing.stop tracing ~path:trace;
     Alcotest.(check string) "a trace of the requests" "PK" (String.sub (read_file trace) 0 2);
     Alcotest.check json "default header" (`String "tests") (Yojson.Safe.Util.member "x-client" seen);
     Alcotest.check json "user agent" (`String "ApiAgent") (Yojson.Safe.Util.member "user-agent" seen);
@@ -299,7 +298,7 @@ let test_standalone_api_requests t () =
     Alcotest.(check (list string)) "storage state" [ "session" ]
         (Yojson.Safe.Util.member "cookies" state |> Yojson.Safe.Util.to_list |> List.map (fun c -> Yojson.Safe.Util.member "name" c |> Yojson.Safe.Util.to_string));
     (* The state carries over to a browser context. *)
-    let context = Browser.new_context ~storage_state:state t.browser in
+    let context = Browser.new_context t.browser ~storage_state:state in
     Alcotest.(check int) "cookies restored in a browser" 1 (List.length (BrowserContext.cookies context));
     BrowserContext.close context;
     APIRequestContext.dispose request;
@@ -307,7 +306,7 @@ let test_standalone_api_requests t () =
     APIRequestContext.dispose request;
     (* Credentials wait for a server to ask for them, unless they are to be sent at once. *)
     let authorization send =
-        let request = APIRequest.new_context ~http_credentials:[ Http_credentials.make ?send ~username:"ada" ~password:"lovelace" () ] t.pw in
+        let request = APIRequest.new_context t.pw ~http_credentials:[ Http_credentials.make ?send ~username:"ada" ~password:"lovelace" () ] in
         let seen = APIRequestContext.get request (Server.url t.server "/echo") |> APIResponse.json |> Yojson.Safe.Util.member "headers" in
         APIRequestContext.dispose request;
         Yojson.Safe.Util.member "authorization" seen
@@ -322,7 +321,7 @@ let test_client_certificates t () =
     write_file key Tls_server.private_key;
     Tls_server.run t.env ~cert ~key @@ fun origin ->
     let shown certificates =
-        let context = Browser.new_context ~ignore_https_errors:true ~client_certificates:certificates t.browser in
+        let context = Browser.new_context t.browser ~ignore_https_errors:true ~client_certificates:certificates in
         Fun.protect
             ~finally:(fun () -> BrowserContext.close context)
             (fun () ->
@@ -337,7 +336,7 @@ let test_client_certificates t () =
     Alcotest.(check string) "a certificate and its key" known (shown [ certificate ]);
     Alcotest.(check string) "an archive" known (shown [ Client_certificate.pfx ~passphrase:Tls_server.archive_passphrase ~origin Tls_server.archive ]);
     Alcotest.(check string) "of another origin" "client: nobody" (shown [ Client_certificate.pem ~origin:"https://elsewhere.test" ~cert ~key () ]);
-    let request = APIRequest.new_context ~ignore_https_errors:true ~client_certificates:[ certificate ] t.pw in
+    let request = APIRequest.new_context t.pw ~ignore_https_errors:true ~client_certificates:[ certificate ] in
     Alcotest.(check string) "a request context" known (APIRequestContext.get request origin |> APIResponse.body);
     APIRequestContext.dispose request;
     check_failure "what is no key" ~message:"Failed to load client certificate" (fun () -> shown [ Client_certificate.pem ~origin ~cert ~key:"nonsense" () ])
@@ -350,7 +349,7 @@ let test_web_socket_routes t page =
             WebSocketRoute.on_message socket
                 (fun message ->
                     match message with
-                    | Text "bye" -> WebSocketRoute.close ~code:4000 ~reason:"goodbye" socket
+                    | Text "bye" -> WebSocketRoute.close socket ~code:4000 ~reason:"goodbye"
                     | Text text -> WebSocketRoute.send socket (Text ("echo: " ^ text))
                     | Binary bytes -> WebSocketRoute.send socket (Binary (String.uppercase_ascii bytes))))
     |> ignore;

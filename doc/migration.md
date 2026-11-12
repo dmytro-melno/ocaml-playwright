@@ -35,7 +35,7 @@ let () =
     Eio_main.run @@ fun env ->
     Playwright.run ~env @@ fun pw ->
     let chromium = Playwright.chromium pw in
-    let browser = Playwright.BrowserType.launch ~executable_path:"/usr/bin/chromium" chromium in
+    let browser = Playwright.BrowserType.launch chromium ~executable_path:"/usr/bin/chromium" in
     let context = Playwright.Browser.new_context browser in
     let page = Playwright.BrowserContext.new_page context in
     ignore (Playwright.Page.goto page ~timeout:15000. "https://example.com");
@@ -119,7 +119,7 @@ let () =
 | `Playwright.Driver.download ~env ()` | `Playwright.Driver.install ()` |
 | `Playwright.Playwright.chromium pw` (`firefox`, `webkit`) | `Playwright.chromium pw` |
 | `Playwright.Playwright.t` | `Playwright.t` |
-| `BrowserType.launch ~headless:true ~args:[\| a \|] bt` | `BrowserType.launch ~args:[ a ] bt`; headless is the default |
+| `BrowserType.launch ~headless:true ~args:[\| a \|] bt` | `BrowserType.launch bt ~args:[ a ]`; headless is the default |
 | `Page.goto ~url page`, `Page.locator ~selector page`, `Locator.fill ~value locator`, `Locator.press ~key locator`, `Locator.get_attribute ~name locator`, ... | the same without the label: `Page.goto page url` |
 | `Page.get_by_role ~name "button" page` | `` Page.get_by_role page ~name `Button `` |
 | `Page.evaluate ~expression ?is_function ?arg page` | `Page.evaluate page ?arg expression`, with `Js.t` |
@@ -181,7 +181,7 @@ In the new API the same steps are:
 let browser_executable = Some "/usr/bin/chromium";;
 let playwright = Playwright.create ~env:eio_env ~sw:eio_sw ();;
 let chromium = Playwright.chromium playwright;;
-let browser = Playwright.BrowserType.launch ?executable_path:browser_executable ~headless:true chromium;;
+let browser = Playwright.BrowserType.launch chromium ?executable_path:browser_executable ~headless:true;;
 let browser_ctx = Playwright.Browser.new_context browser;;
 let page = Playwright.BrowserContext.new_page browser_ctx;;
 ```

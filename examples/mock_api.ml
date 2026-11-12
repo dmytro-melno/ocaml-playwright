@@ -23,7 +23,7 @@ let app =
 let () =
     Eio_main.run @@ fun env ->
     Playwright.run ~env @@ fun pw ->
-    let browser = BrowserType.launch ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") (chromium pw) in
+    let browser = BrowserType.launch (chromium pw) ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") in
     let page = BrowserContext.new_page (Browser.new_context browser) in
     (* The application itself is served from here as well. *)
     Page.route page "https://tasks.test/" (Route.fulfill ~content_type:"text/html" ~body:app) |> ignore;
@@ -33,8 +33,8 @@ let () =
             match Request.method_ request with
             | "POST" ->
                 let title = Request.post_data request |> Option.get |> Yojson.Safe.from_string |> Yojson.Safe.Util.member "title" in
-                Route.fulfill ~status:201 ~json:(`Assoc [ "id", `Int 3; "title", title ]) route
-            | _ -> Route.fulfill ~json:(`List [ `Assoc [ "id", `Int 1; "title", `String "Water the plants" ] ]) route)
+                Route.fulfill route ~status:201 ~json:(`Assoc [ "id", `Int 3; "title", title ])
+            | _ -> Route.fulfill route ~json:(`List [ `Assoc [ "id", `Int 1; "title", `String "Water the plants" ] ]))
     |> ignore;
     ignore (Page.goto page "https://tasks.test/");
     let tasks = Page.get_by_role page `Listitem in

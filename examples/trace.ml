@@ -10,10 +10,10 @@ open Playwright
 let () =
     Eio_main.run @@ fun env ->
     Playwright.run ~env @@ fun pw ->
-    let browser = BrowserType.launch ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") (chromium pw) in
+    let browser = BrowserType.launch (chromium pw) ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") in
     let context = Browser.new_context browser in
     let tracing = BrowserContext.tracing context in
-    Tracing.start ~screenshots:true ~snapshots:true ~title:"Search form" tracing;
+    Tracing.start tracing ~screenshots:true ~snapshots:true ~title:"Search form";
     let page = BrowserContext.new_page context in
     Page.set_content page
         {|<form onsubmit="event.preventDefault(); document.querySelector('output').textContent = 'No results for ' + query.value">
@@ -24,6 +24,6 @@ let () =
     Page.get_by_role page `Button ~name:"Go" |> Locator.click;
     Tracing.group_end tracing;
     Expect.to_have_text "No results for ocaml" (Page.locator page "output");
-    Tracing.stop ~path:"trace.zip" tracing;
+    Tracing.stop tracing ~path:"trace.zip";
     print_endline "saved trace.zip";
     Browser.close browser
