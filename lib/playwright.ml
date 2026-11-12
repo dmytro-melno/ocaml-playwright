@@ -86,10 +86,6 @@ type 'a with_context_options =
     ?base_url:string ->
     ?record_video_dir:string ->
     ?record_video_size:int * int ->
-    ?record_har_path:string ->
-    ?record_har_content:[ `Attach | `Embed | `Omit ] ->
-    ?record_har_mode:[ `Full | `Minimal ] ->
-    ?record_har_url_filter:string ->
     ?strict_selectors:bool ->
     ?service_workers:[ `Allow | `Block ] ->
     ?storage_state:Yojson.Safe.t ->

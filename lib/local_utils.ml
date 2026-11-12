@@ -1,4 +1,4 @@
-(* The utilities of the driver: work on local files (archives, HAR files, traces) that the client
+(* The utilities of the driver: work on local files (the archives of traces) that the client
    leaves to it. *)
 
 open Types

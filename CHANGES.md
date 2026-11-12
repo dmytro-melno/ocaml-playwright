@@ -52,7 +52,7 @@ adapted; [doc/migration.md](doc/migration.md) says how.
   API responses, including ARIA snapshots.
 - Network: requests, responses and WebSockets with their events; `route` and
   `route_matching` with `fulfill`, `continue`, `fallback`, `abort` and `fetch`;
-  `route_from_har` and HAR recording; `route_web_socket`; client certificates, HTTP
+  `route_web_socket`; client certificates, HTTP
   credentials, proxies.
 - `APIRequestContext` for HTTP requests without a page, on a context or alone
   (`APIRequest.new_context`).

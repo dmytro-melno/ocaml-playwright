@@ -7,14 +7,12 @@ let compare (a : t) (b : t) = Channel.compare a.t_channel b.t_channel
 let hash (t : t) = Channel.hash t.t_channel
 
 let create session (channel : Protocol.Tracing.t) : t =
-    { t_channel = channel; t_session = session; include_sources = false; is_live = false; traces_dir = None; stacks_id = None; har_id = None;
-      har_recorders = Hashtbl.create 1 }
+    { t_channel = channel; t_session = session; include_sources = false; is_live = false; traces_dir = None; stacks_id = None }
 
 (* Where the traces of the browser that the context belongs to are kept. *)
 let set_traces_dir (t : t) traces_dir = t.traces_dir <- traces_dir
 
 let local_utils (t : t) = Local_utils.of_session t.t_session
-let is_zip path = Filename.check_suffix (String.lowercase_ascii path) ".zip"
 
 let start_collecting_stacks (t : t) trace_name =
     t.stacks_id <- Some (Protocol.Local_utils.tracing_started ?traces_dir:t.traces_dir ~trace_name ~live:t.is_live (local_utils t))
@@ -60,44 +58,3 @@ let stop ?path (t : t) =
     let stop () = Protocol.Tracing.tracing_stop t.t_channel in
     Connection.guard (Channel.conn t.t_channel) "stopping tracing" ~undo:stop (fun () -> stop_chunk ?path t);
     stop ()
-
-(* {1 HAR recording} *)
-
-let record_into_har ?page ?url_glob ?resources_dir ?(content = `Attach) ?(mode = `Minimal) (t : t) path =
-    let path = Files.absolute path in
-    let resources_dir = Option.map Files.absolute resources_dir in
-    let options : Protocol.Record_har_options.t =
-        { content = Some content; mode = Some mode; url_glob; url_regex_source = None; url_regex_flags = None;
-          har_path = (if is_zip path then None else Some path); resources_dir }
-    in
-    let har_id = Protocol.Tracing.har_start ?page:(Option.map (fun (page : page) -> page.p_channel) page) ~options t.t_channel in
-    Hashtbl.replace t.har_recorders har_id (path, resources_dir);
-    har_id
-
-let export_har (t : t) har_id =
-    match Hashtbl.find_opt t.har_recorders har_id with
-    | None -> ()
-    | Some (path, _) ->
-        Hashtbl.remove t.har_recorders har_id;
-        (* The driver has written an uncompressed HAR to its final place already. *)
-        let result = Protocol.Tracing.har_export ~har_id ~mode:`Entries t.t_channel in
-        if is_zip path then begin
-            Files.make_parent path;
-            Protocol.Local_utils.zip ~zip_file:path ~entries:(Option.value result.entries ~default:[]) ~mode:`Write ~include_sources:false
-                (local_utils t)
-        end
-
-let export_all_hars (t : t) = List.iter (export_har t) (List.of_seq (Hashtbl.to_seq_keys t.har_recorders))
-
-let start_har ?content ?mode ?url_glob ?resources_dir path (t : t) =
-    if t.har_id <> None then Error.raise_ "HAR recording has already been started";
-    if resources_dir <> None && is_zip path then invalid_arg "Playwright: ~resources_dir does not go with a HAR file that is a .zip archive";
-    let content = match content with Some content -> content | None -> if is_zip path then `Attach else `Embed in
-    t.har_id <- Some (record_into_har ?url_glob ?resources_dir ~content ~mode:(Option.value mode ~default:`Full) t path)
-
-let stop_har (t : t) =
-    match t.har_id with
-    | None -> Error.raise_ "HAR recording has not been started"
-    | Some har_id ->
-        t.har_id <- None;
-        export_har t har_id

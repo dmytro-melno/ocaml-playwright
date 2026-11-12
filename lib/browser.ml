@@ -88,8 +88,6 @@ let new_context_with (o : Context_options.t) (browser : t) =
         |> Types.browser_context
     in
     setup_context browser context;
-    Connection.guard session.conn "closing a browser context" ~undo:(fun () -> Browser_context.close context) (fun () ->
-        Browser_context.start_har_recording o context);
     context
 
 let new_context ?proxy = Context_options.collect (fun options browser -> new_context_with { options with proxy } browser)

@@ -9,7 +9,7 @@ reaches the public interface is a matter of that module. `dune runtest` fails wh
 is not what the generator would write, so that an update of the protocol shows here what it
 added. See [protocol.md](protocol.md).
 
-The client sends 228 of the 283 commands of the 27 interfaces that it knows.
+The client sends 222 of the 283 commands of the 27 interfaces that it knows.
 
 ## Interfaces
 
@@ -26,9 +26,9 @@ The client sends 228 of the 283 commands of the 27 interfaces that it knows.
 | `Frame` | 52 | 2 | 2, handled |
 | `JSHandle` | 6 | 0 | 1, handled |
 | `ElementHandle` (extends `JSHandle`) | 36 | 0 | none |
-| `LocalUtils` | 11 | 5 | none |
+| `LocalUtils` | 11 | 8 | none |
 | `Request` | 2 | 0 | none |
-| `Route` | 4 | 0 | none |
+| `Route` | 4 | 1 | none |
 | `WebSocketRoute` | 6 | 0 | 4, handled |
 | `Response` | 6 | 0 | none |
 | `WebSocket` | 0 | 0 | 5, handled |
@@ -40,7 +40,7 @@ The client sends 228 of the 283 commands of the 27 interfaces that it knows.
 | `BindingCall` | 2 | 0 | none |
 | `Debugger` | 5 | 5 | 2, **not listened to** |
 | `Dialog` | 2 | 0 | none |
-| `Tracing` | 8 | 0 | none |
+| `Tracing` | 8 | 2 | none |
 | `Worker` | 4 | 1 | 2, handled |
 
 Where the events of an interface are handled, the function that does it matches on all of
@@ -56,10 +56,12 @@ reads `| Event _ -> ()` there.
 - `BrowserContext`: `setHTTPCredentials`, `showRecorder`, `startRecording`, `stopRecording`, `exposeConsoleApi`, `createTempFiles`, `credentialsInstall`, `credentialsCreate`, `credentialsGet`, `credentialsDelete`
 - `BrowserType`: `connectToWorker`
 - `Frame`: `webmcpTools`, `webmcpCallTool`
-- `LocalUtils`: `harUnzip`, `connect`, `addStackToTracingNoReply`, `globToRegex`, `asLocatorDescription`
+- `LocalUtils`: `harOpen`, `harLookup`, `harClose`, `harUnzip`, `connect`, `addStackToTracingNoReply`, `globToRegex`, `asLocatorDescription`
+- `Route`: `redirectNavigationRequest`
 - `Page`: `expectScreenshot`, `startJSCoverage`, `stopJSCoverage`, `startCSSCoverage`, `stopCSSCoverage`, `screencastShowOverlay`, `screencastRemoveOverlay`, `screencastChapter`, `screencastSetOverlayVisible`, `screencastShowActions`, `screencastHideActions`, `screencastStart`, `screencastFrameAck`, `screencastStop`, `setDockTile`
 - `JsonPipe`: `send`, `close`
 - `Debugger`: `requestPause`, `resume`, `next`, `runTo`, `enable`
+- `Tracing`: `harStart`, `harExport`
 - `Worker`: `disconnect`
 
 ## Events of interfaces that the client does not listen to

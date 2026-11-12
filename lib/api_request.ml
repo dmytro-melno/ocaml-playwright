@@ -82,9 +82,7 @@ module Context = struct
     (* Disposing is idempotent, and a context that is already gone counts as disposed of. *)
     let dispose ?reason (t : t) =
         if Closing.is_open t.a_close_state then t.a_close_reason <- reason;
-        Closing.close t.a_session.conn t.a_close_state (fun () ->
-            (try Tracing.export_all_hars t.a_tracing with Error.E { kind = Target_closed; _ } -> ());
-            Protocol.Api_request_context.dispose ?reason t.a_channel)
+        Closing.close t.a_session.conn t.a_close_state (fun () -> Protocol.Api_request_context.dispose ?reason t.a_channel)
 end
 
 module Response = struct

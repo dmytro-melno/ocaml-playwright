@@ -389,8 +389,6 @@ and tracing = {
     mutable is_live : bool;
     mutable traces_dir : string option;
     mutable stacks_id : string option;
-    mutable har_id : string option;
-    har_recorders : (string, string * string option) Hashtbl.t;  (* recording id to output path and directory for resources *)
 }
 
 and api_request_context = {

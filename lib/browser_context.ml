@@ -127,15 +127,6 @@ let add_route ?times matcher handler (context : t) =
 let route ?times glob handler context = add_route ?times (Glob glob) handler context
 let route_matching ?times predicate handler context = add_route ?times (Predicate predicate) handler context
 
-(* Answers requests from the HAR file [har], or with [update] records one there instead. *)
-let route_from_har ?url ?not_found ?(update = false) ?update_content ?update_mode har (context : t) =
-    if update then ignore (Tracing.record_into_har ?url_glob:url ?content:update_content ?mode:update_mode context.tracing har : string)
-    else begin
-        let handler, close = Route.Har.open_ context.c_session ?not_found har in
-        ignore (Emitter.once context.ce_close (fun _ -> close ()) : unit -> unit);
-        ignore (add_route (Glob (Option.value url ~default:"**/*")) handler context : Disposable.t)
-    end
-
 let unroute glob context = remove_routes (fun (handler : route_handler) -> Route.Handler.matcher_equal handler.rh_matcher (Glob glob)) context
 let unroute_all ?behavior context = remove_routes ?behavior (fun _ -> true) context
 
@@ -269,16 +260,6 @@ let create session (channel : Protocol.Browser_context.t) : t =
     Channel.on_lost channel (fun _ -> did_close context);
     context
 
-(* Starts the HAR recording that a context was created with, if any. *)
-let start_har_recording (options : Context_options.t) (context : t) =
-    Option.iter
-        (fun (har : Context_options.har) ->
-            let content = match har.har_content with Some content -> content | None -> if Tracing.is_zip har.har_path then `Attach else `Embed in
-            ignore
-                (Tracing.record_into_har ?url_glob:har.har_url_filter ~content ~mode:(Option.value har.har_mode ~default:`Full) context.tracing
-                     har.har_path))
-        options.record_har
-
 (* {1 Events for the user} *)
 
 let on event listener (context : t) = Disposable.listener (Emitter.on (emitter context event) listener)
@@ -369,24 +350,13 @@ let new_cdp_session_for_page (page : page) (context : t) =
 let new_cdp_session_for_frame (frame : frame) (context : t) =
     Protocol.Browser_context.new_cdp_session ~frame:frame.f_channel context.c_channel |> Types.cdp_session
 
-(* Closing is idempotent, and a context whose browser is already gone counts as closed.  What
-   is being recorded is saved first.  If that fails, the context is closed all the same and the
-   failure is raised afterwards. *)
+(* Closing is idempotent, and a context whose browser is already gone counts as closed. *)
 let close ?reason (context : t) =
     if Closing.is_open context.close_state then context.c_close_reason <- reason;
     Closing.close context.c_session.conn context.close_state (fun () ->
-        let recording_failure =
-            try
-                Api_request.Context.dispose ?reason context.request;
-                Tracing.export_all_hars context.tracing;
-                None
-            with
-            | Error.E { kind = Target_closed; _ } -> None
-            | ex when not (Connection.is_cancellation ex) -> Some (ex, Printexc.get_raw_backtrace ())
-        in
+        Api_request.Context.dispose ?reason context.request;
         Protocol.Browser_context.close ?reason context.c_channel;
-        Promise.await context.c_closed;
-        Option.iter (fun (ex, backtrace) -> Printexc.raise_with_backtrace ex backtrace) recording_failure)
+        Promise.await context.c_closed)
 
 (* {1 Clock} *)
 

@@ -90,7 +90,6 @@ in reviews. `dune runtest` fails if either file is not what the generator would 
      | `packages/isomorphic/urlMatch.ts` | `lib/glob.ml`, `lib/url_match.ml`; `test/driver` compares the two |
      | `packages/isomorphic/locatorUtils.ts` | `lib/selector.ml` |
      | `packages/protocol/src/serializers.ts`, `client/jsHandle.ts` | `lib/js.ml` |
-     | `client/harRouter.ts` | `Route.Har` in `lib/route.ml` |
      | `client/waiter.ts`, `client/timeoutSettings.ts` | `lib/waiter.ml`, `lib/timeouts.ml` (the behaviour, not the code) |
 
    - **The public interface.** The release notes say what is new in prose; the declarations

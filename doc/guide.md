@@ -751,23 +751,6 @@ that does not start with `*` is resolved against the `~base_url` of the context,
 `"/api/items"` works there. A pattern whose braces are nested or not closed is rejected with
 `Invalid_argument` when the route is registered.
 
-### Recording and replaying
-
-A context can record its traffic into a [HAR file](https://playwright.dev/docs/mock#mocking-with-har-files),
-and requests can be answered from such a file later, which makes tests independent of a
-backend:
-
-```ocaml
-(* Record: the file is written when the context is closed. *)
-let recording = Browser.new_context ~record_har_path:"shop.har" ~record_har_url_filter:"**/api/**" browser in
-ignore (Page.goto "https://shop.example/" (BrowserContext.new_page recording));
-BrowserContext.close recording;
-
-(* Replay. *)
-let context = Browser.new_context browser in
-BrowserContext.route_from_har ~not_found:`Fallback "shop.har" context
-```
-
 ### WebSockets
 
 `Page.Web_socket` announces the WebSockets that a page opens, and the events of `WebSocket`

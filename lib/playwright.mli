@@ -292,10 +292,6 @@ type 'a with_context_options =
     ?base_url:string ->
     ?record_video_dir:string ->
     ?record_video_size:int * int ->
-    ?record_har_path:string ->
-    ?record_har_content:[ `Attach | `Embed | `Omit ] ->
-    ?record_har_mode:[ `Full | `Minimal ] ->
-    ?record_har_url_filter:string ->
     ?strict_selectors:bool ->
     ?service_workers:[ `Allow | `Block ] ->
     ?storage_state:Yojson.Safe.t ->
@@ -307,8 +303,7 @@ type 'a with_context_options =
     - [device] emulates a device, see {!val-device}; the options given explicitly take precedence over it.
     - [viewport] is [(width, height)], 1280×720 by default; [no_viewport] makes the page follow the window size.
     - [base_url] is what relative URLs given to {!Page.goto}, {!Page.route} and the like are resolved against.
-    - [record_video_dir] turns video recording on, see {!Video}; [record_har_path] records network activity into a
-      HAR file, which is written when the context is closed.
+    - [record_video_dir] turns video recording on, see {!Video}.
     - [storage_state] restores cookies and local storage saved with {!BrowserContext.storage_state};
       [storage_state_path] reads it from a file.
     - [client_certificates] are what the context has to show to the servers of their origins that ask for a
@@ -341,7 +336,7 @@ type 'a with_launch_options =
     - [executable_path] runs a browser that Playwright did not install; [channel] selects a branded one such as
       ["chrome"] or ["msedge"].
     - [timeout] is the time the browser has to start, 180 seconds by default.
-    - [artifacts_dir] is where traces, videos, downloads and HAR files are kept while the browser runs. Unlike the
+    - [artifacts_dir] is where traces, videos and downloads are kept while the browser runs. Unlike the
       temporary directory that is used by default, it is not removed when the browser is closed.
     - [slow_mo] delays every operation by that many milliseconds. *)
 
@@ -807,7 +802,7 @@ and BrowserContext : sig
     (** [None] for a persistent context. *)
 
     val close : ?reason:string -> t -> unit
-    (** Closes the context and its pages. This is also when recorded videos and HAR files are written. Does nothing if
+    (** Closes the context and its pages. This is also when recorded videos are written. Does nothing if
         the context is closed already. {!Browser.close} tells what happens on cancellation and when fibers close the
         same context concurrently. *)
 
@@ -894,28 +889,11 @@ and BrowserContext : sig
         handler, whatever it was registered for. *)
 
     val unroute_all : ?behavior:[ `Default | `Wait | `Ignore_errors ] -> t -> unit
-    (** Removes all handlers, those of {!route_from_har} included. [behavior] says what becomes of the handlers
+    (** Removes all handlers. [behavior] says what becomes of the handlers
         that are at work at that moment: by default they finish like any other; with [`Wait] the function returns
         once they have finished, so it must not be called from a route handler; and with [`Ignore_errors] what
         they raise from now on is dropped, their requests going on to the network. *)
 
-    val route_from_har :
-        ?url:string ->
-        ?not_found:[ `Abort | `Fallback ] ->
-        ?update:bool ->
-        ?update_content:[ `Attach | `Embed | `Omit ] ->
-        ?update_mode:[ `Full | `Minimal ] ->
-        string ->
-        t ->
-        unit
-    (** [route_from_har file] answers the requests of the context from the HAR file, which is one recorded with the
-        [record_har_path] option of a context or with [~update:true]; see
-        {{:https://playwright.dev/docs/mock#mocking-with-har-files} Mocking with HAR files}. [url] restricts this to
-        the requests matching a glob pattern. A request that the file has no answer for is aborted, or with
-        [~not_found:`Fallback] goes to the other handlers and to the network.
-
-        With [~update:true] nothing is intercepted: instead the traffic is recorded, and written to the file when
-        the context is closed. *)
 
     val route_web_socket : string -> (WebSocketRoute.t -> unit) -> t -> Disposable.t
     (** Intercepts the WebSocket connections that pages open to matching URLs, see {!WebSocketRoute}. *)
@@ -1134,17 +1112,6 @@ and Page : sig
     val route_matching : ?times:int -> (string -> bool) -> (Route.t -> unit) -> t -> Disposable.t
     val unroute : string -> t -> unit
     val unroute_all : ?behavior:[ `Default | `Wait | `Ignore_errors ] -> t -> unit
-
-    val route_from_har :
-        ?url:string ->
-        ?not_found:[ `Abort | `Fallback ] ->
-        ?update:bool ->
-        ?update_content:[ `Attach | `Embed | `Omit ] ->
-        ?update_mode:[ `Full | `Minimal ] ->
-        string ->
-        t ->
-        unit
-    (** Answers the requests of this page from a HAR file, see {!BrowserContext.route_from_har}. *)
 
     val route_web_socket : string -> (WebSocketRoute.t -> unit) -> t -> Disposable.t
     val route_web_socket_matching : (string -> bool) -> (WebSocketRoute.t -> unit) -> t -> Disposable.t
@@ -1998,19 +1965,6 @@ and Tracing : sig
         has, so that [~location:__POS__] stands for the place of the call itself. *)
 
     val group_end : t -> unit
-
-    val start_har :
-        ?content:[ `Attach | `Embed | `Omit ] -> ?mode:[ `Full | `Minimal ] -> ?url_glob:string -> ?resources_dir:string -> string -> t -> unit
-    (** [start_har path] starts recording network activity into a HAR file, which {!stop_har} writes.
-
-        - [content] tells where the bodies of the responses go: into the file itself with [`Embed], into files of
-          their own with [`Attach], nowhere with [`Omit]. The default is [`Attach] for a [path] ending in [.zip],
-          which then is an archive of the HAR file and those files, and [`Embed] otherwise.
-        - [resources_dir] is the directory for the files of [`Attach], by default the one of the HAR file.
-        - [mode] [`Minimal] records only what replaying needs, see {!BrowserContext.route_from_har}.
-        - [url_glob] restricts the recording to the requests whose URL matches. *)
-
-    val stop_har : t -> unit
 
     include Identity with type t := t
 end

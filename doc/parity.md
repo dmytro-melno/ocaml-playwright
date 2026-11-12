@@ -89,9 +89,9 @@ of the module `Playwright`, built with `dune build @doc`.
   exception goes to `~on_error`. Playwright for Node.js leaves such a request pending.
 - A listener that was removed is not called any more, not even for events that had arrived
   before it was removed.
-- `Tracing.start`, `Tracing.group`, `Tracing.start_har` and `Page.add_locator_handler` return
+- `Tracing.start`, `Tracing.group` and `Page.add_locator_handler` return
   `unit` where Playwright returns a disposable; they have their counterparts `stop`,
-  `group_end`, `stop_har` and `remove_locator_handler`. `route_web_socket` returns a
+  `group_end` and `remove_locator_handler`. `route_web_socket` returns a
   disposable where Playwright returns nothing.
 
 **Waiting for events**
@@ -148,6 +148,7 @@ of the module `Playwright`, built with `dune build @doc`.
 | `context.debugger`, `page.webmcp` | Not covered. |
 | `browser.startTracing`, `browser.stopTracing` | Not covered. This is Chromium's own tracing; Playwright's traces are covered by `Tracing`. |
 | `download.createReadStream()` | Not there. Use `Download.path` or `Download.save_as`. |
+| `routeFromHAR()`, the `recordHar` options, `tracing.startHar()` | Not covered: recording and replaying HAR files. `Page.route` with `Route.fulfill` mocks; traces record the network. |
 | `browserType.connect()`, `browserType.launchServer()`, `BrowserServer`, `browser.bind()` | Not covered: browsers behind a Playwright server. `BrowserType.connect_over_cdp` reaches a remote Chromium. |
 | `connectOverCDP` with a transport object | Not covered. `BrowserType.connect_over_cdp` takes an endpoint. |
 | `context.backgroundPages()`, the event `backgroundpage` | Not there: deprecated in Playwright. |

@@ -268,78 +268,6 @@ let test_tracing t page =
     Alcotest.(check bool) "archives" true (is_zip first && is_zip second);
     Alcotest.(check bool) "the first part holds the page and its screenshots" true ((Unix.stat first).st_size > 2000)
 
-let test_har_recording t () =
-    Server.page t.server "/blank" "<title>Blank</title>";
-    let har = scratch_file t "network.har" in
-    let context = Browser.new_context ~record_har_path:har ~record_har_url_filter:"**/blank" t.browser in
-    let page = BrowserContext.new_page context in
-    ignore (Page.goto (Server.url t.server "/blank") page);
-    ignore (Page.evaluate "fetch('/filtered-out').catch(() => {})" page);
-    BrowserContext.close context;
-    let entries = Yojson.Safe.from_string (read_file har) |> Yojson.Safe.Util.member "log" |> Yojson.Safe.Util.member "entries" |> Yojson.Safe.Util.to_list in
-    Alcotest.(check (list string)) "recorded requests" [ Server.url t.server "/blank" ]
-        (List.map (fun entry -> Yojson.Safe.Util.(member "request" entry |> member "url" |> to_string)) entries);
-    (* Recording that is started later, with the bodies of the responses in files of their own. *)
-    let har = scratch_file t "later.har" and bodies = scratch_file t "bodies" in
-    let context = Browser.new_context t.browser in
-    let tracing = BrowserContext.tracing context in
-    Tracing.start_har ~content:`Attach ~resources_dir:bodies har tracing;
-    check_failure "one recording at a time" ~message:"already been started" (fun () -> Tracing.start_har har tracing);
-    ignore (Page.goto (Server.url t.server "/blank") (BrowserContext.new_page context));
-    Tracing.stop_har tracing;
-    let content = Yojson.Safe.from_string (read_file har) |> Yojson.Safe.Util.(fun log -> member "log" log |> member "entries" |> index 0 |> member "response" |> member "content") in
-    let file = Yojson.Safe.Util.(member "_file" content |> to_string) in
-    Alcotest.(check string) "the body is in the directory for it" "<title>Blank</title>" (read_file (Filename.concat (Filename.dirname har) file));
-    Alcotest.(check bool) "which is that directory" true (Sys.file_exists (Filename.concat bodies (Filename.basename file)));
-    Alcotest.check_raises "an archive holds its resources itself" (Invalid_argument "Playwright: ~resources_dir does not go with a HAR file that is a .zip archive")
-        (fun () -> Tracing.start_har ~resources_dir:bodies (scratch_file t "network.zip") tracing);
-    BrowserContext.close context
-
-(* A page is recorded into a HAR file, and then served from that file alone. *)
-let test_har_replay t () =
-    let visits = ref 0 in
-    Server.route t.server "/recorded" (fun _ ->
-        incr visits;
-        Server.html ~headers:[ "set-cookie", "a=1"; "set-cookie", "b=2" ] (Printf.sprintf "<title>Visit %d</title><script src='/recorded.js'></script>" !visits));
-    Server.route t.server "/recorded.js" (fun _ -> Server.respond ~content_type:"text/javascript" "window.fromScript = 'original'");
-    Server.page t.server "/live" "<title>Live</title>";
-    let har = scratch_file t "replay.har" in
-    let recording = Browser.new_context t.browser in
-    BrowserContext.route_from_har ~update:true ~url:"**/recorded*" har recording;
-    let page = BrowserContext.new_page recording in
-    ignore (Page.goto (Server.url t.server "/recorded") page);
-    ignore (Page.goto (Server.url t.server "/live") page);
-    BrowserContext.close recording;
-    Alcotest.(check bool) "written when the context closes" true (Sys.file_exists har);
-    let visits_recorded = !visits in
-    (* For the whole context: what is not in the file is aborted. *)
-    let context = Browser.new_context t.browser in
-    BrowserContext.route_from_har har context;
-    let page = BrowserContext.new_page context in
-    ignore (Page.goto (Server.url t.server "/recorded") page);
-    Alcotest.(check string) "the page comes from the file" "Visit 1" (Page.title page);
-    Alcotest.(check string) "and so do its resources" "original" (eval_string "window.fromScript" page);
-    Alcotest.(check int) "the server was not asked" visits_recorded !visits;
-    Alcotest.(check (list string)) "every Set-Cookie header was replayed" [ "a"; "b" ]
-        (BrowserContext.cookies context |> List.map (fun (c : Cookie.t) -> c.name) |> List.sort compare);
-    check_failure "anything else is aborted" (fun () -> Page.goto (Server.url t.server "/live") page);
-    BrowserContext.close context;
-    (* For one page, with the network as the fallback. *)
-    let context = Browser.new_context t.browser in
-    let page = BrowserContext.new_page context in
-    Page.route_from_har ~not_found:`Fallback har page;
-    ignore (Page.goto (Server.url t.server "/recorded") page);
-    Alcotest.(check string) "from the file" "Visit 1" (Page.title page);
-    ignore (Page.goto (Server.url t.server "/live") page);
-    Alcotest.(check string) "from the network" "Live" (Page.title page);
-    let other = BrowserContext.new_page context in
-    ignore (Page.goto (Server.url t.server "/recorded") other);
-    Alcotest.(check string) "other pages are not affected" (Printf.sprintf "Visit %d" (visits_recorded + 1)) (Page.title other);
-    BrowserContext.close context;
-    let context = Browser.new_context t.browser in
-    check_failure "a file that does not exist" (fun () -> BrowserContext.route_from_har (scratch_file t "missing.har") context);
-    BrowserContext.close context
-
 let test_video t () =
     let dir = scratch_file t "videos" in
     let context = Browser.new_context ~record_video_dir:dir ~record_video_size:(320, 240) t.browser in
@@ -370,5 +298,4 @@ let tests t =
         case t "functions, events and timeouts" (test_context_scripting t);
         case t "events of its pages" (test_page_events_of_context t);
         case t "browser" (test_browser t) ];
-      "recording", [ page_case t "tracing" (test_tracing t); case t "HAR" (test_har_recording t); case t "HAR replay" (test_har_replay t);
-        case t "video" (test_video t) ] ]
+      "recording", [ page_case t "tracing" (test_tracing t); case t "video" (test_video t) ] ]

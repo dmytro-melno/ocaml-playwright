@@ -40,13 +40,6 @@ module Proxy = struct
     let make ?bypass ?username ?password server = { server; bypass; username; password }
 end
 
-type har = {
-    har_path : string;
-    har_content : [ `Attach | `Embed | `Omit ] option;
-    har_mode : [ `Full | `Minimal ] option;
-    har_url_filter : string option;
-}
-
 type t = {
     no_default_viewport : bool option;
     viewport : Protocol.Context_options_viewport.t option;
@@ -77,7 +70,6 @@ type t = {
     service_workers : [ `Allow | `Block ] option;
     proxy : Proxy.t option;
     storage_state : Yojson.Safe.t option;
-    record_har : har option;
 }
 
 let size (width, height) : size = { width; height }
@@ -90,8 +82,7 @@ let collect k ?(device : device option) ?viewport ?(no_viewport = false) ?screen
     ?(color_scheme : [ `Dark | `Light | `No_override | `No_preference ] option)
     ?(reduced_motion : [ `No_override | `No_preference | `Reduce ] option) ?(forced_colors : [ `Active | `No_override | `None ] option)
     ?(contrast : [ `More | `No_override | `No_preference ] option) ?accept_downloads ?base_url ?record_video_dir ?record_video_size
-    ?record_har_path ?(record_har_content : [ `Attach | `Embed | `Omit ] option) ?(record_har_mode : [ `Full | `Minimal ] option)
-    ?record_har_url_filter ?strict_selectors ?(service_workers : [ `Allow | `Block ] option) ?(storage_state : Yojson.Safe.t option)
+    ?strict_selectors ?(service_workers : [ `Allow | `Block ] option) ?(storage_state : Yojson.Safe.t option)
     ?storage_state_path target =
     let or_device explicit from_device = match explicit with Some _ -> explicit | None -> Option.map from_device device in
     let viewport = or_device (Option.map size viewport) (fun device -> device.device_viewport) in
@@ -131,8 +122,6 @@ let collect k ?(device : device option) ?viewport ?(no_viewport = false) ?screen
           has_touch = or_device has_touch (fun device -> device.device_has_touch);
           color_scheme; reduced_motion; forced_colors; contrast;
           accept_downloads = Option.map (fun accept -> if accept then `Accept else `Deny) accept_downloads;
-          base_url; record_video; strict_selectors; service_workers; proxy = None; storage_state;
-          record_har =
-              Option.map (fun har_path -> { har_path; har_content = record_har_content; har_mode = record_har_mode; har_url_filter = record_har_url_filter }) record_har_path }
+          base_url; record_video; strict_selectors; service_workers; proxy = None; storage_state }
     in
     k options target

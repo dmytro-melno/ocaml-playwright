@@ -219,12 +219,12 @@ The supporting modules:
 | `Selector` | Builds the selectors behind `get_by_role` and the other locator functions. |
 | `Url` | The URL Standard's parser: what `new URL(reference, base)` gives. Predicts the address that a page reports, for `Expect.to_have_url` and for globs. |
 | `Glob`, `Url_regex`, `Url_match` | URL globs, ported from Playwright's `urlMatch.ts`: `Glob` resolves a glob against the base URL and turns it into the regular expression that Playwright makes of it; `Url_regex` runs the subset of regular expressions that this produces; `Url_match` is the choice between a glob and a predicate. `test/driver` compares the result with the driver's. |
-| `Local_utils` | The utilities of the local driver (archives, HAR files, traces). |
+| `Local_utils` | The utilities of the driver (archives of traces). |
 | `Files` | Reading and writing local files: scripts, bodies, screenshots, uploads, downloads. All of it happens in system threads (`Files.blocking`), so that a large file or a slow disk does not hold up the other fibers. |
 | `Fibers` | `first` for operations that can fail; `in_systhread` for blocking work that must end when its fiber is cancelled; `is_cancellation`. |
 | `Serial` | Numbers that tell the objects of the process apart: see *Identity*. |
 | `Context_options`, `Screenshot`, `Cookie` | Conversion of options into protocol records. |
-| `Route` | Routing of requests and WebSockets, HAR replay: see *Route handlers*. |
+| `Route` | Routing of requests and WebSockets: see *Route handlers*. |
 | `Expect` | Assertions, on top of the `expect` command of frames. |
 
 ### The facade: `playwright.ml`, `playwright.mli`

@@ -403,14 +403,6 @@ let add_route ?times matcher handler (page : t) =
 let route ?times glob handler page = add_route ?times (Glob glob) handler page
 let route_matching ?times predicate handler page = add_route ?times (Predicate predicate) handler page
 
-let route_from_har ?url ?not_found ?(update = false) ?update_content ?update_mode har (page : t) =
-    if update then ignore (Tracing.record_into_har ~page ?url_glob:url ?content:update_content ?mode:update_mode page.context.tracing har : string)
-    else begin
-        let handler, close = Route.Har.open_ (session page) ?not_found har in
-        ignore (Emitter.once page.pe_close (fun _ -> close ()) : unit -> unit);
-        ignore (add_route (Glob (Option.value url ~default:"**/*")) handler page : Disposable.t)
-    end
-
 let unroute glob page = remove_routes (fun (handler : route_handler) -> Route.Handler.matcher_equal handler.rh_matcher (Glob glob)) page
 let unroute_all ?behavior page = remove_routes ?behavior (fun _ -> true) page
 
