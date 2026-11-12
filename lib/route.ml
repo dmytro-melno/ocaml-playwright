@@ -57,7 +57,26 @@ let fallback ?url ?method_ ?headers ?post_data (route : t) =
     override route ?url ?method_ ?headers ?post_data ();
     report route false
 
+(* The protocol has a string here, and the driver refuses the ones that it does not know only when the handler has
+   run, where the caller does not look: the request is then left waiting.  These are the ones that it knows. *)
+let error_code_name = function
+    | `Aborted -> "aborted"
+    | `Accessdenied -> "accessdenied"
+    | `Addressunreachable -> "addressunreachable"
+    | `Blockedbyclient -> "blockedbyclient"
+    | `Blockedbyresponse -> "blockedbyresponse"
+    | `Connectionaborted -> "connectionaborted"
+    | `Connectionclosed -> "connectionclosed"
+    | `Connectionfailed -> "connectionfailed"
+    | `Connectionrefused -> "connectionrefused"
+    | `Connectionreset -> "connectionreset"
+    | `Internetdisconnected -> "internetdisconnected"
+    | `Namenotresolved -> "namenotresolved"
+    | `Timedout -> "timedout"
+    | `Failed -> "failed"
+
 let abort ?error_code (route : t) =
+    let error_code = Option.map error_code_name error_code in
     handle route (fun () -> unless_target_gone route (fun () -> Protocol.Route.abort ?error_code route.rt_channel))
 
 let fulfill ?status ?headers ?content_type ?body ?json ?(response : api_response option) (route : t) =

@@ -49,9 +49,20 @@ let test_abort_and_continue t page =
     Alcotest.check js "aborted" (Js.Bool true) (fetch "/logo.png" page |> field "failed");
     let failed = Page.expect_event page Page.Request_failed (fun () -> ignore (fetch "/other.png" page)) in
     Alcotest.(check (option string)) "failure text" (Some "net::ERR_FAILED") (Request.failure failed);
-    Page.route page "**/denied" (Route.abort ~error_code:"accessdenied") |> ignore;
-    let failed = Page.expect_event page Page.Request_failed (fun () -> ignore (fetch "/denied" page)) in
-    Alcotest.(check (option string)) "error code" (Some "net::ERR_ACCESS_DENIED") (Request.failure failed);
+    (* The driver knows every code that the interface offers: it would refuse another one in the handler, and leave
+       the request waiting. *)
+    List.iter
+        (fun (error_code, text) ->
+            let aborting = Page.route page "**/denied" (Route.abort ~error_code) in
+            let failed = Page.expect_event page Page.Request_failed (fun () -> ignore (fetch "/denied" page)) in
+            let failure = Option.value (Request.failure failed) ~default:"no failure" in
+            Alcotest.(check bool) (Printf.sprintf "net::ERR_%s is how the request fails: %s" text failure) true
+                (String.starts_with ~prefix:("net::ERR_" ^ text) failure);
+            Disposable.dispose aborting)
+        [ `Aborted, "ABORTED"; `Accessdenied, "ACCESS_DENIED"; `Addressunreachable, "ADDRESS_UNREACHABLE"; `Blockedbyclient, "BLOCKED_BY_CLIENT";
+          `Blockedbyresponse, "BLOCKED_BY_RESPONSE"; `Connectionaborted, "CONNECTION_ABORTED"; `Connectionclosed, "CONNECTION_CLOSED";
+          `Connectionfailed, "CONNECTION_FAILED"; `Connectionrefused, "CONNECTION_REFUSED"; `Connectionreset, "CONNECTION_RESET";
+          `Internetdisconnected, "INTERNET_DISCONNECTED"; `Namenotresolved, "NAME_NOT_RESOLVED"; `Timedout, "TIMED_OUT"; `Failed, "FAILED" ];
     Page.route page "**/echo?*"
         (fun route ->
             let request = Route.request route in

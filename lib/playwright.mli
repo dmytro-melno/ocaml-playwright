@@ -1611,9 +1611,15 @@ and Route : sig
     (** Passes the request, optionally modified, on to the handler that was registered before this one; it is sent
         to the network if there is none. *)
 
-    val abort : ?error_code:string -> t -> unit
-    (** Fails the request, with an error such as ["failed"] (the default), ["aborted"], ["blockedbyclient"],
-        ["connectionrefused"] or ["timedout"]. *)
+    val abort :
+        ?error_code:
+            [ `Aborted | `Accessdenied | `Addressunreachable | `Blockedbyclient | `Blockedbyresponse | `Connectionaborted
+            | `Connectionclosed | `Connectionfailed | `Connectionrefused | `Connectionreset | `Internetdisconnected
+            | `Namenotresolved | `Timedout | `Failed ] ->
+        t -> unit
+    (** Fails the request. The error codes are those of
+        {{:https://playwright.dev/docs/api/class-route#route-abort} [route.abort]}, [`Failed] by default; the page
+        sees [`Accessdenied] as [net::ERR_ACCESS_DENIED] in Chromium. *)
 
     val fetch :
         ?timeout:float -> ?url:string -> ?method_:string -> ?headers:(string * string) list -> ?post_data:string -> ?max_redirects:int ->

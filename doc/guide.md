@@ -726,7 +726,8 @@ Page.route page "**/api/items"
 A handler must settle its route in one of four ways: `Route.fulfill` answers the request,
 `Route.abort` fails it, `Route.continue` sends it to the network, and `Route.fallback` hands
 it to the next handler that matches, which allows handlers to be layered. Handlers that were
-registered later come first, and those of a page come before those of its context.
+registered later come first, and those of a page come before those of its context. The way a
+request fails can be chosen, as in ``Route.abort ~error_code:`Connectionrefused``.
 
 A handler that raises before it has settled its route fails the request, as `Route.abort`
 does, and the exception is given to `~on_error`: what a handler was there to block does not
