@@ -323,7 +323,7 @@ let expose_function context name f = expose_binding context name (fun _ args -> 
 
 let set_storage_state (context : t) (state : Yojson.Safe.t) =
     Protocol.Browser_context.set_storage_state
-        ~storage_state:(Protocol.Browser_context.Set_storage_state_storage_state.of_json context.c_session.conn state)
+        ~storage_state:(Json.Decode.argument "storage state" (Protocol.Browser_context.Set_storage_state_storage_state.of_json context.c_session.conn) state)
         context.c_channel
 
 let storage_state ?indexed_db ?opfs ?credentials (context : t) : Yojson.Safe.t =

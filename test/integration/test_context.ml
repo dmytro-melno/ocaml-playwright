@@ -59,6 +59,16 @@ let test_storage_state t page =
              let context = Browser.new_context browser in
              BrowserContext.set_storage_state context state;
              context));
+    (* A state that does not have the shape of one is a mistake of the program, and is reported as that. *)
+    let malformed = `Assoc [ "cookies", `String "not a list" ] in
+    let refused what f =
+        match f () with
+        | exception Invalid_argument message -> check_contains what ~sub:"malformed storage state: cookies: expected an array, got a string" message
+        | () -> Alcotest.failf "%s: a malformed state was accepted" what
+    in
+    refused "for a new context" (fun () -> BrowserContext.close (Browser.new_context t.browser ~storage_state:malformed));
+    refused "for a context that exists" (fun () -> BrowserContext.set_storage_state context malformed);
+    refused "for a request context" (fun () -> APIRequestContext.dispose (APIRequest.new_context t.pw ~storage_state:malformed));
     (* The files that an origin keeps are part of the state on request. *)
     ignore
         (Page.evaluate page

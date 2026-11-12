@@ -711,7 +711,7 @@ and Browser : sig
     val new_context : ?proxy:Proxy.t -> ?storage_state:Yojson.Safe.t -> (t -> BrowserContext.t) with_context_options
     (** Creates an isolated browser context, comparable to a fresh incognito profile. [proxy] is a proxy for this
         context alone, and [storage_state] restores the cookies and the local storage that were saved with
-        {!BrowserContext.storage_state}. *)
+        {!BrowserContext.storage_state}; JSON of another shape is refused with [Invalid_argument]. *)
 
     val contexts : t -> BrowserContext.t list
     val browser_type : t -> BrowserType.t

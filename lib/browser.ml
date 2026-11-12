@@ -88,7 +88,7 @@ let new_context ?(proxy : Context_options.Proxy.t option) ?storage_state =
     let proxy =
         Option.map (fun (p : Context_options.Proxy.t) : Protocol.Browser.New_context_proxy.t -> { server = p.server; bypass = p.bypass; username = p.username; password = p.password }) proxy
     in
-    let storage_state = Option.map (Protocol.Browser.New_context_storage_state.of_json session.conn) storage_state in
+    let storage_state = Option.map (Json.Decode.argument "storage state" (Protocol.Browser.New_context_storage_state.of_json session.conn)) storage_state in
     let context =
         Protocol.Browser.new_context ?no_default_viewport:o.no_default_viewport ?viewport:o.viewport ?screen:o.screen
             ?ignore_https_errors:o.ignore_https_errors ?client_certificates:o.client_certificates ?java_script_enabled:o.java_script_enabled ?bypass_csp:o.bypass_csp

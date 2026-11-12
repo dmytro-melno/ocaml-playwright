@@ -73,6 +73,10 @@ module Decode = struct
 
     let in_field name decode j = try decode j with Decode_error message -> decode_error "%s: %s" name message
 
+    (* For JSON that the program brought rather than the driver, such as a storage state read from a file: what is
+       wrong with it is a mistake of the caller, and not a failure of the protocol. *)
+    let argument what decode j = try decode j with Decode_error message -> invalid_arg (Printf.sprintf "Playwright: malformed %s: %s" what message)
+
     let req name decode j =
         match member name j with Some v -> in_field name decode v | None -> decode_error "%s: missing required field" name
 

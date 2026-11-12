@@ -158,7 +158,7 @@ let new_context ?base_url ?user_agent ?ignore_https_errors ?extra_http_headers ?
                      (fun (p : Context_options.Proxy.t) : Protocol.Playwright.New_request_proxy.t ->
                          { server = p.server; bypass = p.bypass; username = p.username; password = p.password })
                      proxy)
-            ?storage_state:(Option.map (Protocol.Playwright.New_request_storage_state.of_json conn) storage_state)
+            ?storage_state:(Option.map (Json.Decode.argument "storage state" (Protocol.Playwright.New_request_storage_state.of_json conn)) storage_state)
             t.pw_channel
         |> Types.api_request_context
     in
