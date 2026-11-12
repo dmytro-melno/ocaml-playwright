@@ -215,6 +215,5 @@ let command args =
    The driver is installed first where it is missing. *)
 let run_command args =
     install ();
-    match command args with
-    | node :: args -> run_process node args
-    | [] -> assert false
+    let driver = locate () in
+    run_process driver.node (driver.cli :: args)
