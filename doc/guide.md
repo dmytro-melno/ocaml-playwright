@@ -32,7 +32,6 @@ environment. They assume `open Playwright`.
 17. [Other ways to get a browser](#other-ways-to-get-a-browser)
 18. [Configuration](#configuration)
 19. [Debugging](#debugging)
-20. [Differences from Playwright](#differences-from-playwright)
 
 ## Getting started
 
@@ -83,7 +82,9 @@ The browser runs headless, that is without a window. To watch it work, launch it
 
 ## How the API maps to OCaml
 
-Whoever knows Playwright from another language will find everything in its usual place. The
+Whoever knows Playwright from another language will find things in their usual place: the
+same objects, the same operations, the same options and the same waiting. What Playwright has
+and this library leaves out, such as the test runner, is listed in [scope.md](scope.md). The
 rules of translation:
 
 - **Classes are modules.** `Page`, `Locator`, `BrowserContext`, `Request` and so on; a method
@@ -115,7 +116,8 @@ rules of translation:
   is a second function named `..._matching` which takes an OCaml predicate:
   `Page.wait_for_url_matching (String.ends_with ~suffix:"/done") page`.
 - **JavaScript values** are of type `Js.t`, see [JavaScript](#javascript). Where plain JSON
-  is all that can occur, as in the body of a response, it is `Yojson.Safe.t`.
+  is all that can occur, as in the body of a response, it is `Yojson.Safe.t`. `evaluate`
+  takes JavaScript source, not a function of the host language.
 - **Events** are constructors of a GADT that determines the type of what the event carries:
   `Page.on Page.Console (fun message -> ...) page`. See [Events](#events).
 - **Registrations return a `Disposable.t`.** Whatever is set up for later, be it an event
@@ -123,8 +125,8 @@ rules of translation:
   `Disposable.dispose`. Most registrations last as long as their page, and the value is
   ignored: `Page.on Page.Console print page |> ignore`.
 - **Objects have identity.** A page, a frame, a request is the same thing however it was
-  obtained, and every such module has `equal`, `compare` and `hash` to say so. See
-  [Identity](#identity).
+  obtained, and the modules of what lives in the browser have `equal`, `compare` and `hash`
+  to say so. See [Identity](#identity).
 - **Files are the program's business.** The library returns bytes and takes bytes: a
   screenshot or a PDF is a string, the state of a context a JSON value, a script or a
   certificate its text. Reading and writing them is a line of `Eio.Path` or `Yojson`, with the
@@ -185,36 +187,31 @@ ignore browser
 
 A program may use several drivers at the same time; they are independent of each other.
 
-Closing is thorough, and safe to do from anywhere:
+Closing is safe to do from anywhere:
 
-- The `close` functions do nothing for what is closed already, so there is no harm in closing
-  a page in a `~finally` that the code before it may have closed as well.
+- The `close` functions do nothing for what is closed already, and when several fibers close
+  the same object, all of them return once it is closed.
 - They finish their work even when the fiber that calls them is cancelled, which is exactly
-  when a `~finally` or a `Switch.on_release` tends to run. The same holds for
+  when a `~finally` or an `Eio.Switch.on_release` tends to run. The same holds for
   `JSHandle.dispose`, `APIRequestContext.dispose`, `CDPSession.detach` and
   `Disposable.dispose`.
-- When several fibers close the same browser or context, all of them return once it is
-  closed.
 - When the driver is closed, or dies, every call that is under way fails with a
   `Target_closed` error, every object is closed (`Page.is_closed` is true, the listeners for
   `Page.Close` and the functions given to `Browser.on_disconnected` are called), and the
   listeners and handlers that are still running are cancelled.
 
-A program that runs for long should know what a context holds on to. The driver keeps every
-request and response of a context, and the arguments of every console message, for as long
-as the context lives, and the library keeps its side of each: a few kilobytes per request.
-Both let go of the oldest once there are very many, ten thousand requests or a hundred
-thousand handles, so memory is bounded; a call on an object that was let go fails with an
-error that says that it has been collected. Still, a program that works through tasks for
-hours, such as a crawler or an agent, does well to give each task a context of its own and
-to close it afterwards, which releases everything at once.
+A context holds on to every request and response of its pages for as long as it lives, a
+few kilobytes each. Beyond ten thousand the driver lets go of the oldest, and a call on one
+of those fails with an error that says that it was collected. A program that works through
+tasks for hours, such as a crawler or an agent, does well to give each task a context of its
+own and to close it afterwards, which releases everything at once.
 
 ### Identity
 
 There is one page, however a program got hold of it: the page that `BrowserContext.pages`
-lists is the one that `BrowserContext.new_page` returned. Each module of such objects has
-`equal`, `compare` and `hash`, which also make it fit for the functors of the standard
-library:
+lists is the one that `BrowserContext.new_page` returned. The modules of what lives in the
+browser, from `Browser` and `Page` to `Request`, `JSHandle` and `Locator`, have `equal`,
+`compare` and `hash`, which also make them fit for the functors of the standard library:
 
 ```ocaml
 let module Pages = Set.Make (Page) in
@@ -596,14 +593,11 @@ it came from. It should return quickly and should not raise.
 Handlers stop with their driver: those that are still running when the driver is closed are
 cancelled.
 
-Events arrive at the pace of the browser, not of the listeners. A page that logs ten thousand
-lines in a loop calls a console listener ten thousand times, and if the listener asks the
-browser about each message, all those calls are under way before the first answer can be
-read. Two limits keep this in bounds. At most 1024 calls of handlers are in progress at a
-time; further calls wait for their turn, in the order of their events. And at most 65536
-calls may wait: beyond that, handlers are evidently not keeping up or not returning, and the
-driver is closed with an error that says so, rather than using up the memory. Nothing is
-dropped.
+Events arrive at the pace of the browser, not of the listeners, so two limits keep a flood
+in bounds. At most 1024 calls of handlers are in progress at a time; further calls wait for
+their turn, in the order of their events. And at most 65536 calls may wait: beyond that,
+handlers are evidently not returning, and the driver is closed with an error that says so,
+rather than using up the memory. Nothing is dropped.
 
 ### Waiting for an event
 
@@ -628,17 +622,11 @@ Response.json response
 among the events. `Page.expect_request` and `Page.expect_response` add a `~url` glob. For
 an event that the program does not cause itself, pass `ignore` as the action.
 
-The rules are the same for all of them:
-
-- The time limit counts from before the action, and it is a limit on the *arrival* of the
-  event. An event that arrived in time is returned however long the action takes to return.
-- The action is not interrupted when the time is up; the `Timeout` error is raised when it
-  has returned. If the action itself fails, its exception is the one that is raised.
-- The predicate is called for each event as it arrives, while the action is still running,
-  so it sees the page in the state that the event left it in. It may call the library, to
-  read the body of a response for example. An exception that escapes from it is raised by
-  the `expect_...` function.
-- Closing the page ends the wait with a `Target_closed` error.
+The time limit counts from before the action and limits the *arrival* of the event: the
+action is not interrupted when the time is up, and an event that arrived in time is returned
+however long the action takes. If the action fails, its exception is the one that is raised.
+The predicate is called for each event as it arrives and may call the library, to read the
+body of a response for example. Closing the page ends the wait with a `Target_closed` error.
 
 ### Dialogs
 
@@ -735,8 +723,7 @@ slip through because the handler has a bug.
 
 `~times:n` makes a handler apply to the first `n` requests only. `Page.route_matching` takes
 a predicate on the URL instead of a pattern. `Page.route` returns a `Disposable.t`, and
-disposing of it removes that handler; `Page.unroute` removes the handlers of a pattern and
-`Page.unroute_all` removes them all:
+disposing of it removes that handler; `Page.unroute_all` removes them all:
 
 ```ocaml
 let offline = Page.route "**/api/**" Route.abort page in
@@ -744,16 +731,15 @@ Page.get_by_role `Button ~name:"Retry" page |> Locator.click;
 Disposable.dispose offline
 ```
 
-Removing a handler does not disturb the requests that it is working on at that moment; they
-finish as they would have. ``Page.unroute_all ~behavior:`Wait`` returns only when they have,
-and ``~behavior:`Ignore_errors`` lets them go on without their failures being reported, which
+Removing a handler does not disturb the requests that it is working on at that moment.
+``Page.unroute_all ~behavior:`Wait`` returns only when they have finished, and
+``~behavior:`Ignore_errors`` lets them go on without their failures being reported, which
 suits the end of a test.
 
 Note that a pattern has to match the whole URL, query string included: `"**/api/items"` does
-not match `/api/items?page=2`, while `"**/api/items*"` and `"**/api/items?*"` do. A pattern
-that does not start with `*` is resolved against the `~base_url` of the context, so
-`"/api/items"` works there. A pattern whose braces are nested or not closed is rejected, with
-`Playwright.Error`, when the route is registered.
+not match `/api/items?page=2`, while `"**/api/items*"` does. A pattern that does not start
+with `*` is resolved against the `~base_url` of the context, so `"/api/items"` works there.
+A malformed pattern is rejected, with `Playwright.Error`, when the route is registered.
 
 ### WebSockets
 
@@ -994,21 +980,8 @@ match Page.get_by_role `Button ~name:"Accept cookies" page |> Locator.click ~tim
 
 `Target_closed` means that the page, context or browser of the call was closed, or crashed,
 before the call could finish. `Error.to_string` formats an error for people, and a printer
-is registered with `Printexc`, so that an uncaught error is printed in full.
-
-The messages are written to be read. This one comes from a click on a button that stayed
-disabled:
-
-```text
-Timeout 1000ms exceeded.
-Call log:
-  - waiting for get_by_role("button", name="Send")
-    - locator resolved to <button disabled>Send</button>
-  - attempting click action
-    2 × waiting for element to be visible, enabled and stable
-      - element is not enabled
-    - retrying click action
-```
+is registered with `Printexc`, so that an uncaught error is printed in full, with the call
+log that says what the browser was waiting for; [Assertions](#assertions) shows one.
 
 ### Timeouts
 
@@ -1041,16 +1014,11 @@ with
 Note that Eio counts in seconds, while the `~timeout` arguments of this library are in
 milliseconds.
 
-Cancellation leaves nothing behind:
-
-- What a cancelled call was about to create, be it a page, a context or a browser, is closed
-  as soon as the browser has made it. A listener for `BrowserContext.Page` may thus see a
-  page that closes right away.
-- Closing and disposing are carried through even if the fiber that asked for it is
-  cancelled, see [Life cycle](#life-cycle); the fiber itself gets its `Cancelled` exception
-  without waiting for that.
-- Starting the driver can be cancelled as well:
-  `Eio.Time.with_timeout env#clock 60. (fun () -> Ok (Playwright.create ~sw ~env ()))`.
+Cancellation leaves nothing behind. What a cancelled call was about to create, be it a
+page, a context or a browser, is closed as soon as the browser has made it; a listener for
+`BrowserContext.Page` may thus see a page that closes right away. Closing and disposing are
+carried through even if the fiber that asked for it is cancelled, see
+[Life cycle](#life-cycle). Starting the driver can be cancelled as well.
 
 ## Other ways to get a browser
 
@@ -1121,10 +1089,8 @@ let status = Playwright.Driver.run [ "install"; "chromium" ] in
 if status <> 0 then failwith "could not install Chromium"
 ```
 
-For deployment in a container, the points to take care of are: Node.js, the driver (let the
-build run `ocaml-playwright --version` once to fetch it, or provide it through
-`PLAYWRIGHT_OCAML_DRIVER`), and a browser with its system libraries
-(`ocaml-playwright install --with-deps chromium`).
+A container needs Node.js, and one command in its build for the driver, a browser and the
+system libraries of that browser: `ocaml-playwright install --with-deps chromium`.
 
 ## Debugging
 
@@ -1142,23 +1108,3 @@ build run `ocaml-playwright --version` once to fetch it, or provide it through
 - **Protocol log.** `DEBUG=pw:channel` in the environment prints every message exchanged with
   the driver to standard error. `DEBUG=pw:api` and `DEBUG=pw:browser*` make the driver itself
   talkative.
-
-## Differences from Playwright
-
-The library follows Playwright closely: the same objects, the same operations, the same
-options and the same waiting. What differs is what OCaml and Eio make different.
-
-- Functions block, and concurrency and cancellation are those of Eio fibers.
-- Listeners and handlers run in fibers of their own, a bounded number at a time, and their
-  exceptions go to `~on_error`. A route handler that raises aborts its request.
-- Regular expressions are JavaScript literals in strings, and URLs are matched by glob
-  patterns or by predicates.
-- `evaluate` takes JavaScript source, not a function of the host language.
-- Assertions are plain functions that raise. There is no test runner, and nothing that
-  belongs to one: fixtures, soft assertions, `expect.poll`, comparisons of screenshots.
-- Not covered: code coverage, screencasts, WebAuthn authenticators, Chromium's own tracing,
-  Android and Electron.
-
-[scope.md](scope.md) has all of it: the rule that decides what the library takes on, the
-members that have another name, every intended difference in behaviour, and what stands in
-for the parts that are left out.
