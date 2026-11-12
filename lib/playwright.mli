@@ -1052,11 +1052,10 @@ and Page : sig
     val expose_function : string -> (Js.t list -> Js.t) -> t -> Disposable.t
     val expose_binding : string -> (BrowserContext.binding_source -> Js.t list -> Js.t) -> t -> Disposable.t
 
-    val add_locator_handler : ?times:int -> ?no_wait_after:bool -> Locator.t -> (Locator.t -> unit) -> t -> unit
+    val add_locator_handler : ?times:int -> ?no_wait_after:bool -> Locator.t -> (Locator.t -> unit) -> t -> Disposable.t
     (** [add_locator_handler locator handler] calls [handler] whenever an action is about to be performed while
-        [locator] is visible, typically to dismiss an overlay that would be in the way. *)
-
-    val remove_locator_handler : Locator.t -> t -> unit
+        [locator] is visible, typically to dismiss an overlay that would be in the way. The handler stays until it
+        has been called [times] times, or until what this returns is disposed of. *)
 
     (** {1 Rendering} *)
 

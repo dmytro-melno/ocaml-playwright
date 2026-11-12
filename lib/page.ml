@@ -402,19 +402,17 @@ let route_web_socket_matching predicate handler page = add_web_socket_route (Pre
 
 let add_locator_handler ?times ?no_wait_after (locator : locator) handler (page : t) =
     if locator.l_frame != page.main_frame then invalid_arg "Playwright: the locator must belong to the main frame of this page";
-    if times <> Some 0 then begin
+    if times = Some 0 then Disposable.registration (conn page) ignore
+    else begin
         let uid = Protocol.Page.register_locator_handler ~selector:locator.selector ?no_wait_after page.p_channel in
-        Hashtbl.replace page.locator_handlers uid { lh_locator = locator; lh_handler = handler; lh_times = times }
+        Hashtbl.replace page.locator_handlers uid { lh_locator = locator; lh_handler = handler; lh_times = times };
+        (* A handler that has been called [times] times is gone already. *)
+        Disposable.registration (conn page) (fun () ->
+            if Hashtbl.mem page.locator_handlers uid then begin
+                Protocol.Page.unregister_locator_handler ~uid page.p_channel;
+                Hashtbl.remove page.locator_handlers uid
+            end)
     end
-
-let remove_locator_handler (locator : locator) (page : t) =
-    Hashtbl.to_seq page.locator_handlers
-    |> List.of_seq
-    |> List.iter (fun (uid, (handler : locator_handler)) ->
-           if Locator.equal handler.lh_locator locator then begin
-               Hashtbl.remove page.locator_handlers uid;
-               try Protocol.Page.unregister_locator_handler ~uid page.p_channel with Error.E _ -> ()
-           end)
 
 (* {1 Output} *)
 

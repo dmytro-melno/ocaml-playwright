@@ -181,6 +181,41 @@ let test_waiting_and_strictness _ page =
     Page.set_default_timeout 100. page;
     check_failure "page default" ~message:"Timeout 100ms" (fun () -> Locator.click late)
 
+(* An overlay that gets in the way of an action is cleared away by a handler. *)
+let test_locator_handlers _ page =
+    Page.set_content
+        {|<button id="target" onclick="window.clicks = (window.clicks || 0) + 1">Target</button>
+          <div id="overlay" style="position: fixed; inset: 0; background: white"><button onclick="this.parentElement.style.display = 'none'">Dismiss</button></div>|}
+        page;
+    let target = Page.locator "#target" page in
+    let cover () = ignore (Page.evaluate "document.querySelector('#overlay').style.display = 'block'" page) in
+    let calls = ref 0 in
+    let dismiss overlay =
+        incr calls;
+        Locator.click (Locator.get_by_role `Button overlay)
+    in
+    let handling = Page.add_locator_handler (Page.locator "#overlay" page) dismiss page in
+    Locator.click target;
+    Alcotest.(check (pair int int)) "the handler cleared the way" (1, 1) (!calls, eval_int "window.clicks" page);
+    cover ();
+    Locator.click target;
+    Alcotest.(check (pair int int)) "each time" (2, 2) (!calls, eval_int "window.clicks" page);
+    Disposable.dispose handling;
+    Disposable.dispose handling;
+    cover ();
+    check_failure "without the handler the overlay is in the way" ~kind:Timeout (fun () -> Locator.click ~timeout:300. target);
+    Alcotest.(check int) "and the handler is not called" 2 !calls;
+    let handling = Page.add_locator_handler ~times:1 (Page.locator "#overlay" page) dismiss page in
+    Locator.click target;
+    cover ();
+    check_failure "a handler for one time is gone after it" ~kind:Timeout (fun () -> Locator.click ~timeout:300. target);
+    Alcotest.(check (pair int int)) "it was called once" (3, 3) (!calls, eval_int "window.clicks" page);
+    Disposable.dispose handling;
+    Page.set_content {|<iframe srcdoc="<p>inner</p>"></iframe>|} page;
+    let frame = List.nth (Page.frames page) 1 in
+    Alcotest.check_raises "the locator must be of the main frame" (Invalid_argument "Playwright: the locator must belong to the main frame of this page")
+        (fun () -> ignore (Page.add_locator_handler (Frame.locator "p" frame) ignore page))
+
 (* A handle is for what locators cannot do: passing the element to JavaScript, and finding its frame. *)
 let test_element_handles _ page =
     Page.set_content form page;
@@ -394,6 +429,7 @@ let tests t =
         page_case t "actions" (test_actions t);
         page_case t "mouse actions" (test_mouse_actions t);
         page_case t "waiting and strictness" (test_waiting_and_strictness t);
+        page_case t "locator handlers" (test_locator_handlers t);
         page_case t "element handles" (test_element_handles t);
         page_case t "references, descriptions and snapshots" (test_references t);
         page_case t "uploads" (test_uploads t);

@@ -126,10 +126,10 @@ What somebody who knows Playwright would not expect. The guide explains each at 
   back into an object that contains it arrives as `Undefined`. `Js.int` refuses integers that
   a JavaScript number cannot hold exactly, and `Js.to_json` converts what JSON can express
   and nothing else ([JavaScript](guide.md#javascript)).
-- **Some registrations differ.** `Tracing.start`, `Tracing.group` and
-  `Page.add_locator_handler` return `unit` where Playwright returns a disposable; they have
-  their counterparts `stop`, `group_end` and `remove_locator_handler`. `route_web_socket`
-  returns a disposable where Playwright returns nothing.
+- **Some registrations differ.** `Tracing.start` and `Tracing.group` return `unit` where
+  Playwright returns a disposable; they have their counterparts `stop` and `group_end`.
+  `route_web_socket` and `Page.add_locator_handler` return a disposable where Playwright
+  returns nothing.
 - **Some values differ.** `Page.video` is `None` unless the context records videos;
   `~http_credentials` is always a list; `Client_certificate` values carry the bytes of the
   certificates.
@@ -154,6 +154,7 @@ look for; they are not a ledger of Playwright's interface.
 | `allHeaders()`, `headerValue()`, `headerValues()` | `headers` has lower-case names and merged values, for `List.assoc_opt`; `headers_array` has the headers as they went over the network. |
 | `page.waitForEvent()`, `page.waitForRequest()`, the `expect_<event>` methods of Python | One function, `expect_event`, with the event as a value and `ignore` for no action; `Page.expect_request` and `Page.expect_response` match URLs. |
 | `page.unroute(url)` | `Disposable.dispose` of what `route` returned, or `unroute_all`. |
+| `page.removeLocatorHandler(locator)` | `Disposable.dispose` of what `Page.add_locator_handler` returned. |
 | `browser.newPage()` | `BrowserContext.new_page (Browser.new_context browser)`, which says who owns the context. |
 | `page.waitForTimeout()` | `Eio.Time.sleep`. |
 | The option `logger`, the class `Logger` | `DEBUG=pw:api` makes the driver log to the standard error, see [Debugging](guide.md#debugging). |
