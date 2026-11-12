@@ -15,7 +15,7 @@ let () =
     Eio_main.run @@ fun env ->
     Playwright.run ~env @@ fun pw ->
     let browser = BrowserType.launch (chromium pw) in
-    let page = Browser.new_page browser in
+    let page = BrowserContext.new_page (Browser.new_context browser) in
     ignore (Page.goto "https://playwright.dev" page);
     Page.get_by_role `Link ~name:"Get started" page |> Locator.click;
     Expect.to_be_visible (Page.get_by_role `Heading ~name:"Installation" page);
@@ -110,7 +110,7 @@ Every call blocks its fiber only, so several pages are driven concurrently with 
 
 ```ocaml
 let title url =
-    let page = Browser.new_page browser in
+    let page = BrowserContext.new_page context in
     Fun.protect ~finally:(fun () -> Page.close page) (fun () ->
         ignore (Page.goto url page);
         Page.title page)

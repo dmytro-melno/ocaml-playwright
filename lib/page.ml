@@ -198,7 +198,7 @@ let create (channel : Protocol.Page.t) : t =
           p_close_reason = None;
           viewport_size = Option.map (fun (size : Protocol.Page.Initializer_viewport_size.t) -> { width = size.width; height = size.height }) init.viewport_size;
           p_routes = []; p_ws_routes = []; p_bindings = Hashtbl.create 4; p_timeouts = Timeouts.create ~parent:context.c_timeouts ();
-          opener = Option.map Types.page init.opener; owned_context = None; video_artifact = init.video; locator_handlers = Hashtbl.create 1;
+          opener = Option.map Types.page init.opener; video_artifact = init.video; locator_handlers = Hashtbl.create 1;
           p_gone; p_gone_resolver; pe_close = Emitter.create (); pe_console = Emitter.create (); pe_crash = Emitter.create ();
           pe_dialog = Emitter.create (); pe_dialog_closed = Emitter.create (); pe_dom_content_loaded = Emitter.create (); pe_download = Emitter.create ();
           pe_file_chooser = Emitter.create (); pe_frame_attached = Emitter.create (); pe_frame_detached = Emitter.create ();
@@ -442,11 +442,8 @@ let close ?(run_before_unload = false) ?reason (page : t) =
     page.p_close_reason <- reason;
     if not run_before_unload then page.close_was_called <- true;
     try
-        match page.owned_context with
-        | Some context -> Browser_context.close context
-        | None ->
-            Connection.detached (Channel.conn page.p_channel) (fun () ->
-                if run_before_unload then Protocol.Page.run_before_unload page.p_channel else Protocol.Page.close ?reason page.p_channel)
+        Connection.detached (Channel.conn page.p_channel) (fun () ->
+            if run_before_unload then Protocol.Page.run_before_unload page.p_channel else Protocol.Page.close ?reason page.p_channel)
     with Error.E { kind = Target_closed; _ } when not run_before_unload -> ()
 
 (* Hands control to the Playwright inspector until the user resumes the script. *)

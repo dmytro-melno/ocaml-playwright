@@ -107,7 +107,6 @@ and browser_context = {
     mutable c_ws_routes : ws_route_handler list;
     c_bindings : (string, binding) Hashtbl.t;
     c_timeouts : Timeouts.t;
-    mutable owner_page : page option;
     base_url : string option;
     records_video : bool;
     tracing : tracing;
@@ -152,7 +151,6 @@ and page = {
     p_bindings : (string, binding) Hashtbl.t;
     p_timeouts : Timeouts.t;
     opener : page option;
-    mutable owned_context : browser_context option;
     video_artifact : Protocol.Artifact.t option;
     locator_handlers : (int, locator_handler) Hashtbl.t;
     (* Resolved with the reason once the page is closed or has crashed. *)

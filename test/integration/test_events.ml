@@ -261,7 +261,7 @@ let test_handlers_falling_behind t () =
     let reported = ref [] in
     let pw = Playwright.create ~sw:t.sw ~env:t.env ~handler_concurrency:2 ~handler_backlog:10 ~on_error:(fun what ex -> reported := (what, ex) :: !reported) () in
     let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
-    let page = Browser.new_page browser in
+    let page = BrowserContext.new_page (Browser.new_context browser) in
     Page.on Page.Console (fun _ -> Fiber.await_cancel ()) page |> ignore;
     ignore (Page.evaluate "for (let i = 0; i < 12; i++) console.log(i)" page);
     Alcotest.(check bool) "two calls in progress and ten waiting are within the limits" true (Browser.is_connected browser && !reported = []);

@@ -85,17 +85,6 @@ let new_context_with (o : Context_options.t) (browser : t) =
 
 let new_context ?proxy = Context_options.collect (fun options browser -> new_context_with { options with proxy } browser)
 
-(* A page in a context of its own, which is closed together with the page. *)
-let new_page ?proxy =
-    Context_options.collect (fun options browser ->
-        let context = new_context_with { options with proxy } browser in
-        let page =
-            Connection.guard browser.b_session.conn "closing a browser context" ~undo:(fun () -> Browser_context.close context) (fun () ->
-                Browser_context.new_page context)
-        in
-        Ownership.give_context page context;
-        page)
-
 let new_browser_cdp_session (browser : t) = Protocol.Browser.new_browser_cdp_session browser.b_channel |> Types.cdp_session
 
 (* Closing is idempotent, and a browser that is already gone counts as closed. *)

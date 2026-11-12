@@ -63,7 +63,7 @@ let () =
     Eio_main.run @@ fun env ->
     Playwright.run ~env @@ fun pw ->
     let browser = BrowserType.launch (chromium pw) in
-    let page = Browser.new_page browser in
+    let page = BrowserContext.new_page (Browser.new_context browser) in
     ignore (Page.goto "https://example.com" page);
     print_endline (Page.title page);
     Eio.Path.(save ~create:(`Or_truncate 0o644) (Eio.Stdenv.cwd env / "example.png") (Page.screenshot page));
@@ -152,9 +152,6 @@ ignore (page, other_page);
 BrowserContext.close context;
 Browser.close browser
 ```
-
-`Browser.new_page` creates a context and a page in it in one step, and closing that page
-closes the context too. It takes the same options as `Browser.new_context`.
 
 Which browser is launched is decided by the options of `BrowserType.launch`:
 
@@ -801,7 +798,7 @@ APIRequestContext.dispose standalone;
 
 ## Emulation and state
 
-The options of `Browser.new_context` (and of `Browser.new_page`) set up what the pages of the
+The options of `Browser.new_context` set up what the pages of the
 context see. A selection:
 
 ```ocaml

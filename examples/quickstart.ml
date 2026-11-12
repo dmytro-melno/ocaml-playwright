@@ -11,7 +11,7 @@ let () =
     Eio_main.run @@ fun env ->
     Playwright.run ~env @@ fun pw ->
     let browser = BrowserType.launch ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") (chromium pw) in
-    let page = Browser.new_page browser in
+    let page = BrowserContext.new_page (Browser.new_context browser) in
     ignore (Page.goto "https://example.com" page);
     Printf.printf "title: %s\n" (Page.title page);
     Printf.printf "text:  %s\n" (Page.locator "p" page |> Locator.first |> Locator.inner_text);

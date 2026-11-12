@@ -32,11 +32,6 @@ let remove_context (context : browser_context) =
 let add_page (context : browser_context) (page : page) = context.pages <- with_ page context.pages
 let remove_page (page : page) = page.context.pages <- without page page.context.pages
 
-(* A context that was made for one page goes with that page. *)
-let give_context (page : page) (context : browser_context) =
-    page.owned_context <- Some context;
-    context.owner_page <- Some page
-
 (* {1 A page and its frames} *)
 
 let add_child_frame (parent : frame) (frame : frame) = parent.child_frames <- with_ frame parent.child_frames

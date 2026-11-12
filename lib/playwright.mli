@@ -12,7 +12,7 @@
           Eio_main.run @@ fun env ->
           Playwright.run ~env @@ fun pw ->
           let browser = Playwright.(BrowserType.launch (chromium pw)) in
-          let page = Playwright.Browser.new_page browser in
+          let page = Playwright.(BrowserContext.new_page (Browser.new_context browser)) in
           ignore (Playwright.Page.goto "https://ocaml.org" page);
           Playwright.Page.get_by_role `Link ~name:"Install" page |> Playwright.Locator.click;
           print_endline (Playwright.Page.title page)
@@ -676,9 +676,6 @@ and Browser : sig
     val new_context : ?proxy:Proxy.t -> (t -> BrowserContext.t) with_context_options
     (** Creates an isolated browser context, comparable to a fresh incognito profile. *)
 
-    val new_page : ?proxy:Proxy.t -> (t -> Page.t) with_context_options
-    (** Creates a page in a new context of its own, which is closed together with the page. *)
-
     val contexts : t -> BrowserContext.t list
     val browser_type : t -> BrowserType.t
 
@@ -692,8 +689,8 @@ and Browser : sig
     (** Registers a function to call when the browser has been closed, has crashed or the connection to it was lost. *)
 
     val on_context : (BrowserContext.t -> unit) -> t -> Disposable.t
-    (** Registers a function to call with each context that is created in the browser from now on, including the
-        one that {!new_page} creates. It may be called before the function that created the context has returned. *)
+    (** Registers a function to call with each context that is created in the browser from now on. It may be called
+        before the function that created the context has returned. *)
 
     val new_browser_cdp_session : t -> CDPSession.t
     (** A Chrome DevTools Protocol session with the browser itself. Chromium only. *)

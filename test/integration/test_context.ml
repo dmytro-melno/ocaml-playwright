@@ -241,13 +241,16 @@ let test_browser t () =
     let before = List.length (Browser.contexts t.browser) in
     let created = ref [] in
     let listening = Browser.on_context (fun context -> created := context :: !created) t.browser in
-    let page = Browser.new_page ~viewport:(300, 200) t.browser in
-    eventually t "the context is announced" (fun () -> List.equal BrowserContext.equal !created [ Page.context page ]);
+    let context = Browser.new_context ~viewport:(300, 200) t.browser in
+    eventually t "the context is announced" (fun () -> List.equal BrowserContext.equal !created [ context ]);
     Disposable.dispose listening;
-    Alcotest.(check int) "a page with a context of its own" (before + 1) (List.length (Browser.contexts t.browser));
-    Alcotest.(check (option (pair int int))) "takes context options" (Some (300, 200)) (Page.viewport_size page);
+    Alcotest.(check int) "one context more" (before + 1) (List.length (Browser.contexts t.browser));
+    let page = BrowserContext.new_page context in
+    Alcotest.(check (option (pair int int))) "its options reach its pages" (Some (300, 200)) (Page.viewport_size page);
     Page.close page;
-    Alcotest.(check int) "which goes away with the page" before (List.length (Browser.contexts t.browser));
+    Alcotest.(check int) "which outlives its pages" (before + 1) (List.length (Browser.contexts t.browser));
+    BrowserContext.close context;
+    Alcotest.(check int) "until it is closed" before (List.length (Browser.contexts t.browser));
     Alcotest.(check bool) "driver version" true (String.length Playwright.version >= 5 && Playwright.version.[1] = '.')
 
 let test_tracing t page =

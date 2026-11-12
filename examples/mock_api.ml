@@ -24,7 +24,7 @@ let () =
     Eio_main.run @@ fun env ->
     Playwright.run ~env @@ fun pw ->
     let browser = BrowserType.launch ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") (chromium pw) in
-    let page = Browser.new_page browser in
+    let page = BrowserContext.new_page (Browser.new_context browser) in
     (* The application itself is served from here as well. *)
     Page.route "https://tasks.test/" (Route.fulfill ~content_type:"text/html" ~body:app) page |> ignore;
     Page.route "https://tasks.test/api/tasks"

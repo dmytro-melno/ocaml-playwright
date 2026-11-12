@@ -31,7 +31,8 @@ let () =
             device_name
     in
     let browser = BrowserType.launch ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") (chromium pw) in
-    let page = match device with Some device -> Browser.new_page ~device browser | None -> Browser.new_page ~viewport:(1280, 800) browser in
+    let context = match device with Some device -> Browser.new_context ~device browser | None -> Browser.new_context ~viewport:(1280, 800) browser in
+    let page = BrowserContext.new_page context in
     (match Page.goto ~wait_until:`Networkidle url page with
     | Some response -> Printf.printf "%d %s\n" (Response.status response) (Page.url page)
     | None -> ());

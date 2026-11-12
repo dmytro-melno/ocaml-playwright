@@ -205,7 +205,7 @@ let test_browser_closing t () =
     let disconnected = ref 0 in
     let listener _ = incr disconnected in
     Browser.on_disconnected listener browser |> ignore;
-    let page = Browser.new_page browser in
+    let page = BrowserContext.new_page (Browser.new_context browser) in
     let pending = Fiber.fork_promise ~sw:t.sw (fun () -> Locator.wait_for (Page.locator "#never" page)) in
     Fiber.yield ();
     Browser.close ~reason:"the test is over" browser;
@@ -224,7 +224,7 @@ let test_browser_closing t () =
     let browser = launch t in
     let gone, announce = Promise.create () in
     Browser.on_disconnected (fun _ -> Promise.resolve announce ()) browser |> ignore;
-    let page = Browser.new_page browser in
+    let page = BrowserContext.new_page (Browser.new_context browser) in
     let session = Browser.new_browser_cdp_session browser in
     (try ignore (CDPSession.send "Browser.crash" session) with Playwright.Error _ -> ());
     Promise.await gone;
@@ -251,7 +251,7 @@ let test_artifacts_dir t () =
     Server.route t.server "/artifact" (fun _ -> Server.respond ~headers:[ "content-disposition", "attachment; filename=artifact.txt" ] "kept");
     let dir = scratch_file t "artifacts" in
     let browser = BrowserType.launch ?executable_path:t.executable_path ~artifacts_dir:dir (chromium t.pw) in
-    let page = Browser.new_page browser in
+    let page = BrowserContext.new_page (Browser.new_context browser) in
     Page.set_content (Printf.sprintf {|<a href="%s">download</a>|} (Server.url t.server "/artifact")) page;
     let download = Page.expect_event Page.Download (fun () -> Locator.click (Page.locator "a" page)) page in
     let path = Download.path download in
@@ -262,7 +262,7 @@ let test_artifacts_dir t () =
 let test_connect_over_cdp t () =
     let port = closed_port t in
     let browser = BrowserType.launch ?executable_path:t.executable_path ~args:[ Printf.sprintf "--remote-debugging-port=%d" port ] (chromium t.pw) in
-    let original = Browser.new_page browser in
+    let original = BrowserContext.new_page (Browser.new_context browser) in
     Page.set_content "<title>Original</title>" original;
     let attached = BrowserType.connect_over_cdp ~is_local:true ~no_defaults:true (Printf.sprintf "http://127.0.0.1:%d" port) (chromium t.pw) in
     let pages = List.concat_map BrowserContext.pages (Browser.contexts attached) in
@@ -401,7 +401,7 @@ let test_error_hook t () =
                 Playwright.close pw)
             (fun () ->
                 let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
-                let page = Browser.new_page browser in
+                let page = BrowserContext.new_page (Browser.new_context browser) in
                 (* Not in tail position, or there would be no trace of this file. *)
                 Page.on Page.Console (fun _ -> ignore (failwith "the listener fails" : int)) page |> ignore;
                 let output =
@@ -427,7 +427,7 @@ let test_second_driver t () =
     let title =
         Playwright.run ~env:t.env (fun pw ->
             let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
-            let page = Browser.new_page browser in
+            let page = BrowserContext.new_page (Browser.new_context browser) in
             ignore (Page.goto (Server.url t.server "/blank") page);
             (* Left open on purpose: stopping the driver closes it. *)
             Page.title page)
@@ -435,7 +435,7 @@ let test_second_driver t () =
     Alcotest.(check string) "an independent driver" "Blank" title;
     let pw = Playwright.create ~sw:t.sw ~env:t.env () in
     let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
-    let page = Browser.new_page browser in
+    let page = BrowserContext.new_page (Browser.new_context browser) in
     Alcotest.(check bool) "the objects of two drivers are different ones" false (BrowserType.equal (chromium pw) (chromium t.pw));
     (* A response that the other driver fetched is not known to this one: its body is sent over. *)
     Server.route t.server "/fetched-elsewhere" (fun _ -> Server.respond ~headers:[ "x-origin", "elsewhere" ] "fetched by the other driver");
@@ -449,10 +449,10 @@ let test_second_driver t () =
     (* A setting of one driver is not one of the other. *)
     Expect.set_default_timeout 150. pw;
     check_failure "the assertions of this driver" ~kind:Assertion_failed ~message:"150ms" (fun () -> Expect.to_be_visible (Page.locator "#never" page));
-    let other = Browser.new_page t.browser in
+    let other = BrowserContext.new_page (Browser.new_context t.browser) in
     ignore (Page.evaluate "setTimeout(() => document.title = 'late', 500)" other);
     Expect.to_have_title "late" other;
-    Page.close other;
+    BrowserContext.close (Page.context other);
     Playwright.close pw;
     check_failure "everything fails once the driver is stopped" ~kind:Target_closed (fun () -> Page.title page);
     check_failure "also launching" ~kind:Target_closed (fun () -> BrowserType.launch (chromium pw));

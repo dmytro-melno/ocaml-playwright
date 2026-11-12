@@ -89,11 +89,11 @@ let test_time_limits t page =
 let test_creation t () =
     let before = Browser.contexts t.browser in
     for attempt = 0 to 29 do
-        match Eio.Time.with_timeout (clock t) (float_of_int attempt *. 0.002) (fun () -> Ok (Browser.new_page t.browser)) with
-        | Ok page -> Page.close page
+        match Eio.Time.with_timeout (clock t) (float_of_int attempt *. 0.002) (fun () -> Ok (Browser.new_context t.browser)) with
+        | Ok context -> BrowserContext.close context
         | Error `Timeout -> ()
     done;
-    eventually t "the contexts of pages that nobody got are closed" (fun () -> List.equal BrowserContext.equal before (Browser.contexts t.browser));
+    eventually t "the contexts that nobody got are closed" (fun () -> List.equal BrowserContext.equal before (Browser.contexts t.browser));
     let context = Browser.new_context t.browser in
     for attempt = 0 to 19 do
         match Eio.Time.with_timeout (clock t) (float_of_int attempt *. 0.002) (fun () -> Ok (BrowserContext.new_page context)) with
@@ -110,11 +110,12 @@ let test_failures t () =
     Tracing.start tracing;
     BrowserContext.close context;
     check_failure "stopping a trace of a closed context" ~kind:Target_closed (fun () -> Tracing.stop ~path:(scratch_file t "late.zip") tracing);
-    let page = Browser.new_page t.browser in
+    let context = Browser.new_context t.browser in
+    let page = BrowserContext.new_page context in
     Page.set_content "<button>Press</button>" page;
     let button = Page.locator "button" page in
     check_failure "a script that fails" ~message:"no way" (fun () -> ignore (Locator.evaluate "() => { throw new Error('no way') }" button));
-    Page.close page;
+    BrowserContext.close context;
     check_failure "an element of a closed page" ~kind:Target_closed (fun () -> ignore (Locator.evaluate "element => element.id" button))
 
 let tests t =

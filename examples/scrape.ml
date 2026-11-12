@@ -20,7 +20,7 @@ let () =
     Eio_main.run @@ fun env ->
     Playwright.run ~env @@ fun pw ->
     let browser = BrowserType.launch ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") (chromium pw) in
-    let page = Browser.new_page browser in
+    let page = BrowserContext.new_page (Browser.new_context browser) in
     Page.set_content shop page;
     (* One locator per product, and locators relative to it for the parts. *)
     let products =
