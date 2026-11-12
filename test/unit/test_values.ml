@@ -64,6 +64,12 @@ let test_js_json () =
     Alcotest.check js "of_json" value (Js.of_json document);
     Alcotest.check json "to_json gives it back" document (Js.to_json value);
     Alcotest.(check bool) "an integral number is an integer" true (Js.to_json (Js.Number 2.) = `Int 2 && Js.to_json (Js.Number 2.5) = `Float 2.5);
+    (* [of_json] gives every number back, which [=] cannot tell for the sign of a zero. *)
+    let comes_back f = match Js.of_json (Js.to_json (Js.Number f)) with Js.Number g -> Int64.equal (Int64.bits_of_float f) (Int64.bits_of_float g) | _ -> false in
+    List.iter
+        (fun f -> Alcotest.(check bool) (Printf.sprintf "%h comes back" f) true (comes_back f))
+        [ -0.; 0.; 1.; -1.; 0.1; -2.5; 9007199254740991.; -9007199254740991.; 9007199254740992.; 1e300; -1e300; Float.min_float; 4.9e-324; Float.max_float ];
+    Alcotest.(check string) "negative zero is written with its sign" "-0.0" (Yojson.Safe.to_string (Js.to_json (Js.Number (-0.))));
     (* Nothing is turned into something else: what JSON has no notion of is refused, and the message says where it is. *)
     let refused what place value =
         Alcotest.(check string) what (Printf.sprintf "Js.to_json: %s, which JSON has no notion of" place) (failure what (fun () -> Js.to_json value)).message

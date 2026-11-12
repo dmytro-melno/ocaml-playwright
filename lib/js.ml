@@ -184,6 +184,7 @@ let to_json value : Yojson.Safe.t =
     let rec convert steps = function
         | Null -> `Null
         | Bool b -> `Bool b
+        | Number f when f = 0. && Float.sign_bit f -> `Float f (* an integer has no negative zero *)
         | Number f when Float.is_integer f && Float.abs f <= max_safe_integer -> `Int (int_of_float f)
         | Number f when Float.is_finite f -> `Float f
         | String s -> `String s

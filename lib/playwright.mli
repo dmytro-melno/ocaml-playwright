@@ -651,7 +651,8 @@ module rec Js : sig
 
     val to_json : t -> Yojson.Safe.t
     (** The value as JSON, for a value made of what JSON has: [Null], booleans, finite numbers, strings, arrays and
-        objects. An integral number becomes an [`Int], and {!of_json} gives the value back.
+        objects. An integral number becomes an [`Int], except for negative zero, which stays a [`Float] since an
+        integer cannot hold its sign. {!of_json} gives the value back.
 
         Nothing is turned into something else: for any other value this fails, and the message names the place, as
         in ["value.items[2].due is a date"]. Where the way [JSON.stringify] treats such values is wanted, call it in
