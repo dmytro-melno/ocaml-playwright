@@ -846,8 +846,8 @@ and BrowserContext : sig
 
     val expect_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> (unit -> unit) -> t -> 'a
     (** [expect_event event action] starts listening, runs [action], and returns the first [event] satisfying
-        [predicate] that occurs from then on. Unlike calling {!wait_for_event} after the action, this cannot miss an
-        event that is emitted before the action returns.
+        [predicate] that occurs from then on. Listening first means that an event emitted before the action returns
+        is not missed. To wait for an event that something else causes, pass [ignore] as the action.
 
         - [timeout] counts from before the action, and it limits when the event may {e arrive}: one that arrived in
           time is returned however long [action] and [predicate] take, and without one a [Timeout] error is raised
@@ -860,11 +860,6 @@ and BrowserContext : sig
         - The wait ends with a [Target_closed] error when the object that would emit the event is closed.
 
         The other [expect_...] functions of this library follow the same rules. *)
-
-    val wait_for_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> t -> 'a
-    (** [expect_event] without an action: the first [event] satisfying [predicate] that arrives from now on. *)
-
-    val expect_page : ?timeout:float -> ?predicate:(Page.t -> bool) -> (unit -> unit) -> t -> Page.t
 
     (** {1 Network} *)
 
@@ -879,12 +874,8 @@ and BrowserContext : sig
 
     val route_matching : ?times:int -> (string -> bool) -> (Route.t -> unit) -> t -> Disposable.t
 
-    val unroute : string -> t -> unit
-    (** Removes the handlers that were registered for this glob pattern. {!Disposable.dispose} removes a single
-        handler, whatever it was registered for. *)
-
     val unroute_all : ?behavior:[ `Default | `Wait | `Ignore_errors ] -> t -> unit
-    (** Removes all handlers. [behavior] says what becomes of the handlers
+    (** Removes all handlers; {!Disposable.dispose} removes a single one. [behavior] says what becomes of the handlers
         that are at work at that moment: by default they finish like any other; with [`Wait] the function returns
         once they have finished, so it must not be called from a route handler; and with [`Ignore_errors] what
         they raise from now on is dropped, their requests going on to the network. *)
@@ -1075,22 +1066,11 @@ and Page : sig
           Download.save_as "report.pdf" download
         ]} *)
 
-    val wait_for_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> t -> 'a
-    val expect_popup : ?timeout:float -> ?predicate:(t -> bool) -> (unit -> unit) -> t -> t
-    val expect_download : ?timeout:float -> ?predicate:(Download.t -> bool) -> (unit -> unit) -> t -> Download.t
-    val expect_file_chooser : ?timeout:float -> ?predicate:(FileChooser.t -> bool) -> (unit -> unit) -> t -> FileChooser.t
-    val expect_console_message : ?timeout:float -> ?predicate:(ConsoleMessage.t -> bool) -> (unit -> unit) -> t -> ConsoleMessage.t
-    val expect_web_socket : ?timeout:float -> ?predicate:(WebSocket.t -> bool) -> (unit -> unit) -> t -> WebSocket.t
-    val expect_worker : ?timeout:float -> ?predicate:(Worker.t -> bool) -> (unit -> unit) -> t -> Worker.t
-
     val expect_request : ?timeout:float -> ?url:string -> ?predicate:(Request.t -> bool) -> (unit -> unit) -> t -> Request.t
     (** Runs the action and returns the first request made from then on whose URL matches the glob pattern [url] and
         that satisfies [predicate]. *)
 
-    val expect_request_finished : ?timeout:float -> ?url:string -> ?predicate:(Request.t -> bool) -> (unit -> unit) -> t -> Request.t
     val expect_response : ?timeout:float -> ?url:string -> ?predicate:(Response.t -> bool) -> (unit -> unit) -> t -> Response.t
-    val wait_for_request : ?timeout:float -> ?url:string -> ?predicate:(Request.t -> bool) -> t -> Request.t
-    val wait_for_response : ?timeout:float -> ?url:string -> ?predicate:(Response.t -> bool) -> t -> Response.t
 
     (** {1 Network} *)
 
@@ -1105,7 +1085,6 @@ and Page : sig
         ]} *)
 
     val route_matching : ?times:int -> (string -> bool) -> (Route.t -> unit) -> t -> Disposable.t
-    val unroute : string -> t -> unit
     val unroute_all : ?behavior:[ `Default | `Wait | `Ignore_errors ] -> t -> unit
 
     val route_web_socket : string -> (WebSocketRoute.t -> unit) -> t -> Disposable.t
@@ -1759,7 +1738,6 @@ and WebSocket : sig
     val on : 'a event -> ('a -> unit) -> t -> Disposable.t
     val once : 'a event -> ('a -> unit) -> t -> Disposable.t
     val expect_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> (unit -> unit) -> t -> 'a
-    val wait_for_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> t -> 'a
 
     include Identity with type t := t
 end
@@ -1858,7 +1836,7 @@ and Download : sig
     include Identity with type t := t
 end
 
-(** A file chooser that a page opened, see {!Page.expect_file_chooser}. *)
+(** A file chooser that a page opened: the value of the event {!Page.File_chooser}. *)
 and FileChooser : sig
     type t
 
@@ -1897,7 +1875,6 @@ and Worker : sig
     val on : 'a event -> ('a -> unit) -> t -> Disposable.t
     val once : 'a event -> ('a -> unit) -> t -> Disposable.t
     val expect_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> (unit -> unit) -> t -> 'a
-    val wait_for_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> t -> 'a
 
     include Identity with type t := t
 end

@@ -28,10 +28,9 @@ adapted; [doc/migration.md](doc/migration.md) says how.
   `Target_closed`, `Assertion_failed`, `Other`), the message, the call log of the driver
   and the stack of a JavaScript error. Misuse that needs no browser to detect raises
   `Invalid_argument`.
-- Events are typed: `Page.on Page.Console (fun message -> ...) page`. There are `once`,
-  `wait_for_event` and `expect_event`, which runs an action and returns the event that it
-  causes without a race, and the shorthands `expect_popup`, `expect_download`,
-  `expect_request`, `expect_response`, `expect_navigation` and others.
+- Events are typed: `Page.on Page.Console (fun message -> ...) page`. There are `once`
+  and `expect_event`, which runs an action and returns the event that it causes without a
+  race, and `expect_request` and `expect_response`, which select by URL.
 - Whatever is registered (a listener, a route, an init script, an exposed function) returns
   a `Disposable.t` to take it back with.
 - JavaScript values are `Js.t`, which covers `undefined`, non-finite numbers, dates, big

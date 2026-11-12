@@ -79,4 +79,3 @@ let expect_event (type a) ?timeout ?predicate (event : a event) action (worker :
     in
     Events.expect worker.w_session.conn ~timeout ~name:(event_name event) ?predicate ~rejections (emitter worker event) action
 
-let wait_for_event ?timeout ?predicate event worker = expect_event ?timeout ?predicate event ignore worker

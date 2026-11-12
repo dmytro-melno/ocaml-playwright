@@ -305,7 +305,7 @@ let test_uploads t page =
     Page.locator "#one" page |> Locator.set_input_files [];
     Alcotest.(check string) "cleared" "" (describe "one");
     check_failure "several files for a single input" ~message:"Non-multiple file input" (fun () -> Page.locator "#one" page |> Locator.set_input_files [ a; b ]);
-    let chooser = Page.expect_file_chooser (fun () -> Page.click "#many" page) page in
+    let chooser = Page.expect_event Page.File_chooser (fun () -> Page.click "#many" page) page in
     Alcotest.(check bool) "multiple" true (FileChooser.is_multiple chooser);
     Alcotest.(check bool) "its page" true (Page.equal (FileChooser.page chooser) page);
     FileChooser.set_files [ b ] chooser;

@@ -297,7 +297,7 @@ for a page, on which `objects.ml` creates the client object, and later the event
 the context. The context's hook finds the page object in the channel's `impl`, has
 `Ownership` put it among the context's pages and emits `Page` on the context's emitter and
 `Popup` on the opener's; for each listener registered with `Page.on` a handler call is
-started, and a fiber blocked in `Page.expect_popup` is given the page to examine.
+started, and a fiber waiting for `Page.Popup` is given the page to examine.
 
 ## Who runs what
 
@@ -361,8 +361,8 @@ have tests in `test/unit/test_events.ml`:
 
 In the public interface the events of an object are a GADT, `type _ event = Close : t event
 | Console : ConsoleMessage.t event | ...`, defined in the object's module next to the
-function `emitter` that maps a constructor to its emitter. `on`, `once`, `expect_event` and
-`wait_for_event` are written once in terms of it.
+function `emitter` that maps a constructor to its emitter. `on`, `once` and `expect_event`
+are written once in terms of it.
 
 `Waiter` is what waiting for an event is built on, and `Events.expect` is its common use:
 listen, run the action, return the first event that the predicate accepts.
@@ -389,7 +389,7 @@ fulfilled, continued or aborted, `false` when the handler fell back, on which th
 handler is tried. `Route.Handler` holds the rest of the policy:
 
 - `run` counts the calls of a handler that are in progress (`rh_running`), which is what
-  `unroute ~behavior:`Wait` waits for (`rh_idle`);
+  `unroute_all ~behavior:`Wait` waits for (`rh_idle`);
 - `failed`: a handler that raises has not said what should become of the request. The
   request is aborted and the exception reported, since letting through what the handler may
   have been there to block is the wrong guess. Nothing is reported when the page is gone,

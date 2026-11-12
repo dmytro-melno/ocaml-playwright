@@ -227,7 +227,7 @@ let test_page_events_of_context t () =
     expect "a dialog" [ "answered Read me" ];
     Page.set_content {|<a href="/attachment">download</a>|} page;
     expect "new content" [ "loaded blank" ];
-    let download = Page.expect_download (fun () -> Page.click "a" page) page in
+    let download = Page.expect_event Page.Download (fun () -> Page.click "a" page) page in
     Download.delete download;
     expect "a download" [ "downloaded a.txt" ];
     Page.close page;

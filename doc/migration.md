@@ -80,7 +80,7 @@ let () =
    `Set.Make (Page)` and `Hashtbl.Make (Page)`.
 8. **Events are values, and registering returns something.** `Page.on_console handler page`
    is `Page.on Page.Console handler page`, and `Page.wait_for_console` is
-   `Page.wait_for_event Page.Console page` or, better, `Page.expect_console_message`. The
+   `Page.expect_event Page.Console action page`. The
    event carries the object it is about, such as a `ConsoleMessage.t`, rather than the
    parameters of the protocol message. `on` returns a `Disposable.t`, which removes the
    listener when it is disposed of; where the listener is to stay, write `|> ignore` after
@@ -129,7 +129,7 @@ let () =
 | `Locator.click ~strict:false locator` | removed; use `Locator.first` |
 | `Locator.expect ...`, `Frame.expect ...` | the functions of `Expect` |
 | `Page.on_<event> handler page` | `Page.on Page.<Event> handler page \|> ignore` |
-| `Page.wait_for_<event> page` | `Page.expect_<event> action page`, `Page.wait_for_event Page.<Event> page` |
+| `Page.wait_for_<event> page` | `Page.expect_event Page.<Event> action page` |
 | `Playwright.Error message` | `Playwright.Error { kind; message; ... }` |
 
 ## Behaviour that changed

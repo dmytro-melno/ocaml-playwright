@@ -609,12 +609,12 @@ that only a handler further back in the queue can provide.
 ### Waiting for an event
 
 To get hold of something that an action causes, such as the popup a click opens, wrap the
-action in an `expect_...` function. It starts listening, runs the action, and returns the
+action in `expect_event`. It starts listening, runs the action, and returns the
 event. Waiting only after the action would be a race, since the event may have happened
 by then.
 
 ```ocaml
-let popup = Page.expect_popup (fun () -> Page.get_by_text "Open in a new tab" page |> Locator.click) page in
+let popup = Page.expect_event Page.Popup (fun () -> Page.get_by_text "Open in a new tab" page |> Locator.click) page in
 Page.wait_for_load_state popup;
 print_endline (Page.title popup);
 
@@ -625,10 +625,9 @@ let response = Page.expect_response ~url:"**/api/items" ~predicate:Response.ok (
 Response.json response
 ```
 
-There are such functions for popups, downloads, file choosers, console messages, requests,
-responses, WebSockets and workers, and `expect_event` for any event. All take a `~timeout`
-and most a `~predicate` that selects among the events. `wait_for_event` is `expect_event`
-without an action, for events that the program does not cause itself.
+`expect_event` takes any event of the object, a `~timeout`, and a `~predicate` that selects
+among the events. `Page.expect_request` and `Page.expect_response` add a `~url` glob. For
+an event that the program does not cause itself, pass `ignore` as the action.
 
 The rules are the same for all of them:
 
@@ -660,7 +659,7 @@ Page.on Page.Dialog
 ### Downloads and uploads
 
 ```ocaml
-let download = Page.expect_download (fun () -> Page.get_by_role `Link ~name:"Invoice" page |> Locator.click) page in
+let download = Page.expect_event Page.Download (fun () -> Page.get_by_role `Link ~name:"Invoice" page |> Locator.click) page in
 Download.save_as ("downloads/" ^ Download.suggested_filename download) download;
 
 (* An upload through the file input itself... *)
@@ -668,7 +667,7 @@ Page.get_by_label "Attachment" page |> Locator.set_input_files [ "report.pdf" ];
 (* ...from memory... *)
 Page.get_by_label "Attachment" page |> Locator.set_input_payloads [ { name = "notes.txt"; mime_type = Some "text/plain"; buffer = "hello" } ];
 (* ...or through the file chooser that a button opens. *)
-let chooser = Page.expect_file_chooser (fun () -> Page.get_by_role `Button ~name:"Upload" page |> Locator.click) page in
+let chooser = Page.expect_event Page.File_chooser (fun () -> Page.get_by_role `Button ~name:"Upload" page |> Locator.click) page in
 FileChooser.set_files [ "report.pdf" ] chooser
 ```
 

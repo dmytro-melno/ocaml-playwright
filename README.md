@@ -102,7 +102,7 @@ Page.on Page.Response (fun response -> Printf.printf "%d %s\n" (Response.status 
 Events that an action causes are awaited around the action, so that they cannot be missed:
 
 ```ocaml
-let download = Page.expect_download (fun () -> Page.get_by_text "Export" page |> Locator.click) page in
+let download = Page.expect_event Page.Download (fun () -> Page.get_by_text "Export" page |> Locator.click) page in
 Download.save_as "export.csv" download
 ```
 

@@ -7,7 +7,7 @@ open Harness
 let test_console _ page =
     let seen = ref [] in
     Page.on Page.Console (fun message -> seen := ConsoleMessage.text message :: !seen) page |> ignore;
-    let message = Page.expect_console_message (fun () -> ignore (Page.evaluate "console.log('hello', 42, { a: [1] })" page)) page in
+    let message = Page.expect_event Page.Console (fun () -> ignore (Page.evaluate "console.log('hello', 42, { a: [1] })" page)) page in
     Alcotest.(check string) "type" "log" (ConsoleMessage.type_ message);
     Alcotest.(check string) "text" "hello 42 {a: Array(1)}" (ConsoleMessage.text message);
     Alcotest.(check (list string)) "arguments" [ {|"hello"|}; "42"; "{a: [1]}" ] (List.map (fun arg -> Js.show (JSHandle.json_value arg)) (ConsoleMessage.args message));
@@ -64,7 +64,7 @@ let test_popups t page =
     Server.page t.server "/opener" {|<a target="_blank" href="/popup">open</a>|};
     ignore (Page.goto (Server.url t.server "/opener") page);
     let context = Page.context page in
-    let popup = Page.expect_popup (fun () -> Page.click "a" page) page in
+    let popup = Page.expect_event Page.Popup (fun () -> Page.click "a" page) page in
     Page.wait_for_load_state popup;
     Alcotest.(check string) "title" "Popup" (Page.title popup);
     Alcotest.(check bool) "opener" true (Option.equal Page.equal (Page.opener popup) (Some page));
@@ -74,7 +74,7 @@ let test_popups t page =
     Page.close popup;
     Alcotest.(check bool) "closed" true (!closed && Page.is_closed popup);
     Alcotest.(check bool) "removed from the context" true (List.equal Page.equal (BrowserContext.pages context) [ page ]);
-    let opened = BrowserContext.expect_page (fun () -> ignore (Page.evaluate "window.open('/popup')" page)) context in
+    let opened = BrowserContext.expect_event BrowserContext.Page (fun () -> ignore (Page.evaluate "window.open('/popup')" page)) context in
     Page.wait_for_url "**/popup" opened;
     Alcotest.(check bool) "context event for window.open" true (Option.equal Page.equal (Page.opener opened) (Some page))
 
@@ -82,7 +82,7 @@ let test_downloads t page =
     Server.route t.server "/report" (fun _ -> Server.respond ~headers:[ "content-disposition", "attachment; filename=report.txt" ] "the report");
     Server.page t.server "/downloads" {|<a href="/report">download</a>|};
     ignore (Page.goto (Server.url t.server "/downloads") page);
-    let download = Page.expect_download (fun () -> Page.click "a" page) page in
+    let download = Page.expect_event Page.Download (fun () -> Page.click "a" page) page in
     Alcotest.(check string) "suggested name" "report.txt" (Download.suggested_filename download);
     Alcotest.(check string) "url" (Server.url t.server "/report") (Download.url download);
     Alcotest.(check bool) "page" true (Page.equal (Download.page download) page);
@@ -143,7 +143,7 @@ let test_listeners t page =
     let count = ref 0 in
     let listener _ = incr count in
     let log text = ignore (Page.evaluate "text => console.log(text)" ~arg:(Js.string text) page) in
-    let synchronized f = ignore (Page.expect_console_message f page) in
+    let synchronized f = ignore (Page.expect_event Page.Console f page) in
     let once = Page.once Page.Console listener page in
     synchronized (fun () -> log "one");
     synchronized (fun () -> log "two");
@@ -172,7 +172,7 @@ let test_listeners t page =
     sleep t 0.1;
     Alcotest.(check (list string)) "reentrant listener" [ "six/T" ] !titles;
     (* Waiting gives up after the timeout, and says what it waited for. *)
-    let error = failure "no event" (fun () -> Page.wait_for_event ~timeout:100. Page.Popup page) in
+    let error = failure "no event" (fun () -> Page.expect_event ~timeout:100. Page.Popup ignore page) in
     Alcotest.check error_kind "timeout" Error.Timeout error.kind;
     check_contains "names the event" ~sub:"popup" error.message;
     (* An exception escaping from a listener goes to the error hook of the driver. *)
@@ -311,7 +311,7 @@ let test_workers t page =
     Server.route t.server "/worker.js" (fun _ -> Server.respond ~content_type:"text/javascript" "self.answer = 42; console.log('from the worker')");
     Server.page t.server "/workers" "<title>Workers</title>";
     ignore (Page.goto (Server.url t.server "/workers") page);
-    let worker = Page.expect_worker (fun () -> ignore (Page.evaluate "() => { window.worker = new Worker('/worker.js') }" page)) page in
+    let worker = Page.expect_event Page.Worker (fun () -> ignore (Page.evaluate "() => { window.worker = new Worker('/worker.js') }" page)) page in
     Alcotest.(check string) "url" (Server.url t.server "/worker.js") (Worker.url worker);
     Alcotest.(check bool) "listed" true (List.equal Worker.equal (Page.workers page) [ worker ]);
     ignore (JSHandle.json_value (Worker.evaluate_handle "new Promise(resolve => setTimeout(resolve, 50))" worker));

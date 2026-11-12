@@ -302,5 +302,4 @@ module Web_socket = struct
         Events.expect (Channel.conn socket.ws_channel) ~timeout:(Timeouts.action ?timeout timeouts) ~name:(event_name event) ?predicate ~rejections
             (emitter socket event) action
 
-    let wait_for_event ?timeout ?predicate event socket = expect_event ?timeout ?predicate event ignore socket
 end

@@ -100,12 +100,12 @@ let test_cdp _ page =
     let listener name params = events := (name, Yojson.Safe.Util.(member "type" params |> to_string_option)) :: !events in
     let listening = CDPSession.on_event listener session in
     ignore (CDPSession.send "Runtime.enable" session);
-    ignore (Page.expect_console_message (fun () -> ignore (Page.evaluate "console.warn('via CDP')" page)) page);
+    ignore (Page.expect_event Page.Console (fun () -> ignore (Page.evaluate "console.warn('via CDP')" page)) page);
     ignore (CDPSession.send "Runtime.evaluate" ~params:(`Assoc [ "expression", `String "1" ]) session);
     Alcotest.(check bool) "events" true (List.mem ("Runtime.consoleAPICalled", Some "warning") !events);
     Disposable.dispose listening;
     let seen = List.length !events in
-    ignore (Page.expect_console_message (fun () -> ignore (Page.evaluate "console.warn('again')" page)) page);
+    ignore (Page.expect_event Page.Console (fun () -> ignore (Page.evaluate "console.warn('again')" page)) page);
     ignore (CDPSession.send "Runtime.evaluate" ~params:(`Assoc [ "expression", `String "1" ]) session);
     Alcotest.(check int) "no events after off" seen (List.length !events);
     check_failure "unknown method" ~message:"wasn't found" (fun () -> CDPSession.send "No.suchMethod" session);
@@ -254,7 +254,7 @@ let test_artifacts_dir t () =
     let browser = BrowserType.launch ?executable_path:t.executable_path ~artifacts_dir:dir (chromium t.pw) in
     let page = Browser.new_page browser in
     Page.set_content (Printf.sprintf {|<a href="%s">download</a>|} (Server.url t.server "/artifact")) page;
-    let download = Page.expect_download (fun () -> Page.click "a" page) page in
+    let download = Page.expect_event Page.Download (fun () -> Page.click "a" page) page in
     let path = Download.path download in
     Alcotest.(check bool) "downloads go there" true (String.starts_with ~prefix:dir path);
     Browser.close browser;
@@ -313,7 +313,7 @@ let check_instance_end t what ~create ~obtain end_ =
         List.map
             (fun (name, wait) -> name, Fiber.fork_promise ~sw:t.sw wait)
             [ "a call", (fun () -> ignore (Page.evaluate "new Promise(() => {})" page));
-              "an event", (fun () -> ignore (Page.wait_for_event ~timeout:0. Page.Popup page));
+              "an event", (fun () -> ignore (Page.expect_event ~timeout:0. Page.Popup ignore page));
               "an element", (fun () -> ignore (Page.wait_for_selector ~timeout:0. "#never" page));
               "the body of a response", (fun () -> Response.finished response);
               "an assertion", (fun () -> Expect.to_have_title ~timeout:0. "Never" page) ]

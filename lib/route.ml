@@ -169,7 +169,6 @@ module Handler = struct
         in
         offer (handlers ())
 
-    let matcher_equal a b = match a, b with Glob a, Glob b -> a = b | Predicate a, Predicate b -> a == b | _ -> false
     let globs matchers = Url_match.interception_patterns matchers
 end
 

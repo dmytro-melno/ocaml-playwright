@@ -280,14 +280,6 @@ let expect_event (type a) ?timeout ?predicate (event : a event) action (page : t
     in
     Events.expect (conn page) ~timeout ~name:(event_name event) ?predicate ~rejections (emitter page event) action
 
-let wait_for_event ?timeout ?predicate event page = expect_event ?timeout ?predicate event ignore page
-let expect_popup ?timeout ?predicate action page = expect_event ?timeout ?predicate Popup action page
-let expect_download ?timeout ?predicate action page = expect_event ?timeout ?predicate Download action page
-let expect_file_chooser ?timeout ?predicate action page = expect_event ?timeout ?predicate File_chooser action page
-let expect_console_message ?timeout ?predicate action page = expect_event ?timeout ?predicate Console action page
-let expect_web_socket ?timeout ?predicate action page = expect_event ?timeout ?predicate Web_socket action page
-let expect_worker ?timeout ?predicate action page = expect_event ?timeout ?predicate Worker action page
-
 (* Combines an optional URL glob and an optional predicate on the object carrying the URL. *)
 let url_predicate (page : t) ?url ?predicate url_of =
     let matches = Option.map (Frame.url_matcher page.main_frame) url in
@@ -298,14 +290,8 @@ let url_predicate (page : t) ?url ?predicate url_of =
 let expect_request ?timeout ?url ?predicate action page =
     expect_event ?timeout ~predicate:(url_predicate page ?url ?predicate Network.Request.url) Request action page
 
-let expect_request_finished ?timeout ?url ?predicate action page =
-    expect_event ?timeout ~predicate:(url_predicate page ?url ?predicate Network.Request.url) Request_finished action page
-
 let expect_response ?timeout ?url ?predicate action page =
     expect_event ?timeout ~predicate:(url_predicate page ?url ?predicate Network.Response.url) Response action page
-
-let wait_for_request ?timeout ?url ?predicate page = expect_request ?timeout ?url ?predicate ignore page
-let wait_for_response ?timeout ?url ?predicate page = expect_response ?timeout ?url ?predicate ignore page
 
 (* {1 Navigation and state} *)
 
@@ -401,8 +387,6 @@ let add_route ?times matcher handler (page : t) =
 
 let route ?times glob handler page = add_route ?times (Glob glob) handler page
 let route_matching ?times predicate handler page = add_route ?times (Predicate predicate) handler page
-
-let unroute glob page = remove_routes (fun (handler : route_handler) -> Route.Handler.matcher_equal handler.rh_matcher (Glob glob)) page
 let unroute_all ?behavior page = remove_routes ?behavior (fun _ -> true) page
 
 let add_web_socket_route matcher handler (page : t) =

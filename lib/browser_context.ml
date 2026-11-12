@@ -126,8 +126,6 @@ let add_route ?times matcher handler (context : t) =
 
 let route ?times glob handler context = add_route ?times (Glob glob) handler context
 let route_matching ?times predicate handler context = add_route ?times (Predicate predicate) handler context
-
-let unroute glob context = remove_routes (fun (handler : route_handler) -> Route.Handler.matcher_equal handler.rh_matcher (Glob glob)) context
 let unroute_all ?behavior context = remove_routes ?behavior (fun _ -> true) context
 
 let add_web_socket_route matcher handler (context : t) =
@@ -273,9 +271,6 @@ let expect_event (type a) ?timeout ?predicate (event : a event) action (context 
         | _ -> Waiter.reject_on waiter context.ce_close (fun _ -> Some (close_error context))
     in
     Events.expect context.c_session.conn ~timeout ~name:(event_name event) ?predicate ~rejections (emitter context event) action
-
-let wait_for_event ?timeout ?predicate event context = expect_event ?timeout ?predicate event ignore context
-let expect_page ?timeout ?predicate action context = expect_event ?timeout ?predicate Page action context
 
 (* {1 Operations} *)
 

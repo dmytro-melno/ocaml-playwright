@@ -89,10 +89,6 @@ let test_handler_order t page =
     Alcotest.(check string) "first request" "mocked once" (body (fetch "/echo" page));
     Alcotest.(check bool) "second request reaches the server" true (contains ~sub:{|"method":"GET"|} (body (fetch "/echo" page)));
     (* Removing handlers. *)
-    Page.route "**/echo" (Route.fulfill ~body:"mocked") page |> ignore;
-    Alcotest.(check string) "mocked" "mocked" (body (fetch "/echo" page));
-    Page.unroute "**/echo" page;
-    Alcotest.(check bool) "unrouted" true (contains ~sub:{|"method":"GET"|} (body (fetch "/echo" page)));
     (* What registering returns removes that handler alone, however it was registered. *)
     let by_glob = Page.route "**/echo" (Route.fulfill ~body:"by glob") page in
     let by_predicate = Page.route_matching (contains ~sub:"/echo") (Route.fulfill ~body:"by predicate") page in

@@ -48,12 +48,12 @@ of the module `Playwright`, built with `dune build @doc`.
 | Playwright | Here |
 | --- | --- |
 | `page.$`, `page.$$`, `page.$eval`, `page.$$eval` | `Page.query_selector`, `query_selector_all`, `eval_on_selector`, `eval_on_selector_all` |
-| `page.waitForEvent('popup')` | `Page.wait_for_event Page.Popup page` |
-| `Promise.all([page.waitForEvent('popup'), action()])`; `with page.expect_popup()` | `Page.expect_event Page.Popup action page`, or `Page.expect_popup action page` |
+| `page.waitForEvent('popup')` | `Page.expect_event Page.Popup ignore page` |
+| `Promise.all([page.waitForEvent('popup'), action()])`; `with page.expect_popup()` | `Page.expect_event Page.Popup action page` |
 | `page.waitForNavigation()` | `Page.expect_navigation action page` |
-| `page.waitForRequest(urlOrPredicate)` | `Page.wait_for_request ?url ?predicate page`, and `Page.expect_request` with an action |
+| `page.waitForRequest(urlOrPredicate)` | `Page.expect_request ?url ?predicate action page` |
 | `page.route(url, handler)` with a regular expression or a predicate | `Page.route_matching predicate handler page` |
-| `page.unroute(url, handler)` | `Disposable.dispose` of what `Page.route` returned; `Page.unroute glob page` removes all handlers of a pattern |
+| `page.unroute(url, handler)` | `Disposable.dispose` of what `Page.route` returned |
 | `page.clock.install()`, `context.clock.runFor(ms)` | `Clock.install context`, `Clock.run_for ms context` |
 | `page.frame('name')`, `page.frame({ url })` | ``Page.frame (`Name "name") page``, ``Page.frame (`Url glob) page`` |
 | `page.addInitScript({ path })`, and every other `path` option that makes the client read or write a file: `screenshot`, `pdf`, `storageState`, `addScriptTag`, `route.fulfill`, client certificates | Not there. The functions take and return the content: `Page.add_init_script source page`, `Page.screenshot page`. Paths that the driver handles are there: uploads, downloads, videos, traces. |

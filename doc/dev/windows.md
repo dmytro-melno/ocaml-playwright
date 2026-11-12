@@ -9,7 +9,7 @@ been run under Wine, with Node.js for Windows and Playwright's Chromium for Wind
 - an installation that exceeds its time limit, and one whose caller is cancelled: the
   installer is killed and nothing is left in the cache;
 - a session with a real browser: launch, a route that is fulfilled, navigation, a
-  listener and `expect_console_message` around a click, an upload from disk, evaluation, a
+  listener and `expect_event` around a click, an upload from disk, evaluation, a
   screenshot written to a file, a call cancelled with `Eio.Time.with_timeout`, close;
 - the driver's log (`DEBUG=pw:browser`) arriving on the program's standard error;
 - stopping the driver when the program ends, when its switch fails, and when it dies of
