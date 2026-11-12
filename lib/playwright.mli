@@ -578,9 +578,6 @@ module rec Js : sig
     val list : ('a -> t) -> 'a list -> t
     val obj : (string * t) list -> t
 
-    val option : ('a -> t) -> 'a option -> t
-    (** [None] becomes [Null]. *)
-
     val of_json : Yojson.Safe.t -> t
     (** Integers become [Number]s, and [Bigint]s when they are beyond ±(2{^53} - 1). *)
 

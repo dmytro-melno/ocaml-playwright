@@ -113,7 +113,6 @@ let float f = Number f
 let string s = String s
 let list f items = Array (List.map f items)
 let obj fields = Object fields
-let option f = function Some value -> f value | None -> Null
 
 let rec of_json : Yojson.Safe.t -> t = function
     | `Null -> Null
