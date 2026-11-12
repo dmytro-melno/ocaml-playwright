@@ -55,49 +55,46 @@ in reviews. `dune runtest` fails if either file is not what the generator would 
 
    If the generator fails, the specification uses something that it does not know yet, such
    as a new primitive type or a new form of declaration. The error says where. Extend
-   `tools/gen_protocol/gen_protocol.ml`; it is a few hundred lines, and its model of the
-   specification is at the top.
+   `tools/gen_protocol/gen_protocol.ml`, whose model of the specification is at the top.
 
-3. **Build, and follow the errors.** `dune build 2>&1 | head -50`. A type error is a place
-   where the client uses a command, a parameter or a result that has changed: a removed
-   parameter means that an option of the public API goes away or is implemented differently;
-   a new required parameter needs a value. A match that is not exhaustive is a new event of
-   an interface (in the `handle_event` of its module) or a new interface (in `objects.ml`).
+3. **Build, and follow the errors.** `dune build 2>&1 | head -50`. What the compiler shows
+   of a new version, and what it does not:
 
-4. **Find out what else changed.** The compiler only shows what broke. What changed
-   without breaking anything is looked for in three places:
+   | A new version of the protocol | Shows as |
+   | --- | --- |
+   | removes or renames a command, a parameter, a field of a result or an initializer, a value of an enumeration that the client uses; makes a parameter required | a type error where it is used |
+   | adds an interface | a match that is not exhaustive in `objects.ml` (`Protocol.Object.of_channel` has a constructor per interface) |
+   | adds an event to an interface whose events are handled | a match that is not exhaustive in the `handle_event` of its module |
+   | adds a command, or an interface that is not generated | a change of the generated [protocol-coverage.md](protocol-coverage.md) |
+   | adds an optional parameter to a command in use, a field to a result, a value to an enumeration that is only sent | nothing: only the diff of `lib/protocol.ml` tells |
+   | changes what a command does without changing its shape | nothing: the release notes, the official client and the tests tell |
 
-   - **The generated code.** The diff of `lib/protocol.ml` shows, for the commands that the
-     library sends, new optional parameters, new fields of results and initializers, and new
-     values of enumerations.
-   - **The official client**, which is the reference for everything that the protocol does
-     not say: how options map to parameters, in which order things are done, what is checked
-     on the client.
+   A removed parameter means that an option of the public API goes away or is implemented
+   differently; a new required parameter needs a value.
 
-     ```sh
-     git clone https://github.com/microsoft/playwright && cd playwright
-     git diff v1.65.0 v1.66.0 --stat -- packages/playwright-core/src/client
-     git diff v1.65.0 v1.66.0 -- packages/playwright-core/src/client/page.ts
-     ```
+4. **Find out what else changed**, in the diff of `lib/protocol.ml` and in the official
+   client, which is the reference for everything that the protocol does not say: how options
+   map to parameters, in which order things are done, what is checked on the client.
 
-     Some of its code is ported, not just followed; a change in one of these files has to
-     be repeated here:
+   ```sh
+   git clone https://github.com/microsoft/playwright && cd playwright
+   git diff v1.65.0 v1.66.0 --stat -- packages/playwright-core/src/client
+   git diff v1.65.0 v1.66.0 -- packages/playwright-core/src/client/page.ts
+   ```
 
-     | Upstream | Here |
-     | --- | --- |
-     | `packages/isomorphic/locatorUtils.ts` | `lib/selector.ml` |
-     | `packages/protocol/src/serializers.ts`, `client/jsHandle.ts` | `lib/js.ml` |
-     | `client/waiter.ts`, `client/timeoutSettings.ts` | `lib/waiter.ml`, `lib/timeouts.ml` (the behaviour, not the code) |
+   Some of its code is ported, not just followed; a change in one of these files has to be
+   repeated here:
 
-   - **The inventory.** The diff of `doc/dev/protocol-coverage.md` lists the commands that
-     are new, and those that went away without the client having used them.
+   | Upstream | Here |
+   | --- | --- |
+   | `packages/isomorphic/locatorUtils.ts` | `lib/selector.ml` |
+   | `packages/protocol/src/serializers.ts`, `client/jsHandle.ts` | `lib/js.ml` |
+   | `client/waiter.ts`, `client/timeoutSettings.ts` | `lib/waiter.ml`, `lib/timeouts.ml` (the behaviour, not the code) |
 
    An update has to keep true what the library offers already: an option of a function that
    is here, a field of a value that it returns. What Playwright *added* does not have to
-   follow. *What belongs in the library* in [architecture.md](architecture.md) decides: a
-   new capability of the browser is bound when a program needs it, a new convenience of the
-   other clients is not. There is no list of Playwright's interface to keep up with; where
-   the library leaves out something that a reader will look for,
+   follow: *What belongs in the library* in [architecture.md](architecture.md) decides, and
+   where the library leaves out something that a reader will look for,
    [scope.md](../scope.md) says what takes its place.
 
 5. **Run the tests** against the new driver: install it with

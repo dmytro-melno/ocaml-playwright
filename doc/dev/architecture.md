@@ -85,27 +85,23 @@ in-memory one.
 
 `Driver` finds Node.js and the driver's package (`locate`), which is all that starting
 Playwright does about them: a missing driver is an error that names the command to run.
-Installing is a step of its own (`install`), made by `Playwright.Driver` and the
-`ocaml-playwright` program: a small Node.js script downloads the tarball from the npm
-registry, checks its SHA-512 against the digest compiled into the library, and unpacks it
-into a scratch directory, which is then renamed into place, so that concurrent and
-interrupted installations do no harm. Node.js is required anyway, and using it here is what
-keeps HTTP, TLS and tar libraries out of the dependencies. The installation is a child
-process that is waited for; it is setting up, not something to do while a program serves, so
-there is no time limit and no cancellation to it.
+Installing is a step of its own (`install`), behind `Playwright.Driver` and the
+`ocaml-playwright` program: a Node.js script downloads the tarball from the npm registry,
+checks its SHA-512 against the digest compiled into the library and unpacks it into a
+scratch directory, which is renamed into place, so that concurrent and interrupted
+installations do no harm. Node.js is there anyway, and using it keeps HTTP, TLS and tar
+libraries out of the dependencies. Installing is a child process that is waited for, with no
+time limit and no cancellation: it is setting up, not something to do while a program serves.
 
 `Driver_process` runs the driver and exposes its pipes as a `Transport`. It uses
 `Unix.create_process` and two system threads, one reading and one writing, which hand data
 to fibers through an `Eio.Stream` and promises. Eio's own processes and non-blocking pipes
-would do on Unix, but do not exist on Windows; one implementation for every system means
-that the tests on Linux exercise what runs on Windows, at the price of two threads per
-driver and a few microseconds per message. See [windows.md](windows.md).
-
-The driver does not inherit the program's standard error. Node.js makes the pipes that it
-is given non-blocking, which is a property of the open file and not of the descriptor: the
-program's own writes to standard error would start to fail. So the driver gets a pipe of
-its own, and a system thread copies what comes out of it to standard error
-(`Driver_process.Errors`).
+do not exist on Windows; one implementation for every system means that the tests on Linux
+exercise what runs on Windows ([windows.md](windows.md)), at the price of two threads per
+driver and a few microseconds per message. A third thread copies the driver's standard
+error to the program's (`Driver_process.Errors`). The driver cannot inherit it: Node.js
+makes the pipes that it is given non-blocking, which is a property of the open file, and the
+program's own writes to standard error would start to fail.
 
 Stopping the driver closes its standard input, which makes it exit and take its browsers
 along; if it has not gone after a grace period, it is killed. Stopping is not interrupted
@@ -171,124 +167,106 @@ type of object it has a module with:
 Structures and enumerations of the protocol become records and polymorphic variants. Nothing
 of this layer appears in the public interface.
 
-What the types do for an update of Playwright, and what they do not:
-
-| A new version of the protocol | Shows as |
-| --- | --- |
-| removes or renames a command, a parameter, a field of a result or an initializer, a value of an enumeration that the client uses; makes a parameter required | a type error where it is used |
-| adds an interface | a match that is not exhaustive in `objects.ml` (`Protocol.Object.of_channel` has a constructor per interface) |
-| adds an event to an interface whose events are handled | a match that is not exhaustive in the `handle_event` of its module |
-| adds a command, or an interface that is not generated | a change of the generated [protocol-coverage.md](protocol-coverage.md) |
-| adds an optional parameter to a command in use, a field to a result, a value to an enumeration that is only sent | nothing: only the diff of `protocol.ml` tells |
-| changes what a command does without changing its shape | nothing: the release notes, the official client and the tests tell |
-
-See [protocol.md](protocol.md) for the procedure.
+The types are what makes an update of Playwright tractable: what a new version of the
+protocol removes or changes is a type error where it is used, and a new interface or event
+is a match that is not exhaustive. [protocol.md](protocol.md) has the procedure, and says
+what the compiler does not show.
 
 ### Client objects: `types.ml`, `ownership.ml` and one module per object
 
 Playwright's objects refer to each other in cycles: a page has frames, a frame has a page, a
-request has a frame and a response, and so on. So the *data* of all objects is defined in
-one recursive group of records in `types.ml`, and the *behaviour* is in one module per
-object. Field names are unique across `types.ml`, hence the prefixes.
+request has a frame and a response. So the *data* of all objects is one recursive group of
+records in `types.ml`, and the *behaviour* is in one module per object. Field names are
+unique across `types.ml`, hence the prefixes.
 
 The behaviour modules are not recursive. They form a chain, roughly `Js`, `Js_handle`,
 `Frame`, `Element_handle`, `Locator`, `Network`, `Tracing`, `Worker`, `Api_request`,
 `Expect`, `Route`, `Browser_context`, `Browser`, `Browser_type`, `Page`, `Objects`,
-`Instance`, and a module can call the functions of those before it only. That is
-less of a restriction than it looks, because a module can *read* the record of any object:
-a frame finds its page, the page's context and the context's timeouts without calling
-anybody. Where a module early in the chain depends on what a later one
-learns, the dependence goes through data too: `Frame` and `Network` end their waits when
-the page goes away by listening to `page.pe_close` and awaiting `page.p_gone`, which `Page`
-fires and resolves. What pages and frames have in common is written once, in the functor
-`Frame.Operations`, which `Page` applies to its main frame.
+`Instance`, and a module calls the functions of those before it only. That restricts less
+than it seems to, because a module can *read* the record of any object: a frame finds its
+page, the page's context and the context's timeouts without calling anybody. Where a module
+early in the chain depends on what a later one learns, that goes through data too: `Frame`
+and `Network` end their waits when the page goes away by listening to `page.pe_close` and
+awaiting `page.p_gone`, which `Page` fires and resolves. What pages and frames have in
+common is written once, in the functor `Frame.Operations`, which `Page` applies to its main
+frame.
 
 `objects.ml` is the factory: when the connection reports a new channel, it calls the
 `create` function of the module for its interface, which builds the record, has the events
 of the channel handled (`Protocol.Page.listen channel (handle_event page)`) and says what
 to do when the object is lost (`Channel.on_lost`); the record becomes the channel's `impl`.
-A handler updates the record and emits a client event if there is one. Since every object of
-an interface that has a client side gets it there, before anything can refer to the object,
-the functions that lead from a channel to its client object (`Types.page`, `Types.frame`,
-...) cannot fail.
+Since every object gets its client side there, before anything can refer to it, the
+functions that lead from a channel to its client object (`Types.page`, `Types.frame`, ...)
+cannot fail.
 
 Every module can read every field of every record. Writing is restricted, by convention:
 
 - A mutable field is written by the module of its record: `page.closed` by `Page`,
   `request.failure` by `Network.Request`. A module that has something to tell another
-  object calls a function of that object's module (`Network.Request.did_fail`,
-  `Tracing.set_traces_dir`).
+  object calls a function of that object's module (`Network.Request.did_fail`).
 - The fields that tie two objects together (`context.pages` and `page.context`,
   `page.frames` and `frame.page`, ...) are written by `Ownership` only. The two ends of such
   a tie hear of a change through different events, in different modules; `Ownership` is
   where they are kept in step.
-- An emitter is fired by the module that hears of the event from the driver. That is not
-  always the module of the record that holds the emitter: the driver reports the network
-  activity, the console messages and the dialogs of a page to its context, and the load
-  events to its main frame. In the other direction, what a page or a frame hears of
-  (closing, loading, downloads, frames coming and going) is also emitted on the context
-  (`ce_page_close`, `ce_frame_navigated`, ...), by `Page` and `Frame`. `types.ml` says which
-  emitters those are.
+- An emitter is fired by the module that hears of the event from the driver, which is not
+  always the module of the record that holds it: the driver reports the network activity,
+  the console messages and the dialogs of a page to its context, and the load events to its
+  main frame. In the other direction, `Page` and `Frame` also emit on the context what they
+  hear of (`ce_page_close`, `ce_frame_navigated`, ...). `types.ml` says which emitters
+  those are.
 
 State that belongs to no object is in the `session` record: the connection, the local
-utilities of the driver, the selector settings and the default
-timeout of assertions (`session.assertions`). There are no global variables other than the
-counter in `serial.ml`.
+utilities of the driver, the selector settings and the default timeout of assertions. There
+are no global variables other than the counter in `serial.ml`.
 
 The supporting modules:
 
 | Module | Purpose |
 | --- | --- |
-| `Emitter` | Typed event sources: see *Events*. |
-| `Waiter`, `Events` | Waiting for an event, around the action that causes it: see *Events*. |
+| `Emitter`, `Waiter`, `Events` | Typed event sources, and waiting for an event around the action that causes it: see *Events*. |
 | `Closing` | How far the closing of an object has got: see *Lifetimes*. |
-| `Disposable` | What a registration returns, to take it back with: a function that is called at most once. |
+| `Disposable` | What a registration returns, to take it back with. |
 | `Timeouts` | Default timeouts, inherited from context to page. |
 | `Js` | Encoding and decoding of JavaScript values. |
 | `Selector` | Builds the selectors behind `get_by_role` and the other locator functions. |
-| `Url_match` | Which URLs are meant: a glob or a predicate. The driver makes a regular expression of a glob (`LocalUtils.globToRegex`), resolving it against the base URL as it does for itself, and `Re` runs it. Nothing of Playwright's `urlMatch.ts` is repeated here. |
-| `Local_utils` | The utilities of the driver (archives of traces). |
-| `Files` | The paths that are handed to the driver: made absolute, and told apart as files and directories (in a system thread). The library opens no file; the driver reads and writes them. |
+| `Url_match` | Which URLs are meant: a glob or a predicate. The driver makes a regular expression of a glob (`LocalUtils.globToRegex`), resolving it against the base URL as it does for itself, and `Re` runs it. |
+| `Local_utils` | The utilities of the driver that the client leaves work to: archives of traces, globs. |
+| `Files` | The paths that are handed to the driver: made absolute, and told apart as files and directories (in a system thread). The library opens no file. |
 | `Fibers` | `first` for operations that can fail; `is_cancellation`. |
 | `Serial` | Numbers that tell the objects of the process apart: see *Identity*. |
 | `Context_options`, `Screenshot`, `Cookie` | Conversion of options into protocol records. |
 | `Route` | Routing of requests and WebSockets: see *Route handlers*. |
 | `Expect` | Assertions, on top of the `expect` command of frames. |
+| `Misc` | The objects that are too small for a file: console messages, downloads, file choosers, web errors, selector engines. |
 
 ### The facade: `playwright.ml`, `playwright.mli`
 
 `playwright.mli` is the public interface and the reference documentation. `playwright.ml`
 assembles the modules of the implementation and restricts them to that interface; it has no
-logic of its own. Starting and stopping a driver, which belongs to no object, is in
-`instance.ml`.
+logic of its own.
 
-The types of the objects refer to one another: a page has frames, a frame has a page. The
-interface therefore declares the modules of the objects, and `Js`, as one recursive group,
-`module rec Js : sig ... end and BrowserType : sig ... end and ...`, in which each module
-declares its own type `t` and names the others' as `Page.t`, `Frame.t`. There is no other
-name for these types. The implementation is not recursive: its modules are those of the
-private library, whose types are all defined in `types.ml`. What takes a driver and returns
-an object (`chromium`, `APIRequest`) can only be declared after the group, as can `Expect`,
-`Clock` and `Selectors`, which need not be part of it.
+Because the types of the objects refer to one another, the interface declares the modules
+of the objects, and `Js`, as one recursive group, `module rec Js : sig ... end and
+BrowserType : sig ... end and ...`, in which each module declares its own type `t` and names
+the others' as `Page.t`, `Frame.t`. The implementation is not recursive: its types are all
+in `types.ml`. What takes a driver and returns an object (`chromium`, `APIRequest`) is
+declared after the group, as are `Expect`, `Clock` and `Selectors`.
 
-Signatures that several modules share are stated once, before the group: `Identity`
-(`equal`, `compare`, `hash`, in every object module), `Locator_queries` (the `get_by_*`
-family) and `Frame_operations` (what pages and frames have in common). Since they come
-before the types that they mention, they take these as parameters: `type locator`,
-`type js_value` and so on, which the modules substitute, as in
-`include Locator_queries with type t := t and type locator := Locator.t`. The two long lists
-of options that several functions accept are type abbreviations, `'a with_context_options`
-and `'a with_launch_options`.
+Signatures that several modules share are stated once, before the group: `Identity`,
+`Locator_queries` (the `get_by_*` family) and `Frame_operations` (what pages and frames have
+in common). Since they come before the types that they mention, they take these as
+parameters, which the modules substitute: `include Locator_queries with type t := t and
+type locator := Locator.t`. The two long lists of options that several functions accept are
+type abbreviations, `'a with_context_options` and `'a with_launch_options`.
 
 OCaml wants every type and module type that an interface defines to be defined by the
 implementation too. `playwright.ml` therefore begins with a second statement of the value
 types, the two abbreviations and the three shared signatures, without their documentation;
 the compiler checks that they agree with the interface, the order of optional arguments
-included. Keeping them in a third file for both to refer to would not remove the need: the
-shared signatures mention the value types, so these would have to move there as well, and
-the interface would no longer be readable on its own. `Expect.Assertions` is not restated:
-it is `module type of` what the functor in `expect.ml` returns, which is why that functor
-keeps its helpers in an `open struct`.
+included. A third file for both to refer to would not remove the need: the interface would
+no longer be readable on its own. `Expect.Assertions` is not restated: it is `module type
+of` what the functor in `expect.ml` returns, which is why that functor keeps its helpers in
+an `open struct`.
 
 The conventions of the interface (the object comes last, required arguments are positional,
 options are labelled, timeouts are milliseconds, events are a GADT, a registration returns
@@ -296,36 +274,35 @@ a `Disposable.t`) are stated at the top of `playwright.mli`. A new function foll
 
 ### Identity
 
-Every object module has `equal`, `compare` and `hash`. For an object of the driver they are
-those of its channel, `Channel.equal` and so on, which rest on the `serial` number that a
-channel is given when it is created (`serial.ml`). A guid would not do: it is unique within
-its connection only, and the browser types of two drivers have the same one. Console
-messages and web errors are not objects of the driver and carry a serial number of their
-own; locators are compared by frame and selector, API responses by context and fetch id.
-Inside the library, records are compared with `==` or these functions, never with the
-polymorphic `=`, which would walk the cycles between them.
+The modules of objects that a program holds on to and may meet again (pages, frames,
+requests, handles, ...) have `equal`, `compare` and `hash`. They are those of the object's
+channel, `Channel.equal` and so on, which rest on the `serial` number that a channel gets
+when it is created. A guid would not do: it is unique within its connection only, and the
+browser types of two drivers have the same one. Locators and frame locators are compared by
+frame and selector, API responses by context and fetch id. Values that an event delivers
+once (console messages, web errors) and the parts of a page (keyboard, mouse, tracing, ...)
+have no identity. Inside the library, records are compared with `==` or these functions,
+never with the polymorphic `=`, which would walk the cycles between them.
 
 ## Life of a call
 
 `Locator.click locator`:
 
 1. `Locator.click` turns its options into a call of `Protocol.Frame.click` on the frame's
-   channel with the locator's selector and `strict:true`, with the timeout taken from
-   `Timeouts`.
+   channel with the locator's selector and `strict:true`, with the timeout from `Timeouts`.
 2. The generated function builds the JSON parameters and calls `Connection.call`, which
    assigns an id, queues the message for the writer, and waits on a promise.
 3. The driver finds the element, waits for it to be actionable, clicks, and replies.
-4. The reader decodes the result with the function that the generated code gave to `call`,
-   here to nothing, and resolves the promise; or `Connection.call` raises the error that
-   the driver sent, converted by `Error.of_wire` into a `Playwright.Error` with its kind and
-   call log.
+4. The reader decodes the result with the function that the generated code gave to `call`
+   and resolves the promise; or `Connection.call` raises the error that the driver sent,
+   which `Error.of_wire` made a `Playwright.Error` with its kind and call log.
 
 Events travel the other way. When the click opens a popup, the driver sends `__create__`
 for a page, on which `objects.ml` creates the client object, and later the event `page` to
 the context. The context's hook finds the page object in the channel's `impl`, has
 `Ownership` put it among the context's pages and emits `Page` on the context's emitter and
-`Popup` on the opener's; for each listener registered with `Page.on` a handler call is
-started, and a fiber waiting for `Page.Popup` is given the page to examine.
+`Popup` on the opener's; for each listener a handler call is started, and a fiber waiting
+for `Page.Popup` is given the page to examine.
 
 ## Who runs what
 
@@ -336,45 +313,41 @@ the state consistent is which fiber does what:
 | --- | --- | --- |
 | Applying a message: creating and disposing objects, settling replies, `on_event` hooks, internal listeners (`Emitter.subscribe`), the collecting half of a `Waiter` | the reader of the connection | Must not block. An exception is a protocol failure and ends the connection; one from an internal listener is reported instead. |
 | User code that an event calls: event listeners, route handlers, WebSocket route handlers, exposed functions, locator handlers | `Connection.handle`: a daemon fiber per call, in the scope of the instance | May block. Starts in the order of the events. Counted: see below. Exceptions go to `on_error`. Cancelled when the instance ends. |
-| What the client does by itself in answer to an event: subscribing to events on demand, dismissing a dialog that nobody listens for, releasing the result of a cancelled command, reading a remote connection | `Connection.fork`: a daemon fiber in the same scope | Short, and no more of it than there are events, so not counted. Exceptions are reported. |
-| The predicate of an `expect_*` or `wait_for_*` | a fiber of the waiting call (`Waiter.around`) | One event at a time, in the order of arrival, while the action runs. |
+| What the client does by itself in answer to an event: subscribing to events on demand, dismissing a dialog that nobody listens for, releasing the result of a cancelled command | `Connection.fork`: a daemon fiber in the same scope | Short, and no more of it than there are events, so not counted. Exceptions are reported. |
+| The predicate of `expect_event`, `expect_request` and `expect_response` | a fiber of the waiting call (`Waiter.around`) | One event at a time, in the order of arrival, while the action runs. |
 | Closing, disposing, cleaning up | `Connection.start` and what is built on it: a daemon fiber in the scope of the instance, for which the caller waits | Not interrupted when the caller is cancelled: see *Cancellation*. |
 | Blocking system calls: looking at paths, the pipes of the driver process, the driver's standard error | system threads (`Files.partition_directories`, `Driver_process`) | Hand their results to fibers; touch no client state. |
 
 Code that reads and then writes client state outside the reader does so without yielding in
-between.
-
-*The scope of the instance* is a switch that `Connection.run` opens for the connection to
-the driver and that lasts as long as that connection runs. Everything in it
-is a daemon fiber: nothing in it keeps the instance alive, and all of it is cancelled when
-the instance ends.
+between. *The scope of the instance* is a switch that `Connection.run` opens and that lasts
+as long as the connection runs. Everything in it is a daemon fiber: nothing in it keeps the
+instance alive, and all of it is cancelled when the instance ends.
 
 ### The budget of handlers
 
 The reader cannot wait for user code, so events arrive at the pace of the browser: a page
 that logs ten thousand lines calls a console listener ten thousand times before the first
 reply to anything those calls ask can be read. `Connection.handle` keeps that within two
-bounds, `handler_concurrency` (1024) and `handler_backlog` (65536). They are arguments of
-`Connection.create` for the sake of its tests, and constants for everybody else:
+bounds, which are arguments of `Connection.create` for the sake of its tests and constants
+for everybody else:
 
-- no more than `handler_concurrency` calls are in progress; the others wait in a queue,
-  which costs a closure each, and are started in order as calls end;
-- when more than `handler_backlog` wait, handlers are not keeping up or not returning. The
-  connection is closed with an error that says so, which is also reported. No call is ever
-  dropped while the instance lives.
+- no more than `handler_concurrency` (1024) calls are in progress; the others wait in a
+  queue, which costs a closure each, and are started in order as calls end;
+- when more than `handler_backlog` (65536) wait, handlers are not keeping up or not
+  returning. The connection is closed with an error that says so. No call is ever dropped
+  while the instance lives.
 
 Everything that calls user code because of an event goes through `handle`, so that the
-bounds hold for the instance as a whole. Use `fork` only for work whose amount and duration
-the library controls.
+bounds hold for the instance as a whole. `fork` is for work whose amount and duration the
+library controls.
 
 ## Events
 
 `Emitter` is a typed event source. `Emitter.on` and `once` add a listener of the
 application, each call of which is a handler call; `subscribe` adds an internal one, which
-runs inline in the reader. All three return the function that removes the listener. There
-is no `off`: functions cannot be compared, so a listener is removed by what its
-registration returned, which the facade wraps in a `Disposable.t`. The rules, all of which
-have tests in `test/unit/test_events.ml`:
+runs inline in the reader. All three return the function that removes the listener, which
+the facade wraps in a `Disposable.t`; there is no `off`, since functions cannot be
+compared. The rules, which `test/unit/test_events.ml` tests:
 
 - `emit` calls the listeners in the order of their registration, and returns whether there
   was one (which is how a dialog that nobody handles gets dismissed).
@@ -385,8 +358,7 @@ have tests in `test/unit/test_events.ml`:
 - `set_watch` tells when the first listener arrives and the last one leaves.
   `Events.subscribe_on_demand` uses it for the events that the driver reports only on
   request (console messages, dialogs, requests, ...): the subscription is updated in a
-  forked fiber, because a listener can be added where blocking is not allowed, and because
-  nobody is there to handle a failure of it.
+  forked fiber, because a listener can be added where blocking is not allowed.
 
 In the public interface the events of an object are a GADT, `type _ event = Close : t event
 | Console : ConsoleMessage.t event | ...`, defined in the object's module next to the
@@ -398,9 +370,8 @@ listen, run the action, return the first event that the predicate accepts.
 
 - A waiter collects from the moment it is created, in the reader, so that nothing is missed
   between starting the action and waiting for its effect.
-- The predicate is user code and may block, so it is not run in the reader: `Waiter.around`
-  examines what was collected in a fiber of its own, one event at a time, as the events
-  arrive and while the action is under way.
+- The predicate is user code and may block, so `Waiter.around` examines what was collected
+  in a fiber of its own, one event at a time, while the action is under way.
 - The timeout counts from before the action and is on the *arrival* of the event. Neither
   the action nor the predicate is interrupted when the time is up; the failure is raised
   once the action is over, and a failure of the action itself takes precedence.
@@ -411,24 +382,22 @@ listen, run the action, return the first event that the predicate accepts.
 ### Route handlers
 
 A route arrives as an event of the page or the context, whose hook starts one handler call
-(`handle "route"`) that offers the route to the handlers in order: those of the page before
-those of the context, the most recently added first (`Route.Handler.dispatch`). What a
-handler does with the route settles a promise, `route.handling`: `true` when the request was
-fulfilled, continued or aborted, `false` when the handler fell back, on which the next
-handler is tried. `Route.Handler` holds the rest of the policy:
+that offers the route to the handlers in order: those of the page before those of the
+context, the most recently added first (`Route.Handler.dispatch`). What a handler does with
+the route settles a promise, `route.handling`: `true` when the request was fulfilled,
+continued or aborted, `false` when the handler fell back, on which the next handler is
+tried. `Route.Handler` holds the rest of the policy:
 
-- `run` counts the calls of a handler that are in progress (`rh_running`), which is what
-  `unroute_all ~behavior:`Wait` waits for (`rh_idle`);
+- `run` counts the calls of a handler that are in progress, which is what
+  `unroute_all ~behavior:`Wait` waits for;
 - `failed`: a handler that raises has not said what should become of the request. The
   request is aborted and the exception reported, since letting through what the handler may
   have been there to block is the wrong guess. Nothing is reported when the page is gone,
-  and a handler that was removed with `` `Ignore_errors `` (`rh_quiet`) falls back in
-  silence.
+  and a handler that was removed with `` `Ignore_errors `` falls back in silence.
 
 The driver is told which URLs to intercept (`Url_match.interception_patterns`); whether a
-handler matches is then decided on the client, since a predicate can only run here: for a
-glob, with the regular expression that the driver made of it when the handler was
-registered. The driver is not asked while an event is handled.
+handler matches is decided on the client, since a predicate can only run here: for a glob,
+with the regular expression that the driver made of it when the handler was registered.
 
 ## Lifetimes
 
@@ -450,14 +419,13 @@ handlers that do not keep up. `close` does not block and can be called from any 
 2. Every object that still exists is told that it is lost (`on_lost`), children before
    their parents, in the order of their creation. This is where an object settles what the
    driver can no longer tell it: a page marks itself closed, resolves `p_gone` and emits
-   `Close`; a browser emits `Disconnected`. So the close and disconnection events are
-   delivered however the connection ended, and waits that depend on them end.
+   `Close`; a browser emits `Disconnected`. So these events are delivered however the
+   connection ended, and waits that depend on them end.
 3. The tables are emptied: a closed connection retains nothing.
 
 Then `Connection.run` returns, and with it the scope of the instance ends: the handlers that
 are still running are cancelled, including those of the events of step 2, which get to run
-until they first block. A handler that closes its own instance is cancelled at that point,
-like the others.
+until they first block.
 
 ### Closing an object: `closing.ml`
 
@@ -473,8 +441,10 @@ properties:
 - a close that failed leaves the object `Open`, to be closed again;
 - an object whose connection, browser or context went away first counts as closed.
 
-`BrowserContext.is_closed` is true from the moment closing starts; `Browser.is_connected`
-is true until the browser is gone.
+`Disposable` gives the same to whatever is registered (a listener, a route, an init script,
+an exposed function): disposing undoes the registration once, and does not fail when the
+page or context went away first. For a registration that the driver keeps, the undo is the
+`dispose` command of the driver's `Disposable` object (`Disposable.of_channel`).
 
 ### Cancellation
 
@@ -486,36 +456,26 @@ A fiber can be cancelled wherever it blocks, and it blocks in `Connection.call`.
 - **What a cancelled command made is released.** If the reply arrives after all and holds
   an object that would have been the caller's (a page, a context, a handle, a stream), the
   `orphan` function that the generated code passes to `call` gives it back, in a forked
-  fiber. The generator derives that function from the type of the result: its table
-  `released_with` names the command that gives back each kind of object.
+  fiber.
 - **Commands that make a page, a context or a browser are not aborted.** The driver does
   not abort them cleanly, and can leave behind what it was making, out of anybody's reach.
   They are left to finish (`~abortable:false`), and their result is released when it
   arrives. Listeners for `Page` can therefore see a page that is closed right away. The
-  generator's tables `aborted_safely`, `results_not_owned` and `released_specially` hold the
-  policy and its exceptions.
+  tables of the generator that hold this policy are described in
+  [protocol.md](protocol.md).
 - **Clean-up is not interrupted.** `Connection.start` runs a function in the scope of the
   instance and gives a promise of its outcome; a caller that waits for it and is cancelled
   only stops waiting. On top of it: `detached f` (run and wait), `cleanup what f` (never
   raises: "target closed" means that there was nothing left to release, anything else is
   reported), `protect ~finally f` (`Fun.protect` for a `finally` that talks to the driver)
-  and `guard ~undo f` (undo if `f` fails or is cancelled, for the steps that follow the
-  making of something). Use these, not `Fun.protect` and not `Eio.Cancel.protect`, for
-  anything that sends a command while unwinding.
+  and `guard ~undo f` (undo if `f` fails or is cancelled). Use these, not `Fun.protect` and
+  not `Eio.Cancel.protect`, for anything that sends a command while unwinding.
 - **Cancellation is never swallowed.** A handler for exceptions that must not catch
   `Eio.Cancel.Cancelled` says `when not (Connection.is_cancellation ex)`; the cancelled
   caller of a close still gets `Cancelled`.
 
 `test/unit/test_ownership.ml` scripts the driver's side of these cases, and
 `test/integration/test_cancellation.ml` checks them against a browser.
-
-### Registrations: `disposable.ml`
-
-Whatever is registered (a listener, a route, an init script, an exposed function) returns a
-`Disposable.t`. Disposing calls the undo function at most once, and does
-not fail when the page or context went away first. For a registration that the driver
-keeps, the undo is the `dispose` command of the driver's `Disposable` object
-(`Disposable.of_channel`).
 
 ## Errors
 

@@ -19,7 +19,7 @@
  (name playwright)
  (synopsis "Browser automation with Playwright for OCaml")
  (description
-  "A client for the Playwright browser automation driver, built on Eio.\nIt drives Chromium, Firefox and WebKit through the same API as the official Playwright\nlibraries: auto-waiting locators, network interception, tracing and more.")
+  "A client for the Playwright browser automation driver, built on Eio.\nIt drives Chromium, Firefox and WebKit over Playwright's protocol: auto-waiting locators,\nnetwork interception, emulation, tracing and more.")
  (depends
   (ocaml
    (>= 5.2.0))

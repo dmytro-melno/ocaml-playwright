@@ -4,8 +4,8 @@ version: "0.2.0"
 synopsis: "Browser automation with Playwright for OCaml"
 description: """
 A client for the Playwright browser automation driver, built on Eio.
-It drives Chromium, Firefox and WebKit through the same API as the official Playwright
-libraries: auto-waiting locators, network interception, tracing and more."""
+It drives Chromium, Firefox and WebKit over Playwright's protocol: auto-waiting locators,
+network interception, emulation, tracing and more."""
 maintainer: ["Dmytro Melnychuk"]
 authors: ["Dmytro Melnychuk"]
 license: "MIT"
