@@ -594,17 +594,11 @@ cancelled.
 Events arrive at the pace of the browser, not of the listeners. A page that logs ten thousand
 lines in a loop calls a console listener ten thousand times, and if the listener asks the
 browser about each message, all those calls are under way before the first answer can be
-read. Two limits keep this in bounds; both are arguments of `Playwright.run` and
-`Playwright.create`:
-
-| Argument | Default | Meaning |
-| --- | --- | --- |
-| `~handler_concurrency` | 1024 | How many calls of handlers may be in progress at a time. Further calls wait for their turn, in the order of their events. |
-| `~handler_backlog` | 65536 | How many calls may wait. Beyond that, handlers are evidently not keeping up or not returning, and the driver is closed with an error that says so, rather than using up the memory. |
-
-Nothing is dropped and nothing needs to be tuned for ordinary programs. One situation calls
-for a higher `~handler_concurrency`: when that many handlers are all waiting for something
-that only a handler further back in the queue can provide.
+read. Two limits keep this in bounds. At most 1024 calls of handlers are in progress at a
+time; further calls wait for their turn, in the order of their events. And at most 65536
+calls may wait: beyond that, handlers are evidently not keeping up or not returning, and the
+driver is closed with an error that says so, rather than using up the memory. Nothing is
+dropped.
 
 ### Waiting for an event
 

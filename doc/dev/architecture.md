@@ -326,7 +326,8 @@ the instance ends.
 The reader cannot wait for user code, so events arrive at the pace of the browser: a page
 that logs ten thousand lines calls a console listener ten thousand times before the first
 reply to anything those calls ask can be read. `Connection.handle` keeps that within two
-bounds, which `Playwright.create` takes as `handler_concurrency` and `handler_backlog`:
+bounds, `handler_concurrency` (1024) and `handler_backlog` (65536). They are arguments of
+`Connection.create` for the sake of its tests, and constants for everybody else:
 
 - no more than `handler_concurrency` calls are in progress; the others wait in a queue,
   which costs a closure each, and are started in order as calls end;

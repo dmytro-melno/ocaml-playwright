@@ -99,7 +99,7 @@ let () =
 | --- | --- |
 | `Playwright.create ~env ~sw ()` | unchanged; also `Playwright.run ~env f` |
 | `Playwright.create ~download_timeout ~init_timeout ~shutdown_timeout` | removed. `Playwright.create` can be cancelled at any time, also while the driver is being downloaded, so `Eio.Time.with_timeout` around it limits all of it. |
-| `Playwright.create ~max_event_tasks` | `~handler_concurrency` and `~handler_backlog`, see below |
+| `Playwright.create ~max_event_tasks` | removed, see below |
 | `Playwright.create ~on_event_error` | `~on_error:(fun what exn -> ...)` |
 | `Playwright.destroy pw` | `Playwright.close pw` |
 | `Playwright.Playwright.chromium pw` (`firefox`, `webkit`) | `Playwright.chromium pw` |
@@ -145,9 +145,8 @@ let () =
 - **Listeners** still run in fibers of their own. `~max_event_tasks`, 1024 by default, was
   the number of events that could be waiting for or in the hands of listeners before the
   connection was closed, which a page that logs a few thousand lines could reach. Now at
-  most `~handler_concurrency` calls (1024 by default) are in progress and further ones wait
-  in a queue of up to `~handler_backlog` (65536); only when that is full is the connection
-  closed, with an error that says so. An exception that escapes from a listener goes to
+  most 1024 calls are in progress and further ones wait in a queue of up to 65536; only
+  when that is full is the connection closed, with an error that says so. An exception that escapes from a listener goes to
   `~on_error`.
 - **Route handlers** that raise before they have settled their route abort the request.
 - **Closing** is idempotent everywhere, may be called from several fibers at once, and is

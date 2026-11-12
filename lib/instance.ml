@@ -47,8 +47,7 @@ let wire_trace () =
 
 let initialize_timeout = 60_000.
 
-let create ?on_error ?handler_concurrency ?handler_backlog ~sw
-        ~(env : Eio_unix.Stdenv.base) () : t =
+let create ?on_error ~sw ~(env : Eio_unix.Stdenv.base) () : t =
     (* Installing the driver can take a while, during which other fibers go on, and which ends
        when this one is cancelled. *)
     let driver = Fibers.in_systhread ~label:"playwright-driver" (fun ~cancelled -> Driver.locate ~cancelled ()) in
@@ -57,7 +56,6 @@ let create ?on_error ?handler_concurrency ?handler_backlog ~sw
         Connection.create ~clock:(Eio.Stdenv.clock env)
             ~report:(reporter on_error)
             ?trace:(wire_trace ())
-            ?handler_concurrency ?handler_backlog
             ~render_value:(fun value -> Js.show (Js.of_wire value))
             process.transport
     in
@@ -107,7 +105,7 @@ let close (t : t) =
     Connection.close t.session.conn (Error.target_closed ~message:"Playwright has been closed" ());
     Promise.await t.stopped
 
-let run ?on_error ?handler_concurrency ?handler_backlog ~env f =
+let run ?on_error ~env f =
     Switch.run (fun sw ->
-        let t = create ?on_error ?handler_concurrency ?handler_backlog ~sw ~env () in
+        let t = create ?on_error ~sw ~env () in
         Fun.protect ~finally:(fun () -> Eio.Cancel.protect (fun () -> close t)) (fun () -> f t))

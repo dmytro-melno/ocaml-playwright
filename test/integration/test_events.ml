@@ -257,23 +257,6 @@ let test_event_bursts t page =
     Alcotest.(check int) "every event was handled" (count * (count - 1) / 2) !sum;
     if !peak > 1024 then Alcotest.failf "%d handlers were in progress at a time" !peak
 
-let test_handlers_falling_behind t () =
-    let reported = ref [] in
-    let pw = Playwright.create ~sw:t.sw ~env:t.env ~handler_concurrency:2 ~handler_backlog:10 ~on_error:(fun what ex -> reported := (what, ex) :: !reported) () in
-    let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
-    let page = BrowserContext.new_page (Browser.new_context browser) in
-    Page.on Page.Console (fun _ -> Fiber.await_cancel ()) page |> ignore;
-    ignore (Page.evaluate "for (let i = 0; i < 12; i++) console.log(i)" page);
-    Alcotest.(check bool) "two calls in progress and ten waiting are within the limits" true (Browser.is_connected browser && !reported = []);
-    check_failure "one more is not" ~kind:Target_closed ~message:"event handlers do not keep up: 2 calls are in progress and 10 more are waiting" (fun () ->
-        Page.evaluate "console.log('one more')" page);
-    (match !reported with
-    | [ ("event handlers", Playwright.Error error) ] -> check_contains "reported" ~sub:"event handlers do not keep up" error.message
-    | reports -> Alcotest.failf "expected one report, got %d" (List.length reports));
-    Alcotest.(check bool) "the instance is over" false (Browser.is_connected browser);
-    Playwright.close pw;
-    Alcotest.(check bool) "the others are unaffected" true (Browser.is_connected t.browser)
-
 let test_closing t () =
     let context = Browser.new_context t.browser in
     let page = BrowserContext.new_page context in
@@ -351,6 +334,5 @@ let tests t =
         page_case t "listeners" (test_listeners t);
         page_case t "waiting for an event" (test_waiting t);
         page_case t "bursts of events" (test_event_bursts t);
-        case t "handlers that fall behind" (test_handlers_falling_behind t);
         case t "closing" (test_closing t);
         page_case t "workers" (test_workers t) ] ]

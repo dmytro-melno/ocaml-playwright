@@ -77,7 +77,7 @@ of the module `Playwright`, built with `dune build @doc`.
 
 - Each call of a listener or handler runs in a fiber of its own, so it may block and may call
   back into Playwright, and several are in progress at a time. How many, and how many more
-  may wait, is bounded: `~handler_concurrency` and `~handler_backlog` of `Playwright.run`.
+  may wait, is bounded: 1024 in progress and 65536 waiting.
   When both are exhausted the connection is closed with an error rather than left to grow
   without limit.
 - An exception that escapes from a listener goes to the function `~on_error` of

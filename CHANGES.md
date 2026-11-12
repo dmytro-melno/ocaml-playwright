@@ -74,8 +74,8 @@ adapted; [doc/migration.md](doc/migration.md) says how.
 ### Behaviour
 
 - Listeners, route handlers and exposed functions run in a fiber for each call, and may
-  block and call the library. `handler_concurrency` and `handler_backlog` of
-  `Playwright.create` bound how many calls run and wait at a time; when handlers fall behind
+  block and call the library. The library bounds
+  how many calls run (1024) and wait (65536) at a time; when handlers fall behind
   beyond that, the connection is closed with an error that says so. 0.1 closed the
   connection at 1024 events in progress (`max_event_tasks`).
 - Exceptions that escape from handlers go to `on_error`, by default to standard error. A
