@@ -33,7 +33,12 @@ let opaque_types = [ "SerializedValue" ]
 let released_with =
     [ ("JSHandle", "dispose"); ("ElementHandle", "dispose"); ("Disposable", "dispose"); ("APIRequestContext", "dispose");
         ("Page", "close"); ("BrowserContext", "close"); ("Browser", "close"); ("Stream", "close"); ("WritableStream", "close");
-        ("JsonPipe", "close"); ("Artifact", "delete"); ("CDPSession", "detach") ]
+        ("JsonPipe", "close"); ("Artifact", "delete"); ("CDPSession", "detach"); ("Worker", "disconnect") ]
+
+(* The interfaces whose objects a command returns without handing them over: they belong to a page
+      or to the connection, and go with it.  Every interface that a command returns is listed here
+      or in [released_with], or the generator fails, so that a new one is not overlooked. *)
+let never_owned = [ "Frame"; "Request"; "Response"; "Playwright" ]
 
 (* The driver aborts a cancelled command that waits for something in a page cleanly, but not one
       that makes a page, a context or a browser: abandoned half-way, such a command can leave
@@ -428,12 +433,15 @@ let orphan_handler ~lookup c =
     let abortable = ref true in
     let rec release ty value =
         match ty with
-        | Channel interface ->
-            Option.map
-                (fun method_ ->
-                    if not (List.mem interface aborted_safely) then abortable := false;
-                    Printf.sprintf "Channel.release %S %s" method_ value)
-                (List.assoc_opt interface released_with)
+        | Channel interface -> (
+            match List.assoc_opt interface released_with with
+            | Some method_ ->
+                if not (List.mem interface aborted_safely) then abortable := false;
+                Some (Printf.sprintf "Channel.release %S %s" method_ value)
+            | None when List.mem interface never_owned -> None
+            | None ->
+                failf "%s returns an object of the interface %S, which neither [released_with] nor [never_owned] lists: say there what becomes of it when the caller is cancelled"
+                    name interface)
         | Array item -> Option.map (fun body -> Printf.sprintf "List.iter (fun item -> %s) %s" body value) (release item "item")
         | Def m -> (
             match lookup m with

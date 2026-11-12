@@ -2797,7 +2797,10 @@ module Browser_type = struct
                 ]
         in
         let c = Channel.conn ch in
-        Channel.call ?timeout ch "connectToWorker" params (fun j -> D.req "worker" (Channel.of_json Kind.worker c) j)
+        Channel.call ?timeout ~abortable:false
+            ~orphan:(fun result -> Channel.release "disconnect" result)
+            ch "connectToWorker" params
+            (fun j -> D.req "worker" (Channel.of_json Kind.worker c) j)
 
 end
 

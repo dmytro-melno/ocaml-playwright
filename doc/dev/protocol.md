@@ -133,12 +133,13 @@ in reviews. `dune runtest` fails if either file is not what the generator would 
 
 The generator also decides what happens to a command whose caller was cancelled (see
 *Cancellation* in [architecture.md](architecture.md)). It derives that from the type of the
-result and from four tables at its top, which a new version of the protocol can require
+result and from five tables at its top, which a new version of the protocol can require
 additions to:
 
 | Table | Says | Add to it when |
 | --- | --- | --- |
-| `released_with` | for each interface whose objects a command hands over to its caller, the command that gives such an object back (`Page` → `close`, `JSHandle` → `dispose`, ...) | a command returns an object of a new interface that the caller owns. Nothing fails without the entry, the object of a cancelled call is just left behind: look at what the new commands return |
+| `released_with` | for each interface whose objects a command hands over to its caller, the command that gives such an object back (`Page` → `close`, `JSHandle` → `dispose`, ...) | a command returns an object of a new interface that the caller owns. The generator fails until the interface is in this table or in the next one |
+| `never_owned` | the interfaces whose objects a command returns without handing them over: they belong to a page or to the connection, and go with it (`Frame`, `Request`, `Response`) | a command returns an object of a new interface that the caller does not have to give back |
 | `aborted_safely` | the interfaces whose objects a command can return and still be aborted when its caller is cancelled. Every other command that returns an object is left to finish, and its result released | never, unless the driver is known to abort the command without leaving anything behind |
 | `results_not_owned` | commands whose result is not the caller's to release, although its type says so | a command returns an existing object rather than a new one |
 | `released_specially` | commands whose result is released in a way that its type does not tell (`APIRequestContext.fetch`, whose response is a record with an id) | a result holds something to release that is not an object of the driver |
