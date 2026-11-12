@@ -5,8 +5,9 @@ Browser automation for OCaml, with [Playwright](https://playwright.dev) and
 
 The library drives Chromium, Firefox and WebKit through the official Playwright driver, to
 which it speaks the same protocol as the Playwright libraries for Node.js, Python, Java and
-.NET. It brings their API to OCaml: locators that wait for elements to be ready, assertions
-that retry, network interception, isolated browser contexts, device emulation, tracing.
+.NET. What the driver can do is therefore here: locators that wait for elements to be ready,
+assertions that retry, network interception, isolated browser contexts, device emulation,
+tracing.
 
 ```ocaml
 open Playwright
@@ -128,11 +129,11 @@ Eio.Fiber.List.map title [ "https://ocaml.org"; "https://playwright.dev" ]
 - [User guide](doc/guide.md): the library from first steps to tracing, with the conventions
   that map the Playwright API to OCaml.
 - [API reference](lib/playwright.mli): the documented interface; `dune build @doc` renders it
-  with odoc. Since the API follows Playwright's closely, the
+  with odoc. The functions have the names of Playwright's methods, so the
   [Playwright documentation](https://playwright.dev/docs/intro) is a good companion.
-- [Playwright side by side](doc/parity.md), for those who know Playwright from another
-  language: how its interface is written in OCaml, where this library behaves differently,
-  and what it does not cover.
+- [Scope](doc/scope.md): what the library takes on and what it leaves to the program, and,
+  for those who know Playwright from another language, the names that differ and the
+  behaviour that does.
 - [Examples](examples): small complete programs. Run one with
   `dune exec examples/quickstart.exe`.
 - [Migrating from 0.1](doc/migration.md), the versions before this rewrite.
@@ -141,15 +142,20 @@ Eio.Fiber.List.map title [ "https://ocaml.org"; "https://playwright.dev" ]
   [updating to a new Playwright version](doc/dev/protocol.md), [testing](doc/dev/testing.md)
   and [Windows](doc/dev/windows.md).
 
-## What is not covered
+## Scope
 
-Most of the Playwright API is here. These parts are not, at present: the test runner and
-what belongs to it (fixtures, `expect.poll`, visual comparisons with `toHaveScreenshot`),
-JavaScript and CSS coverage, screencasts, WebAuthn virtual authenticators, Chromium's own
-tracing (`browser.startTracing`), Android and Electron.
-[doc/parity.md](doc/parity.md#what-is-not-covered) has the full list, with what to use
-instead, and [doc/dev/protocol-coverage.md](doc/dev/protocol-coverage.md) the inventory of
-Playwright's protocol that it is derived from.
+The library binds Playwright's protocol; it is not a port of Playwright's client for
+Node.js. To the protocol it adds what a program in OCaml needs: types, lifetimes that end,
+events, errors. It leaves out the conveniences that the other clients add for their
+languages: it opens no files, has one name for each operation, and installs nothing behind
+the program's back.
+
+Not bound at present: the test runner and what belongs to it (fixtures, `expect.poll`,
+visual comparisons with `toHaveScreenshot`), HAR files, browsers behind a Playwright server
+(`connect`), JavaScript and CSS coverage, screencasts, WebAuthn virtual authenticators,
+Chromium's own tracing (`browser.startTracing`), Android and Electron.
+[doc/scope.md](doc/scope.md) has the rule in full, what is left out with what takes its
+place, and the ways to reach the rest.
 
 ## Development
 

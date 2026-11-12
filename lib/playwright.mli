@@ -1,11 +1,13 @@
 (** Browser automation with {{:https://playwright.dev} Playwright}.
 
     This library drives Chromium, Firefox and WebKit through the Playwright driver, which it talks to over
-    Playwright's own client protocol. It follows the official Playwright API: a class is a module, a method is a
-    function, and what the {{:https://playwright.dev/docs/api/class-playwright} upstream documentation} says about
-    a method holds for the function of the same name, read with the conventions below. Where a function
-    deliberately behaves differently, its documentation here says so. The file [doc/parity.md] that comes with the
-    sources lists these differences, and the parts of Playwright that this library does not cover.
+    Playwright's own client protocol. Its names are those of the official Playwright API: a class is a module, a
+    method is a function, and what the {{:https://playwright.dev/docs/api/class-playwright} upstream documentation}
+    says about a method holds for the function of the same name, read with the conventions below. Where a function
+    deliberately behaves differently, its documentation here says so. Not every method has a function: the library
+    binds what the driver can do, and leaves out what the other clients add for the convenience of their
+    languages. The file [doc/scope.md] that comes with the sources states that rule, and lists the differences
+    and what takes the place of the parts that are left out.
 
     {[
       let () =

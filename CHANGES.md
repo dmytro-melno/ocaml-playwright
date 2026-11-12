@@ -12,9 +12,10 @@ adapted; [doc/migration.md](doc/migration.md) says how.
 ### The interface
 
 - One module, `Playwright`, written by hand and documented in `lib/playwright.mli`, in
-  place of the functions that 0.1 generated from the protocol. It follows the interface of
-  the official Playwright libraries; [doc/parity.md](doc/parity.md) lists how names and
-  types are translated, what behaves differently and what is not covered.
+  place of the functions that 0.1 generated from the protocol. Its names are those of the
+  official Playwright libraries. It binds what the driver can do, not every convenience
+  of those libraries; [doc/scope.md](doc/scope.md) states the rule, and lists what behaves
+  differently and what is left out.
 - Conventions that hold throughout: the object is the last argument, so that calls can be
   piped; required arguments are positional; everything optional is a labelled optional
   argument; timeouts are in milliseconds; choices are polymorphic variants; collections are

@@ -64,14 +64,12 @@ in reviews. `dune runtest` fails if either file is not what the generator would 
    a new required parameter needs a value. A match that is not exhaustive is a new event of
    an interface (in the `handle_event` of its module) or a new interface (in `objects.ml`).
 
-4. **Find out what else changed.** The compiler only shows what broke. What was *added*
-   has to be looked for, in four places:
+4. **Find out what else changed.** The compiler only shows what broke. What changed
+   without breaking anything is looked for in three places:
 
-   - **The inventory.** The diff of `doc/dev/protocol-coverage.md` lists the new commands,
-     and the commands that went away without the client having used them.
-   - **The generated code.** The diff of `lib/protocol.ml` shows what the inventory does
-     not: new optional parameters of commands in use, new fields of results and
-     initializers, new values of enumerations.
+   - **The generated code.** The diff of `lib/protocol.ml` shows, for the commands that the
+     library sends, new optional parameters, new fields of results and initializers, and new
+     values of enumerations.
    - **The official client**, which is the reference for everything that the protocol does
      not say: how options map to parameters, in which order things are done, what is checked
      on the client.
@@ -91,24 +89,16 @@ in reviews. `dune runtest` fails if either file is not what the generator would 
      | `packages/protocol/src/serializers.ts`, `client/jsHandle.ts` | `lib/js.ml` |
      | `client/waiter.ts`, `client/timeoutSettings.ts` | `lib/waiter.ml`, `lib/timeouts.ml` (the behaviour, not the code) |
 
-   - **The public interface.** The release notes say what is new in prose; the declarations
-     say it exactly. `packages/playwright-core/types/types.d.ts` declares every class with
-     its methods, the options of each and its events (the overloads of `on`), and
-     `packages/playwright/types/test.d.ts` declares the assertions (`LocatorAssertions`,
-     `PageAssertions`, `APIResponseAssertions`). For each class that this library offers,
-     list the members, the option names and the events from the declarations of the new
-     version, and compare the lists with the module in `lib/playwright.mli` after
-     translating the names (`camelCase` to `snake_case`, `page.on('console')` to `Console`).
-     `git diff` of the two declaration files between the versions gives the same for the
-     additions alone, and is enough for an update of one minor version. `docs/src/api/*.md`
-     in the same repository is the source of the API documentation, with a `since` version
-     at every method and option.
+   - **The inventory.** The diff of `doc/dev/protocol-coverage.md` lists the commands that
+     are new, and those that went away without the client having used them.
 
-   For each addition decide whether to offer it. If so: the object's module, the interface,
-   a test. If not, or if it is offered in another form, say so in
-   [parity.md](../parity.md), whose tables are the record of every intended difference: a
-   member of the official interface that is neither in `playwright.mli` nor in those tables
-   is an oversight.
+   An update has to keep true what the library offers already: an option of a function that
+   is here, a field of a value that it returns. What Playwright *added* does not have to
+   follow. *What belongs in the library* in [architecture.md](architecture.md) decides: a
+   new capability of the browser is bound when a program needs it, a new convenience of the
+   other clients is not. There is no list of Playwright's interface to keep up with; where
+   the library leaves out something that a reader will look for,
+   [scope.md](../scope.md) says what takes its place.
 
 5. **Run the tests** against the new driver: install it with
    `dune exec ocaml-playwright -- install chromium`, which also installs the browser that
@@ -116,7 +106,7 @@ in reviews. `dune runtest` fails if either file is not what the generator would 
    (`test/driver`) fails when the driver has begun to make regular expressions of URL globs
    that `Re` cannot run, or reads a glob differently than before.
 
-6. **Update the texts**: the versions in `README.md` and in [parity.md](../parity.md),
+6. **Update the texts**: the versions in `README.md` and in [scope.md](../scope.md),
    an entry in `CHANGES.md`, and the version of the
    library in `dune-project` (a new minor version of Playwright is at least a new minor
    version here, since behaviour changes with it).

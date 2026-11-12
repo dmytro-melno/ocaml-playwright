@@ -4,8 +4,8 @@ This guide walks through the library by topic. It assumes no knowledge of Playwr
 does not try to replace Playwright's own documentation: where a subject deserves more depth,
 it links to the matching page of [playwright.dev](https://playwright.dev/docs/intro), whose
 explanations apply here as well. The complete list of functions is the documented interface,
-[`lib/playwright.mli`](../lib/playwright.mli), and [parity.md](parity.md) says where the
-library differs from Playwright and what it leaves out.
+[`lib/playwright.mli`](../lib/playwright.mli), and [scope.md](scope.md) says what the
+library leaves out and where it differs from Playwright.
 
 The code fragments use these names: `pw` for the Playwright instance, `browser`, `context`,
 `page`, `frame` and `locator` for objects of the corresponding kinds, and `env` for the Eio
@@ -1159,6 +1159,6 @@ options and the same waiting. What differs is what OCaml and Eio make different.
 - Not covered: code coverage, screencasts, WebAuthn authenticators, Chromium's own tracing,
   Android and Electron.
 
-[parity.md](parity.md) has all of it: how each construct of Playwright's interface is
-written here, the members that have another name, every intended difference in behaviour,
-and what stands in for the parts that are not covered.
+[scope.md](scope.md) has all of it: the rule that decides what the library takes on, the
+members that have another name, every intended difference in behaviour, and what stands in
+for the parts that are left out.

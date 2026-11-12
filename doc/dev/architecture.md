@@ -4,6 +4,34 @@ This document is for people who work on the library. It explains how the code is
 and why, and states the rules that the code relies on, so that changes land in the right
 place and keep them. Users of the library want the [guide](../guide.md) instead.
 
+## What belongs in the library
+
+The library binds Playwright's protocol; it does not port Playwright's client for Node.js.
+[scope.md](../scope.md) states this rule for users. For a change to the library it reads:
+
+- **Bind what the driver can do.** A command of the protocol gets a function when a program
+  needs the capability. `protocol.ml` is generated and has every command already, so the
+  function is the translation of arguments and results into the types of the interface.
+- **Add on this side only what OCaml needs**: types, lifetimes (what a cancelled fiber or a
+  dead driver leaves behind), events and their waiters, errors. More work on the client is
+  in order where the protocol demands it of every client, as it does for the chain of route
+  handlers and for the values that cross into the page.
+- **Do not port conveniences.** No second name for an operation, no option that reads or
+  writes a file, no object created behind another one, no serialisation or content type
+  inferred from a value, nothing that Playwright deprecates or discourages. What a caller
+  can write in a line with what is there is the caller's line.
+- **Do not rebuild what the driver or a library has.** A standard (URLs, globs, regular
+  expressions) is not implemented here in order to match an option of another client.
+- **State on the client needs a reason** that this document can give: the protocol requires
+  it, or a lifetime does. A field that exists to make a convenience work is a sign that the
+  convenience does not belong.
+- **Work on the host has a name.** Downloading, unpacking and looking for programs is in
+  `driver.ml`, behind `Playwright.Driver`; nothing else does it.
+
+When a new version of Playwright adds to its interface, nothing has to follow here. The
+generated layer follows by itself, [protocol-coverage.md](protocol-coverage.md) shows what
+it gained, and a function is added when someone needs the capability.
+
 ## The big picture
 
 Playwright consists of a *driver*, a Node.js program that controls browsers, and *clients*
@@ -264,8 +292,7 @@ keeps its helpers in an `open struct`.
 
 The conventions of the interface (the object comes last, required arguments are positional,
 options are labelled, timeouts are milliseconds, events are a GADT, a registration returns
-a `Disposable.t`) are stated at the top of `playwright.mli`, and [parity.md](../parity.md)
-says how they map to Playwright's. A new function follows them.
+a `Disposable.t`) are stated at the top of `playwright.mli`. A new function follows them.
 
 ### Identity
 
@@ -508,7 +535,7 @@ to standard error.
 | To do this | Change this |
 | --- | --- |
 | Follow a new version of Playwright | [protocol.md](protocol.md) |
-| Add a method that exists in Playwright | the object's module, then `playwright.mli` (and `playwright.ml` if the module is assembled there), a browser test, the guide if it is of general interest, [parity.md](../parity.md) if it differs from the original |
+| Bind a command of the protocol | first *What belongs in the library*, above; then the object's module, `playwright.mli` (and `playwright.ml` if the module is assembled there), a browser test, the guide if it is of general interest, [scope.md](../scope.md) if Playwright has it under another name or with another behaviour |
 | Add an option to an existing method | the same; if the option list is shared (`with_context_options`, `Frame_operations`, ...), its definition in both `playwright.mli` and `playwright.ml`, in the same order |
 | Add an event | a constructor of the `event` GADT in `playwright.mli` and in the object's module, a case in its `emitter`, an emitter in `types.ml`, the case in `handle_event` that fires it |
 | Call user code because of an event | `Connection.handle`, never `fork` |

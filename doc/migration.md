@@ -90,8 +90,8 @@ let () =
    expressions) are gone. The implementation is a library of its own that only this package
    can use, so `Playwright` is the one module that a program sees. Assertions are in
    `Expect`. If something you used is missing, look for the Playwright method of the same
-   name in `lib/playwright.mli`, or in [parity.md](parity.md), which lists the members that
-   have another name here.
+   name in `lib/playwright.mli`, or in [scope.md](scope.md), which lists the members that
+   have another name here and those that are left out.
 
 ## Function by function
 
