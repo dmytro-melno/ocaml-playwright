@@ -22,9 +22,9 @@ Treat Windows as experimental.
 
 ## What is different there
 
-Little, and all of it in two modules. Everything else that touches the system (files, the
-installation of the driver, the driver's standard error) is done with the Unix library, in
-the same way on every system.
+Almost nothing: the same code runs on every system, and what touches the system (the
+driver's process and pipes, files, the installation of the driver, the driver's standard
+error) is done with the Unix library. This is where Windows shaped that code.
 
 **Processes and pipes (`driver_process.ml`).** Eio has no process manager on Windows and its
 pipes cannot be read without blocking there. So the driver is started with
@@ -33,8 +33,8 @@ blocking I/O. The reading thread hands chunks to the fibers through an `Eio.Stre
 a new chunk only when the previous one was consumed; the writing thread takes jobs from a
 queue and resolves a promise for each. Fibers wait on the stream and on promises, which is
 ordinary cancellable Eio waiting. Nothing here is specific to Windows, which has two
-benefits: there are no C stubs, and the same code runs on Linux, where the tests exercise
-it (`PLAYWRIGHT_OCAML_DRIVER_IO=threads`).
+benefits: there are no C stubs, and the same code runs on every system, so the tests on
+Linux exercise it.
 
 Stopping the driver is the same everywhere: its standard input is closed, on which it
 closes its browsers and exits; after ten seconds without success it is killed. If the OCaml

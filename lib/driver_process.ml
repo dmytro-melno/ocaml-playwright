@@ -1,9 +1,10 @@
 (* The driver as a child process, talking over its standard input and output.
 
-   There are two ways to run it.  Where Eio can spawn processes, its process manager and
-   non-blocking pipes are used.  Elsewhere, which means on Windows, the Unix library's blocking
-   pipes are each served by a system thread, and fibers wait for those threads in ways that can
-   be cancelled: a fiber blocked on the driver must never keep its switch from finishing. *)
+   The process is started with the Unix library, and each of its two blocking pipes is served
+   by a system thread.  Fibers wait for those threads in ways that can be cancelled: a fiber
+   blocked on the driver must never keep its switch from finishing.  This is the one way that
+   works on every system: Eio has no process manager on Windows, and its pipes cannot be read
+   without blocking there. *)
 
 open Eio.Std
 
@@ -12,7 +13,7 @@ type t = {
     stop : unit -> unit;  (* ends the driver, gracefully if it cooperates; idempotent *)
 }
 
-(* What either way of running the driver provides. *)
+(* The running driver, as {!Threads.spawn} makes it. *)
 type process = {
     read : Cstruct.t -> int;  (* from the driver's output; raises [End_of_file] at its end *)
     write : Cstruct.t list -> unit;  (* to the driver's input *)
@@ -71,35 +72,6 @@ module Errors = struct
             close input;
             close output;
             raise ex
-end
-
-module Native = struct
-    let spawn ~sw ~(env : Eio_unix.Stdenv.base) ~stderr executable args =
-        let mgr = Eio.Stdenv.process_mgr env in
-        let quietly f = try f () with Eio.Io _ | Invalid_argument _ -> () in
-        let child_stdin, stdin = Eio_unix.pipe sw in
-        let stdout, child_stdout = Eio_unix.pipe sw in
-        let child_stderr = Eio_unix.Fd.of_unix ~sw ~blocking:true ~close_unix:false stderr in
-        let process =
-            Fun.protect
-                ~finally:(fun () ->
-                    Eio.Flow.close child_stdin;
-                    Eio.Flow.close child_stdout;
-                    Eio_unix.Fd.close child_stderr)
-                (fun () ->
-                    let fds = [ (0, Eio_unix.Resource.fd child_stdin, `Blocking); (1, Eio_unix.Resource.fd child_stdout, `Blocking); (2, child_stderr, `Blocking) ] in
-                    try Eio_unix.Process.spawn_unix ~sw mgr ~fds ~executable (executable :: args)
-                    with ex ->
-                        quietly (fun () -> Eio.Flow.close stdin);
-                        quietly (fun () -> Eio.Flow.close stdout);
-                        raise ex)
-        in
-        { read = Eio.Flow.single_read stdout;
-          write = Eio.Flow.write stdin;
-          close_input = (fun () -> quietly (fun () -> Eio.Flow.close stdin));
-          await_exit = (fun () -> ignore (Eio.Process.await process));
-          kill = (fun () -> quietly (fun () -> Eio.Process.signal process Sys.sigkill));
-          release = (fun () -> quietly (fun () -> Eio.Flow.close stdout)) }
 end
 
 module Threads = struct
@@ -288,19 +260,15 @@ let shut_down ~clock ~grace_period ~errors_copied process =
     (* Not for long, though: something that outlives the driver may hold its standard error. *)
     ignore (Eio.Time.with_timeout clock 1. (fun () -> Ok (Promise.await errors_copied)) : (unit, [ `Timeout ]) result)
 
-(* The threads implementation also works on Unix, where this setting selects it for testing. *)
-let use_threads () = Sys.win32 || Sys.getenv_opt "PLAYWRIGHT_OCAML_DRIVER_IO" = Some "threads"
-
-let spawn_command ?(threads = use_threads ()) ?(grace_period = 10.) ~sw ~(env : Eio_unix.Stdenv.base) executable args =
+let spawn_command ?(grace_period = 10.) ~sw ~clock executable args =
     let process, errors_copied =
         try
             let stderr, errors_copied = Errors.relay () in
             Fun.protect
                 ~finally:(fun () -> try Unix.close stderr with Unix.Unix_error _ -> ())
-                (fun () -> ((if threads then Threads.spawn ~stderr executable args else Native.spawn ~sw ~env ~stderr executable args), errors_copied))
-        with (Eio.Io _ | Unix.Unix_error _ | Sys_error _) as ex -> Error.raise_ "Could not start the Playwright driver (%s): %s" executable (Printexc.to_string ex)
+                (fun () -> (Threads.spawn ~stderr executable args, errors_copied))
+        with (Unix.Unix_error _ | Sys_error _) as ex -> Error.raise_ "Could not start the Playwright driver (%s): %s" executable (Printexc.to_string ex)
     in
-    let clock = Eio.Stdenv.clock env in
     let stopped = ref None in
     (* Stopping takes a bounded time and is not interrupted by cancellation: a driver that is
        left running keeps its browsers running. *)
@@ -317,4 +285,4 @@ let spawn_command ?(threads = use_threads ()) ?(grace_period = 10.) ~sw ~(env : 
     Switch.on_release sw stop;
     { transport = Transport.of_stream ~read:process.read ~write:process.write; stop }
 
-let spawn ~sw ~env (driver : Driver.t) = spawn_command ~sw ~env driver.node [ driver.cli; "run-driver" ]
+let spawn ~sw ~clock (driver : Driver.t) = spawn_command ~sw ~clock driver.node [ driver.cli; "run-driver" ]

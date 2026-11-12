@@ -1,14 +1,12 @@
-(* Running the driver as a child process, with ordinary programs standing in for it.  Both ways
-   of doing the input and output are tested: the one built on Eio's process manager, and the one
-   built on system threads that Windows needs and that works everywhere. *)
+(* Running the driver as a child process, with ordinary programs standing in for it. *)
 
 open Eio.Std
 open Internal
 
 let program name = match Driver.find_in_path name with Some path -> path | None -> Alcotest.skip ()
 
-let run ~threads ?grace_period executable args f =
-    Eio_main.run (fun env -> Switch.run (fun sw -> f env (Driver_process.spawn_command ~threads ?grace_period ~sw ~env executable args)))
+let run ?grace_period executable args f =
+    Eio_main.run (fun env -> Switch.run (fun sw -> f env (Driver_process.spawn_command ?grace_period ~sw ~clock:(Eio.Stdenv.clock env) executable args)))
 
 let elapsed f =
     let start = Unix.gettimeofday () in
@@ -30,8 +28,8 @@ let rec wait_for_file ?(attempts = 500) path =
 
 (* [cat] sends every message back, which exercises both directions at once: with messages
    larger than a pipe holds, neither side gets anywhere unless the other makes progress too. *)
-let test_echo ~threads () =
-    run ~threads (program "cat") [] (fun _env (process : Driver_process.t) ->
+let test_echo () =
+    run (program "cat") [] (fun _env (process : Driver_process.t) ->
         let messages =
             List.init 40 (fun i -> `Assoc [ "id", `Int i; "text", `String (String.make (i * 997) 'x') ])
             @ [ `String (String.make 3_000_000 'y'); `Assoc [ "last", `Bool true ] ]
@@ -48,24 +46,24 @@ let test_echo ~threads () =
         process.stop ())
 
 (* The process is told to finish by closing its input, and [stop] waits until it has. *)
-let test_graceful_stop ~threads () =
+let test_graceful_stop () =
     let marker = scratch_file () in
     Fun.protect
         ~finally:(fun () -> try Sys.remove marker with Sys_error _ -> ())
         (fun () ->
-            run ~threads (program "sh") [ "-c"; "cat > /dev/null; echo finished > \"$0\""; marker ] (fun _env (process : Driver_process.t) ->
+            run (program "sh") [ "-c"; "cat > /dev/null; echo finished > \"$0\""; marker ] (fun _env (process : Driver_process.t) ->
                 process.transport.send (`Assoc [ "hello", `Int 1 ]);
                 let seconds = elapsed process.stop in
                 Alcotest.(check bool) "the process ran to its end" true (Sys.file_exists marker);
                 Alcotest.(check bool) (Printf.sprintf "promptly (%.2f s)" seconds) true (seconds < 5.)))
 
 (* A process that does not finish by itself is killed once its time is up. *)
-let test_forced_stop ~threads () =
+let test_forced_stop () =
     let pid_file = scratch_file () in
     Fun.protect
         ~finally:(fun () -> try Sys.remove pid_file with Sys_error _ -> ())
         (fun () ->
-            run ~threads ~grace_period:0.2 (program "sh") [ "-c"; "echo $$ > \"$0\"; exec sleep 600"; pid_file ] (fun _env (process : Driver_process.t) ->
+            run ~grace_period:0.2 (program "sh") [ "-c"; "echo $$ > \"$0\"; exec sleep 600"; pid_file ] (fun _env (process : Driver_process.t) ->
                 wait_for_file pid_file;
                 let pid = int_of_string (String.trim (In_channel.with_open_bin pid_file In_channel.input_all)) in
                 let seconds = elapsed process.stop in
@@ -76,10 +74,10 @@ let test_forced_stop ~threads () =
 
 (* Nothing may keep the switch from finishing: not a fiber that waits for a message, and not one
    whose message cannot be delivered because the process does not read. *)
-let test_cancellation ~threads () =
+let test_cancellation () =
     let seconds =
         elapsed (fun () ->
-            run ~threads ~grace_period:0.2 (program "sleep") [ "600" ] (fun _env (process : Driver_process.t) ->
+            run ~grace_period:0.2 (program "sleep") [ "600" ] (fun _env (process : Driver_process.t) ->
                 let big = `String (String.make 1_000_000 'z') in
                 Fiber.first
                     (fun () ->
@@ -93,8 +91,8 @@ let test_cancellation ~threads () =
     in
     Alcotest.(check bool) (Printf.sprintf "cancelled and stopped (%.2f s)" seconds) true (seconds < 5.)
 
-let test_exit ~threads () =
-    run ~threads (program "true") [] (fun _env (process : Driver_process.t) ->
+let test_exit () =
+    run (program "true") [] (fun _env (process : Driver_process.t) ->
         Alcotest.(check bool) "the stream ends" true (process.transport.receive () = None);
         process.stop ())
 
@@ -134,10 +132,10 @@ let capturing_stderr f =
 
 (* What the driver writes to its standard error comes out of ours, and all of it has by the time
    the driver is stopped: more than a pipe holds, and its last words, said while it finishes. *)
-let test_stderr_relay ~threads () =
+let test_stderr_relay () =
     let count = 3000 in
     let script = Printf.sprintf "i=0; while [ $i -lt %d ]; do echo \"complaint $i of the driver\" >&2; i=$((i+1)); done; cat > /dev/null; echo \"last words\" >&2" count in
-    let (), text = capturing_stderr (fun _ -> run ~threads (program "sh") [ "-c"; script ] (fun _env (process : Driver_process.t) -> process.stop ())) in
+    let (), text = capturing_stderr (fun _ -> run (program "sh") [ "-c"; script ] (fun _env (process : Driver_process.t) -> process.stop ())) in
     let expected = String.concat "" (List.init count (Printf.sprintf "complaint %d of the driver\n")) ^ "last words\n" in
     Alcotest.(check int) "length" (String.length expected) (String.length text);
     Alcotest.(check bool) "content" true (String.equal expected text)
@@ -154,12 +152,12 @@ let stderr_is_blocking () =
 (* Node makes the pipes it is given non-blocking.  That is a property of the open file and not of
    the descriptor, so with a shared standard error it would become true of ours as well, and
    the program's own writes to it would start to fail whenever its reader is slow. *)
-let test_stderr_mode ~threads () =
+let test_stderr_mode () =
     let node = program "node" in
     if stderr_is_blocking () = None then Alcotest.skip ();
     let blocking, text =
         capturing_stderr (fun captured ->
-            run ~threads node [ "-e"; "process.stderr.write('the driver speaks\\n'); process.stdin.resume()" ] (fun _env (process : Driver_process.t) ->
+            run node [ "-e"; "process.stderr.write('the driver speaks\\n'); process.stdin.resume()" ] (fun _env (process : Driver_process.t) ->
                 (* Node puts things back as they were when it exits, so this is to be seen while it runs. *)
                 let rec await attempts =
                     if captured () = "" && attempts > 0 then begin
@@ -178,18 +176,19 @@ let test_stderr_mode ~threads () =
 let test_missing_program () =
     let error =
         failure "spawning a missing program" (fun () ->
-            run ~threads:false "/nonexistent/playwright-node" [] (fun _env (process : Driver_process.t) -> process.stop ()))
+            run "/nonexistent/playwright-node" [] (fun _env (process : Driver_process.t) -> process.stop ()))
     in
     check_contains "names the program" ~sub:"/nonexistent/playwright-node" error.message
 
 let tests =
     if Sys.win32 then []
     else
-        let both name test =
-            [ Alcotest.test_case (name ^ " (native)") `Quick (test ~threads:false); Alcotest.test_case (name ^ " (threads)") `Quick (test ~threads:true) ]
-        in
         [ ( "driver process",
-            both "echo" test_echo @ both "graceful stop" test_graceful_stop @ both "forced stop" test_forced_stop
-            @ both "cancellation" test_cancellation @ both "exit" test_exit @ both "standard error" test_stderr_relay
-            @ both "standard error stays ours" test_stderr_mode
-            @ [ Alcotest.test_case "missing program" `Quick test_missing_program ] ) ]
+            [ Alcotest.test_case "echo" `Quick test_echo;
+              Alcotest.test_case "graceful stop" `Quick test_graceful_stop;
+              Alcotest.test_case "forced stop" `Quick test_forced_stop;
+              Alcotest.test_case "cancellation" `Quick test_cancellation;
+              Alcotest.test_case "exit" `Quick test_exit;
+              Alcotest.test_case "standard error" `Quick test_stderr_relay;
+              Alcotest.test_case "standard error stays ours" `Quick test_stderr_mode;
+              Alcotest.test_case "missing program" `Quick test_missing_program ] ) ]

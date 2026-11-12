@@ -48,7 +48,7 @@ let wire_trace () =
 let initialize_timeout = 60_000.
 
 let create ?on_error ~sw ~(env : Eio_unix.Stdenv.base) () : t =
-    let process = Driver_process.spawn ~sw ~env (Driver.locate ()) in
+    let process = Driver_process.spawn ~sw ~clock:(Eio.Stdenv.clock env) (Driver.locate ()) in
     let conn =
         Connection.create ~clock:(Eio.Stdenv.clock env)
             ~report:(reporter on_error)

@@ -66,12 +66,12 @@ keeps HTTP, TLS and tar libraries out of the dependencies. The installation is a
 process that is waited for; it is setting up, not something to do while a program serves, so
 there is no time limit and no cancellation to it.
 
-`Driver_process` runs the driver and exposes its pipes as a `Transport`. It has two
-implementations behind one record of functions. *Native* uses `Eio.Process`. *Threads* uses
+`Driver_process` runs the driver and exposes its pipes as a `Transport`. It uses
 `Unix.create_process` and two system threads, one reading and one writing, which hand data
-to fibers through an `Eio.Stream` and promises; it exists because Eio does not implement
-processes and non-blocking pipes on Windows, and it is selected there. See
-[windows.md](windows.md).
+to fibers through an `Eio.Stream` and promises. Eio's own processes and non-blocking pipes
+would do on Unix, but do not exist on Windows; one implementation for every system means
+that the tests on Linux exercise what runs on Windows, at the price of two threads per
+driver and a few microseconds per message. See [windows.md](windows.md).
 
 The driver does not inherit the program's standard error. Node.js makes the pipes that it
 is given non-blocking, which is a property of the open file and not of the descriptor: the
@@ -312,7 +312,7 @@ the state consistent is which fiber does what:
 | What the client does by itself in answer to an event: subscribing to events on demand, dismissing a dialog that nobody listens for, releasing the result of a cancelled command, reading a remote connection | `Connection.fork`: a daemon fiber in the same scope | Short, and no more of it than there are events, so not counted. Exceptions are reported. |
 | The predicate of an `expect_*` or `wait_for_*` | a fiber of the waiting call (`Waiter.around`) | One event at a time, in the order of arrival, while the action runs. |
 | Closing, disposing, cleaning up | `Connection.start` and what is built on it: a daemon fiber in the scope of the instance, for which the caller waits | Not interrupted when the caller is cancelled: see *Cancellation*. |
-| Blocking system calls: looking at paths, the pipes of the thread-based driver process, the driver's standard error | system threads (`Files.partition_directories`, `Driver_process`) | Hand their results to fibers; touch no client state. |
+| Blocking system calls: looking at paths, the pipes of the driver process, the driver's standard error | system threads (`Files.partition_directories`, `Driver_process`) | Hand their results to fibers; touch no client state. |
 
 Code that reads and then writes client state outside the reader does so without yielding in
 between.

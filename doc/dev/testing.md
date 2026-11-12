@@ -23,7 +23,7 @@ driver, so that every order of events can be produced, which no browser does on 
 | `test_wire.ml` | JSON decoding, framing of messages, and the connection: creation and disposal of objects, replies and errors, protocol failures, closing |
 | `test_ownership.ml` | what a cancelled fiber leaves behind: replies that arrive late and what they hold, aborting, clean-up, closing that is concurrent, repeated or cancelled |
 | `test_events.ml` | listeners (order, removal, changes during an emission, cost), the budget of handler calls and what happens beyond it, waiting for an event around an action |
-| `test_process.ml` | running a child process over pipes, with both implementations of `Driver_process`: output, standard error, graceful stop, forced stop, cancellation. It uses `cat`, `sh` and `sleep` |
+| `test_process.ml` | running a child process over pipes with `Driver_process`: output, standard error, graceful stop, forced stop, cancellation. It uses `cat`, `sh` and `sleep` |
 | `test_values.ml` | JavaScript values, selectors, snapshot templates |
 | `test_urls.ml` | the URL parser, against a table of what Node.js gives; URL globs, against the tables of Playwright's own tests |
 | `test_support.ml` | timeouts, files, errors, and finding and installing the driver, with a script in place of Node.js |
@@ -86,7 +86,6 @@ integration, set `PLAYWRIGHT_TEST_REQUIRED=1`, which turns a skip into a failure
 | --- | --- |
 | `PLAYWRIGHT_TEST_CHROMIUM` | path of the browser to test with |
 | `PLAYWRIGHT_TEST_REQUIRED=1` | fail instead of skipping |
-| `PLAYWRIGHT_OCAML_DRIVER_IO=threads` | run the driver with the thread-based pipes that Windows uses, on any system |
 | `DEBUG=pw:channel` | print the protocol messages |
 
 ```sh
@@ -95,7 +94,6 @@ dune build ./test/integration/main.exe
 ./_build/default/test/integration/main.exe list                # the groups and tests
 ./_build/default/test/integration/main.exe test routing        # one group
 ./_build/default/test/integration/main.exe test routing 3      # one test
-PLAYWRIGHT_OCAML_DRIVER_IO=threads ./_build/default/test/integration/main.exe
 ```
 
 The test for video recording is skipped unless Playwright's ffmpeg is installed
@@ -152,7 +150,6 @@ references that do not resolve as warnings; there should be none. The programs i
 ```sh
 dune build @all @runtest
 PLAYWRIGHT_TEST_REQUIRED=1 dune test --force test/driver test/integration
-PLAYWRIGHT_TEST_REQUIRED=1 PLAYWRIGHT_OCAML_DRIVER_IO=threads dune test --force test/unit test/integration
 dune build @doc 2>&1 | grep -c Warning      # needs odoc; 0
 dune build --profile release @install
 ```
