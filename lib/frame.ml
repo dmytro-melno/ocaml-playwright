@@ -26,11 +26,10 @@ let handle_event (frame : t) : Protocol.Frame.event -> unit =
             emit session page.context.ce_page_load page
         | None, Some page, Some `Domcontentloaded -> emit session page.pe_dom_content_loaded page
         | _ -> ())
-    | Navigated { url; name; new_document; error } ->
+    | Navigated { url; name; error; _ } ->
         frame.f_url <- url;
         frame.f_name <- name;
-        let request = Option.bind new_document (fun (document : Protocol.Frame.Navigated_event_new_document.t) -> Option.map Types.request document.request) in
-        emit session frame.fe_navigated { n_url = url; n_error = error; n_request = request };
+        emit session frame.fe_navigated { n_url = url; n_error = error };
         (match error, frame.page with
         | None, Some page ->
             emit session page.pe_frame_navigated frame;
@@ -121,8 +120,6 @@ let select_options (options : select_option list) : Protocol.Frame.Select_option
             | `Value_or_label text -> { empty with value_or_label = Some text })
         options
 
-let script_with_source_url ~path content = content ^ "\n//# sourceURL=" ^ String.concat "" (String.split_on_char '\n' path)
-
 (* {1 Navigation} *)
 
 let reject_when_gone waiter (frame : t) (page : page) =
@@ -141,33 +138,24 @@ let navigation_waiter ?timeout (frame : t) f =
             reject_when_gone waiter frame page;
             f waiter)
 
-(* Runs [action] and waits for the navigation it causes, and for that navigation to reach
-   [wait_until]. *)
-let expect_navigation ?timeout ?(wait_until = `Load) ?(matches = fun _ -> true) (frame : t) action =
+(* Waits for the next navigation to a URL that [matches], and for it to reach [wait_until]. *)
+let wait_for_navigation ?timeout ?(wait_until = `Load) ~matches (frame : t) =
     navigation_waiter ?timeout frame (fun waiter ->
         Waiter.listen waiter frame.fe_navigated (fun navigation -> Some (`Navigated navigation));
         Waiter.listen waiter frame.fe_load_state (fun state -> Some (`Load_state state));
         (* First the navigation, then the state that it is to reach, unless it is in it already. *)
-        let navigated = ref None in
-        let select event =
-            match event, !navigated with
-            | `Navigated navigation, None when navigation.n_error <> None || matches navigation.n_url ->
+        let navigated = ref false in
+        Waiter.next waiter (function
+            | `Navigated navigation when (not !navigated) && (navigation.n_error <> None || matches navigation.n_url) ->
                 (* Any failed navigation ends the wait. *)
                 Option.iter (fun message -> raise (Error.E (Error.make message))) navigation.n_error;
-                if List.mem wait_until frame.load_states then Some navigation
+                if List.mem wait_until frame.load_states then Some ()
                 else begin
-                    navigated := Some navigation;
+                    navigated := true;
                     None
                 end
-            | `Load_state state, Some navigation when state = wait_until -> Some navigation
-            | _ -> None
-        in
-        let result, navigation = Waiter.around waiter action select in
-        let rec final (request : request) = match request.redirected_to with Some next -> final next | None -> request in
-        let response =
-            Option.bind navigation.n_request (fun request -> Option.map Types.response (Protocol.Request.response (final request).r_channel))
-        in
-        result, response)
+            | `Load_state state when !navigated && state = wait_until -> Some ()
+            | _ -> None))
 
 let wait_for_load_state ?timeout ?(state = `Load) (frame : t) =
     navigation_waiter ?timeout frame (fun waiter ->
@@ -179,7 +167,7 @@ let wait_for_load_state ?timeout ?(state = `Load) (frame : t) =
 
 let wait_for_url_matching ?timeout ?wait_until matches (frame : t) =
     if matches frame.f_url then wait_for_load_state ?timeout ?state:wait_until frame
-    else ignore (expect_navigation ?timeout ?wait_until ~matches frame ignore)
+    else wait_for_navigation ?timeout ?wait_until ~matches frame
 
 let wait_for_url ?timeout ?wait_until glob (frame : t) = wait_for_url_matching ?timeout ?wait_until (url_matcher frame glob) frame
 
@@ -235,17 +223,6 @@ struct
     let wait_for_url ?timeout ?wait_until glob t = wait_for_url ?timeout ?wait_until glob (T.frame t)
     let wait_for_url_matching ?timeout ?wait_until matches t = wait_for_url_matching ?timeout ?wait_until matches (T.frame t)
 
-    let expect_navigation ?timeout ?wait_until ?url ?url_matching action t =
-        let frame = T.frame t in
-        let matches =
-            match Option.map (url_matcher frame) url, url_matching with
-            | Some glob, Some matching -> Some (fun url -> glob url && matching url)
-            | (Some _ as one), None | None, one -> one
-        in
-        snd (expect_navigation ?timeout ?wait_until ?matches frame action)
-
-    let wait_for_timeout milliseconds t = Protocol.Frame.wait_for_timeout ~wait_timeout:milliseconds (T.frame t).f_channel
-
     (* {2 JavaScript} *)
 
     let evaluate ?(arg = Js.Undefined) expression t =
@@ -275,160 +252,6 @@ struct
         let url, content = tag_source source in
         Protocol.Frame.add_style_tag ?url ?content (T.frame t).f_channel |> Types.element
 
-    (* {2 Selector-based queries and actions} *)
-
-    let query_selector ?strict selector t =
-        Protocol.Frame.query_selector ~selector ?strict (T.frame t).f_channel |> Option.map Types.element
-
-    let query_selector_all selector t = Protocol.Frame.query_selector_all ~selector (T.frame t).f_channel |> List.map Types.element
-
-    let wait_for_selector ?timeout ?strict ?state selector t =
-        let frame = T.frame t in
-        Protocol.Frame.wait_for_selector ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?state frame.f_channel
-        |> Option.map Types.element
-
-    let eval_on_selector ?strict ?(arg = Js.Undefined) selector ~expression t =
-        Protocol.Frame.eval_on_selector ~selector ?strict ~expression ~arg:(Js.to_argument arg) (T.frame t).f_channel |> Js.of_wire
-
-    let eval_on_selector_all ?(arg = Js.Undefined) selector ~expression t =
-        Protocol.Frame.eval_on_selector_all ~selector ~expression ~arg:(Js.to_argument arg) (T.frame t).f_channel |> Js.of_wire
-
-    let dispatch_event ?timeout ?strict ?(event_init = Js.Undefined) selector ~type_ t =
-        let frame = T.frame t in
-        Protocol.Frame.dispatch_event ~timeout:(action_timeout ?timeout frame) ~selector ?strict ~type_ ~event_init:(Js.to_argument event_init)
-            frame.f_channel
-
-    let click ?timeout ?strict ?force ?scroll ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?trial ?steps selector t =
-        let frame = T.frame t in
-        Protocol.Frame.click ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?scroll ?no_wait_after ?modifiers
-            ?position:(Option.map point position) ?delay ?button ?click_count ?trial ?steps frame.f_channel
-
-    let dblclick ?timeout ?strict ?force ?scroll ?modifiers ?position ?delay ?button ?trial ?steps selector t =
-        let frame = T.frame t in
-        Protocol.Frame.dblclick ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?scroll ?modifiers
-            ?position:(Option.map point position) ?delay ?button ?trial ?steps frame.f_channel
-
-    let tap ?timeout ?strict ?force ?scroll ?modifiers ?position ?trial selector t =
-        let frame = T.frame t in
-        Protocol.Frame.tap ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?scroll ?modifiers ?position:(Option.map point position)
-            ?trial frame.f_channel
-
-    let hover ?timeout ?strict ?force ?scroll ?modifiers ?position ?trial selector t =
-        let frame = T.frame t in
-        Protocol.Frame.hover ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?scroll ?modifiers ?position:(Option.map point position)
-            ?trial frame.f_channel
-
-    let drag_and_drop ?timeout ?strict ?force ?scroll ?trial ?source_position ?target_position ?steps ~source ~target t =
-        let frame = T.frame t in
-        Protocol.Frame.drag_and_drop ~timeout:(action_timeout ?timeout frame) ~source ~target ?force ?scroll ?trial
-            ?source_position:(Option.map point source_position) ?target_position:(Option.map point target_position) ?strict ?steps
-            frame.f_channel
-
-    let fill ?timeout ?strict ?force selector ~value t =
-        let frame = T.frame t in
-        Protocol.Frame.fill ~timeout:(action_timeout ?timeout frame) ~selector ?strict ~value ?force frame.f_channel
-
-    let focus ?timeout ?strict selector t =
-        let frame = T.frame t in
-        Protocol.Frame.focus ~timeout:(action_timeout ?timeout frame) ~selector ?strict frame.f_channel
-
-    let blur ?timeout ?strict selector t =
-        let frame = T.frame t in
-        Protocol.Frame.blur ~timeout:(action_timeout ?timeout frame) ~selector ?strict frame.f_channel
-
-    let press ?timeout ?strict ?delay ?no_wait_after selector ~key t =
-        let frame = T.frame t in
-        Protocol.Frame.press ~timeout:(action_timeout ?timeout frame) ~selector ?strict ~key ?delay ?no_wait_after frame.f_channel
-
-    let type_ ?timeout ?strict ?delay selector ~text t =
-        let frame = T.frame t in
-        Protocol.Frame.type_ ~timeout:(action_timeout ?timeout frame) ~selector ?strict ~text ?delay frame.f_channel
-
-    let check ?timeout ?strict ?force ?scroll ?position ?trial selector t =
-        let frame = T.frame t in
-        Protocol.Frame.check ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?scroll ?position:(Option.map point position) ?trial
-            frame.f_channel
-
-    let uncheck ?timeout ?strict ?force ?scroll ?position ?trial selector t =
-        let frame = T.frame t in
-        Protocol.Frame.uncheck ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?force ?scroll ?position:(Option.map point position) ?trial
-            frame.f_channel
-
-    let set_checked ?timeout ?strict ?force ?scroll ?position ?trial selector checked t =
-        if checked then check ?timeout ?strict ?force ?scroll ?position ?trial selector t
-        else uncheck ?timeout ?strict ?force ?scroll ?position ?trial selector t
-
-    let select_option ?timeout ?strict ?force selector options t =
-        let frame = T.frame t in
-        Protocol.Frame.select_option ~timeout:(action_timeout ?timeout frame) ~selector ?strict ~options:(select_options options) ?force
-            frame.f_channel
-
-    let set_input ?timeout ?strict selector files t =
-        let frame = T.frame t in
-        let converted = convert_input_files files in
-        Protocol.Frame.set_input_files ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?payloads:converted.payloads
-            ?local_directory:converted.local_directory ?local_paths:converted.local_paths frame.f_channel
-
-    (* Drops files, data or both onto the element, as a drag from outside the page would. *)
-    let drop ?timeout ?strict ?position ?files ?(data = []) selector t =
-        let frame = T.frame t in
-        let converted = Option.map convert_input_files files in
-        (match converted with
-        | Some { local_directory = Some _; _ } -> Error.raise_ "Dropping a directory is not supported, pass individual files."
-        | _ -> ());
-        let payloads =
-            Option.bind converted (fun converted -> converted.payloads)
-            |> Option.map
-                   (List.map (fun (payload : Protocol.Frame.Set_input_files_payloads.t) : Protocol.Frame.Drop_payloads.t ->
-                        { name = payload.name; mime_type = payload.mime_type; buffer = payload.buffer }))
-        in
-        let data = List.map (fun (mime_type, value) : Protocol.Frame.Drop_data.t -> { mime_type; value }) data in
-        Protocol.Frame.drop ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?position:(Option.map point position) ?payloads
-            ?local_paths:(Option.bind converted (fun converted -> converted.local_paths))
-            ?data:(if data = [] then None else Some data)
-            frame.f_channel
-
-    let set_input_files ?timeout ?strict selector paths t = set_input ?timeout ?strict selector (Paths paths) t
-    let set_input_payloads ?timeout ?strict selector payloads t = set_input ?timeout ?strict selector (Payloads payloads) t
-
-    let text_content ?timeout ?strict selector t =
-        let frame = T.frame t in
-        Protocol.Frame.text_content ~timeout:(action_timeout ?timeout frame) ~selector ?strict frame.f_channel
-
-    let inner_text ?timeout ?strict selector t =
-        let frame = T.frame t in
-        Protocol.Frame.inner_text ~timeout:(action_timeout ?timeout frame) ~selector ?strict frame.f_channel
-
-    let inner_html ?timeout ?strict selector t =
-        let frame = T.frame t in
-        Protocol.Frame.inner_html ~timeout:(action_timeout ?timeout frame) ~selector ?strict frame.f_channel
-
-    let get_attribute ?timeout ?strict selector ~name t =
-        let frame = T.frame t in
-        Protocol.Frame.get_attribute ~timeout:(action_timeout ?timeout frame) ~selector ?strict ~name frame.f_channel
-
-    let input_value ?timeout ?strict selector t =
-        let frame = T.frame t in
-        Protocol.Frame.input_value ~timeout:(action_timeout ?timeout frame) ~selector ?strict frame.f_channel
-
-    let is_checked ?timeout ?strict selector t =
-        let frame = T.frame t in
-        Protocol.Frame.is_checked ~timeout:(action_timeout ?timeout frame) ~selector ?strict frame.f_channel
-
-    let is_disabled ?timeout ?strict selector t =
-        let frame = T.frame t in
-        Protocol.Frame.is_disabled ~timeout:(action_timeout ?timeout frame) ~selector ?strict frame.f_channel
-
-    let is_editable ?timeout ?strict selector t =
-        let frame = T.frame t in
-        Protocol.Frame.is_editable ~timeout:(action_timeout ?timeout frame) ~selector ?strict frame.f_channel
-
-    let is_enabled ?timeout ?strict selector t =
-        let frame = T.frame t in
-        Protocol.Frame.is_enabled ~timeout:(action_timeout ?timeout frame) ~selector ?strict frame.f_channel
-
-    let is_hidden ?strict selector t = Protocol.Frame.is_hidden ~selector ?strict (T.frame t).f_channel
-    let is_visible ?strict selector t = Protocol.Frame.is_visible ~selector ?strict (T.frame t).f_channel
 end
 
 include Operations (struct

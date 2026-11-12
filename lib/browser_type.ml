@@ -113,7 +113,7 @@ let launch_persistent_context =
                         ?http_credentials:c.http_credentials ?device_scale_factor:c.device_scale_factor ?is_mobile:c.is_mobile
                         ?has_touch:c.has_touch ?color_scheme:c.color_scheme ?reduced_motion:c.reduced_motion ?forced_colors:c.forced_colors
                         ?accept_downloads:c.accept_downloads ?contrast:c.contrast ?base_url:c.base_url ?record_video:c.record_video
-                        ?strict_selectors:c.strict_selectors ?service_workers:c.service_workers ?selector_engines ?test_id_attribute_name
+                        ?service_workers:c.service_workers ?selector_engines ?test_id_attribute_name
                         ~user_data_dir ?slow_mo:o.slow_mo t.bt_channel)
             in
             let browser = Types.browser result.browser in

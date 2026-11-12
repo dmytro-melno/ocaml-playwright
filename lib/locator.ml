@@ -134,129 +134,181 @@ let hash (locator : t) = Hashtbl.hash (Frame.hash locator.l_frame, locator.selec
 
    Every action resolves the locator afresh and insists that it matches exactly one element. *)
 
+let channel (l : t) = l.l_frame.f_channel
+let action_timeout ?timeout (l : t) = Frame.action_timeout ?timeout l.l_frame
+let point = Option.map Frame.point
+
 let click ?timeout ?force ?scroll ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?trial ?steps (l : t) =
-    Frame.click ~strict:true ?timeout ?force ?scroll ?no_wait_after ?modifiers ?position ?delay ?button ?click_count ?trial ?steps l.selector l.l_frame
+    Protocol.Frame.click ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ?force ?scroll ?no_wait_after ?modifiers
+        ?position:(point position) ?delay ?button ?click_count ?trial ?steps (channel l)
 
 let dblclick ?timeout ?force ?scroll ?modifiers ?position ?delay ?button ?trial ?steps (l : t) =
-    Frame.dblclick ~strict:true ?timeout ?force ?scroll ?modifiers ?position ?delay ?button ?trial ?steps l.selector l.l_frame
+    Protocol.Frame.dblclick ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ?force ?scroll ?modifiers
+        ?position:(point position) ?delay ?button ?trial ?steps (channel l)
 
 let tap ?timeout ?force ?scroll ?modifiers ?position ?trial (l : t) =
-    Frame.tap ~strict:true ?timeout ?force ?scroll ?modifiers ?position ?trial l.selector l.l_frame
+    Protocol.Frame.tap ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ?force ?scroll ?modifiers
+        ?position:(point position) ?trial (channel l)
 
 let hover ?timeout ?force ?scroll ?modifiers ?position ?trial (l : t) =
-    Frame.hover ~strict:true ?timeout ?force ?scroll ?modifiers ?position ?trial l.selector l.l_frame
+    Protocol.Frame.hover ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ?force ?scroll ?modifiers
+        ?position:(point position) ?trial (channel l)
 
 let drag_to ?timeout ?force ?scroll ?trial ?source_position ?target_position ?steps ~(target : t) (l : t) =
-    Frame.drag_and_drop ~strict:true ?timeout ?force ?scroll ?trial ?source_position ?target_position ?steps ~source:l.selector
-        ~target:(same_frame "the target" l.l_frame target) l.l_frame
+    Protocol.Frame.drag_and_drop ~timeout:(action_timeout ?timeout l) ~source:l.selector ~target:(same_frame "the target" l.l_frame target)
+        ~strict:true ?force ?scroll ?trial ?source_position:(point source_position) ?target_position:(point target_position) ?steps (channel l)
 
-let fill ?timeout ?force value (l : t) = Frame.fill ~strict:true ?timeout ?force l.selector ~value l.l_frame
+let fill ?timeout ?force value (l : t) =
+    Protocol.Frame.fill ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ~value ?force (channel l)
+
 let clear ?timeout ?force (l : t) = fill ?timeout ?force "" l
-let focus ?timeout (l : t) = Frame.focus ~strict:true ?timeout l.selector l.l_frame
-let blur ?timeout (l : t) = Frame.blur ~strict:true ?timeout l.selector l.l_frame
-let press ?timeout ?delay ?no_wait_after key (l : t) = Frame.press ~strict:true ?timeout ?delay ?no_wait_after l.selector ~key l.l_frame
-let press_sequentially ?timeout ?delay text (l : t) = Frame.type_ ~strict:true ?timeout ?delay l.selector ~text l.l_frame
-let check ?timeout ?force ?scroll ?position ?trial (l : t) = Frame.check ~strict:true ?timeout ?force ?scroll ?position ?trial l.selector l.l_frame
-let uncheck ?timeout ?force ?scroll ?position ?trial (l : t) = Frame.uncheck ~strict:true ?timeout ?force ?scroll ?position ?trial l.selector l.l_frame
+let focus ?timeout (l : t) = Protocol.Frame.focus ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true (channel l)
+let blur ?timeout (l : t) = Protocol.Frame.blur ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true (channel l)
+
+let press ?timeout ?delay ?no_wait_after key (l : t) =
+    Protocol.Frame.press ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ~key ?delay ?no_wait_after (channel l)
+
+let press_sequentially ?timeout ?delay text (l : t) =
+    Protocol.Frame.type_ ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ~text ?delay (channel l)
+
+let check ?timeout ?force ?scroll ?position ?trial (l : t) =
+    Protocol.Frame.check ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ?force ?scroll ?position:(point position) ?trial
+        (channel l)
+
+let uncheck ?timeout ?force ?scroll ?position ?trial (l : t) =
+    Protocol.Frame.uncheck ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ?force ?scroll ?position:(point position) ?trial
+        (channel l)
 
 let set_checked ?timeout ?force ?scroll ?position ?trial checked (l : t) =
-    Frame.set_checked ~strict:true ?timeout ?force ?scroll ?position ?trial l.selector checked l.l_frame
+    if checked then check ?timeout ?force ?scroll ?position ?trial l else uncheck ?timeout ?force ?scroll ?position ?trial l
 
-let select_option ?timeout ?force options (l : t) = Frame.select_option ~strict:true ?timeout ?force l.selector options l.l_frame
-let set_input ?timeout files (l : t) = Frame.set_input ~strict:true ?timeout l.selector files l.l_frame
+let select_option ?timeout ?force options (l : t) =
+    Protocol.Frame.select_option ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ~options:(Frame.select_options options)
+        ?force (channel l)
+
+let set_input ?timeout files (l : t) =
+    let converted = Frame.convert_input_files files in
+    Protocol.Frame.set_input_files ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ?payloads:converted.payloads
+        ?local_directory:converted.local_directory ?local_paths:converted.local_paths (channel l)
+
 let set_input_files ?timeout paths (l : t) = set_input ?timeout (Frame.Paths paths) l
 let set_input_payloads ?timeout payloads (l : t) = set_input ?timeout (Frame.Payloads payloads) l
 
-let drop ?timeout ?position ?files ?payloads ?data (l : t) =
-    let files =
+(* Drops files, data or both onto the element, as a drag from outside the page would. *)
+let drop ?timeout ?position ?files ?payloads ?(data = []) (l : t) =
+    let converted =
         match files, payloads with
         | Some _, Some _ -> invalid_arg "Playwright: pass either ~files or ~payloads, not both"
-        | Some paths, None -> Some (Frame.Paths paths)
-        | None, Some payloads -> Some (Frame.Payloads payloads)
+        | Some paths, None -> Some (Frame.convert_input_files (Paths paths))
+        | None, Some payloads -> Some (Frame.convert_input_files (Payloads payloads))
         | None, None -> None
     in
-    Frame.drop ~strict:true ?timeout ?position ?files ?data l.selector l.l_frame
+    (match converted with
+    | Some { local_directory = Some _; _ } -> Error.raise_ "Dropping a directory is not supported, pass individual files."
+    | _ -> ());
+    let payloads =
+        Option.bind converted (fun converted -> converted.payloads)
+        |> Option.map
+               (List.map (fun (payload : Protocol.Frame.Set_input_files_payloads.t) : Protocol.Frame.Drop_payloads.t ->
+                    { name = payload.name; mime_type = payload.mime_type; buffer = payload.buffer }))
+    in
+    let data = List.map (fun (mime_type, value) : Protocol.Frame.Drop_data.t -> { mime_type; value }) data in
+    Protocol.Frame.drop ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ?position:(point position) ?payloads
+        ?local_paths:(Option.bind converted (fun converted -> converted.local_paths))
+        ?data:(if data = [] then None else Some data)
+        (channel l)
 
-let dispatch_event ?timeout ?event_init type_ (l : t) = Frame.dispatch_event ~strict:true ?timeout ?event_init l.selector ~type_ l.l_frame
+let dispatch_event ?timeout ?(event_init = Js.Undefined) type_ (l : t) =
+    Protocol.Frame.dispatch_event ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ~type_
+        ~event_init:(Js.to_argument event_init) (channel l)
 
-let hide_highlight (l : t) = Protocol.Frame.hide_highlight ~selector:l.selector l.l_frame.f_channel
+let hide_highlight (l : t) = Protocol.Frame.hide_highlight ~selector:l.selector (channel l)
 
 let highlight ?style (l : t) =
-    Protocol.Frame.highlight ~selector:l.selector ?style l.l_frame.f_channel;
+    Protocol.Frame.highlight ~selector:l.selector ?style (channel l);
     Disposable.registration l.l_frame.f_session.conn (fun () -> hide_highlight l)
 
 (* {1 Queries} *)
 
-let get_attribute ?timeout name (l : t) = Frame.get_attribute ~strict:true ?timeout l.selector ~name l.l_frame
-let text_content ?timeout (l : t) = Frame.text_content ~strict:true ?timeout l.selector l.l_frame
-let inner_text ?timeout (l : t) = Frame.inner_text ~strict:true ?timeout l.selector l.l_frame
-let inner_html ?timeout (l : t) = Frame.inner_html ~strict:true ?timeout l.selector l.l_frame
-let input_value ?timeout (l : t) = Frame.input_value ~strict:true ?timeout l.selector l.l_frame
-let is_checked ?timeout (l : t) = Frame.is_checked ~strict:true ?timeout l.selector l.l_frame
-let is_disabled ?timeout (l : t) = Frame.is_disabled ~strict:true ?timeout l.selector l.l_frame
-let is_editable ?timeout (l : t) = Frame.is_editable ~strict:true ?timeout l.selector l.l_frame
-let is_enabled ?timeout (l : t) = Frame.is_enabled ~strict:true ?timeout l.selector l.l_frame
-let is_hidden (l : t) = Frame.is_hidden ~strict:true l.selector l.l_frame
-let is_visible (l : t) = Frame.is_visible ~strict:true l.selector l.l_frame
+let get_attribute ?timeout name (l : t) =
+    Protocol.Frame.get_attribute ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ~name (channel l)
 
-let count (l : t) = Protocol.Frame.query_count ~selector:l.selector l.l_frame.f_channel
+let text_content ?timeout (l : t) = Protocol.Frame.text_content ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true (channel l)
+let inner_text ?timeout (l : t) = Protocol.Frame.inner_text ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true (channel l)
+let inner_html ?timeout (l : t) = Protocol.Frame.inner_html ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true (channel l)
+let input_value ?timeout (l : t) = Protocol.Frame.input_value ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true (channel l)
+let is_checked ?timeout (l : t) = Protocol.Frame.is_checked ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true (channel l)
+let is_disabled ?timeout (l : t) = Protocol.Frame.is_disabled ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true (channel l)
+let is_editable ?timeout (l : t) = Protocol.Frame.is_editable ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true (channel l)
+let is_enabled ?timeout (l : t) = Protocol.Frame.is_enabled ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true (channel l)
+let is_hidden (l : t) = Protocol.Frame.is_hidden ~selector:l.selector ~strict:true (channel l)
+let is_visible (l : t) = Protocol.Frame.is_visible ~selector:l.selector ~strict:true (channel l)
+
+let count (l : t) = Protocol.Frame.query_count ~selector:l.selector (channel l)
 let all (l : t) = List.init (count l) (fun index -> nth index l)
 
-let all_inner_texts (l : t) =
-    Frame.eval_on_selector_all l.selector ~expression:"elements => elements.map(element => element.innerText)" l.l_frame |> Js.to_list Js.to_string
+(* Calls the function that [expression] evaluates to with the array of all matching elements. *)
+let evaluate_all ?(arg = Js.Undefined) expression (l : t) =
+    Protocol.Frame.eval_on_selector_all ~selector:l.selector ~expression ~arg:(Js.to_argument arg) (channel l) |> Js.of_wire
 
-let all_text_contents (l : t) =
-    Frame.eval_on_selector_all l.selector ~expression:"elements => elements.map(element => element.textContent || '')" l.l_frame
-    |> Js.to_list Js.to_string
+let all_inner_texts (l : t) = evaluate_all "elements => elements.map(element => element.innerText)" l |> Js.to_list Js.to_string
+let all_text_contents (l : t) = evaluate_all "elements => elements.map(element => element.textContent || '')" l |> Js.to_list Js.to_string
 
 let wait_for ?timeout ?state (l : t) =
     ignore
-        (Protocol.Frame.wait_for_selector ~timeout:(Frame.action_timeout ?timeout l.l_frame) ~selector:l.selector ~strict:true ?state
-             ~omit_return_value:true l.l_frame.f_channel)
+        (Protocol.Frame.wait_for_selector ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ?state ~omit_return_value:true
+           (channel l))
 
 let aria_snapshot ?timeout ?mode ?depth ?boxes (l : t) =
-    Protocol.Frame.aria_snapshot ~timeout:(Frame.action_timeout ?timeout l.l_frame) ?mode ~selector:l.selector ?depth ?boxes l.l_frame.f_channel
+    Protocol.Frame.aria_snapshot ~timeout:(action_timeout ?timeout l) ?mode ~selector:l.selector ?depth ?boxes (channel l)
 
 let aria_snapshot_json ?timeout ?mode ?depth ?boxes (l : t) =
-    Protocol.Frame.aria_snapshot_json ~timeout:(Frame.action_timeout ?timeout l.l_frame) ?mode ~selector:l.selector ?depth ?boxes
-        l.l_frame.f_channel
+    Protocol.Frame.aria_snapshot_json ~timeout:(action_timeout ?timeout l) ?mode ~selector:l.selector ?depth ?boxes (channel l)
 
 (* Waits until the expression, which is given the element, returns something truthy. *)
 let wait_for_function ?timeout ?(arg = Js.Undefined) expression (l : t) =
-    Protocol.Frame.wait_for_function ~timeout:(Frame.action_timeout ?timeout l.l_frame) ~expression ~arg:(Js.to_argument arg)
-        ~selector:l.selector ~strict:true l.l_frame.f_channel
+    Protocol.Frame.wait_for_function ~timeout:(action_timeout ?timeout l) ~expression ~arg:(Js.to_argument arg) ~selector:l.selector
+        ~strict:true (channel l)
     |> Option.iter (fun handle -> Js_handle.dispose (Types.js_handle handle))
 
-let element_handle ?timeout (l : t) =
-    match Frame.wait_for_selector ~strict:true ~state:`Attached ?timeout l.selector l.l_frame with
-    | Some handle -> handle
-    | None -> Error.raise_ "Could not resolve %s to DOM Element" l.selector
+(* {1 Operations on the element itself}
 
-let element_handles (l : t) = Frame.query_selector_all l.selector l.l_frame
+   The driver offers these for element handles only. *)
+
+let element_handle ?timeout (l : t) =
+    match
+        Protocol.Frame.wait_for_selector ~timeout:(action_timeout ?timeout l) ~selector:l.selector ~strict:true ~state:`Attached (channel l)
+    with
+    | Some handle -> Types.element handle
+    | None -> Error.raise_ "Could not resolve %s to DOM Element" l.selector
 
 (* Resolves the locator to an element, waiting for it if needed, and gives [f] that element
    along with the time left. *)
 let with_element ?timeout (l : t) f =
     let clock = l.l_frame.f_session.conn.clock in
-    let timeout = Frame.action_timeout ?timeout l.l_frame in
+    let timeout = action_timeout ?timeout l in
     let started = Eio.Time.now clock in
     let handle = element_handle ~timeout l in
     Connection.protect l.l_frame.f_session.conn "disposing of an element handle"
         ~finally:(fun () -> try Js_handle.dispose handle with Error.E _ -> ())
         (fun () ->
             let remaining = if timeout > 0. then Float.max 1. (timeout -. ((Eio.Time.now clock -. started) *. 1000.)) else 0. in
-            f handle remaining)
+            f handle (element_channel handle) remaining)
 
-let evaluate ?timeout ?arg expression (l : t) = with_element ?timeout l (fun handle _ -> Js_handle.evaluate ?arg expression handle)
-let evaluate_handle ?timeout ?arg expression (l : t) = with_element ?timeout l (fun handle _ -> Js_handle.evaluate_handle ?arg expression handle)
-let evaluate_all ?arg expression (l : t) = Frame.eval_on_selector_all ?arg l.selector ~expression l.l_frame
-let bounding_box ?timeout (l : t) = with_element ?timeout l (fun handle _ -> Element_handle.bounding_box handle)
-let scroll_into_view_if_needed ?timeout (l : t) = with_element ?timeout l (fun handle timeout -> Element_handle.scroll_into_view_if_needed ~timeout handle)
-let select_text ?timeout ?force (l : t) = with_element ?timeout l (fun handle timeout -> Element_handle.select_text ~timeout ?force handle)
+let evaluate ?timeout ?arg expression (l : t) = with_element ?timeout l (fun handle _ _ -> Js_handle.evaluate ?arg expression handle)
+let evaluate_handle ?timeout ?arg expression (l : t) = with_element ?timeout l (fun handle _ _ -> Js_handle.evaluate_handle ?arg expression handle)
+let bounding_box ?timeout (l : t) = with_element ?timeout l (fun _ element _ -> Protocol.Element_handle.bounding_box element)
+
+let scroll_into_view_if_needed ?timeout (l : t) =
+    with_element ?timeout l (fun _ element timeout -> Protocol.Element_handle.scroll_into_view_if_needed ~timeout element)
+
+let select_text ?timeout ?force (l : t) =
+    with_element ?timeout l (fun _ element timeout -> Protocol.Element_handle.select_text ~timeout ?force element)
 
 let screenshot ?timeout ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style (l : t) =
-    with_element ?timeout l (fun handle timeout ->
-        Element_handle.screenshot ~timeout ?type_ ?quality ?omit_background ?caret ?animations ?scale ?mask ?mask_color ?style handle)
+    with_element ?timeout l (fun _ element timeout ->
+        Protocol.Element_handle.screenshot ~timeout ?type_ ?quality ?omit_background ?caret ?animations ?scale
+            ?mask:(Option.map Screenshot.mask mask) ?mask_color ?style element)
 
 (* Used by the assertions. *)
 let expect ?expression_arg ?pseudo ?expected_text ?expected_number ?expected_value ?use_inner_text ~is_not ~timeout expression (l : t) =

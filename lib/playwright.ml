@@ -85,7 +85,6 @@ type 'a with_context_options =
     ?base_url:string ->
     ?record_video_dir:string ->
     ?record_video_size:int * int ->
-    ?strict_selectors:bool ->
     ?service_workers:[ `Allow | `Block ] ->
     ?storage_state:Yojson.Safe.t ->
     'a
@@ -153,57 +152,11 @@ module type Frame_operations = sig
     val wait_for_load_state : ?timeout:float -> ?state:lifecycle_event -> t -> unit
     val wait_for_url : ?timeout:float -> ?wait_until:lifecycle_event -> string -> t -> unit
     val wait_for_url_matching : ?timeout:float -> ?wait_until:lifecycle_event -> (string -> bool) -> t -> unit
-    val expect_navigation :
-        ?timeout:float -> ?wait_until:lifecycle_event -> ?url:string -> ?url_matching:(string -> bool) -> (unit -> unit) -> t -> response option
-    val wait_for_timeout : float -> t -> unit
     val evaluate : ?arg:js_value -> string -> t -> js_value
     val evaluate_handle : ?arg:js_value -> string -> t -> js_handle
     val wait_for_function : ?timeout:float -> ?polling:float -> ?arg:js_value -> string -> t -> js_handle
     val add_script_tag : ?type_:string -> [ `Content of string | `Url of string ] -> t -> element_handle
     val add_style_tag : [ `Content of string | `Url of string ] -> t -> element_handle
-    val query_selector : ?strict:bool -> string -> t -> element_handle option
-    val query_selector_all : string -> t -> element_handle list
-    val wait_for_selector : ?timeout:float -> ?strict:bool -> ?state:element_state -> string -> t -> element_handle option
-    val eval_on_selector : ?strict:bool -> ?arg:js_value -> string -> expression:string -> t -> js_value
-    val eval_on_selector_all : ?arg:js_value -> string -> expression:string -> t -> js_value
-    val dispatch_event : ?timeout:float -> ?strict:bool -> ?event_init:js_value -> string -> type_:string -> t -> unit
-    val click :
-        ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?no_wait_after:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float ->
-        ?delay:float -> ?button:mouse_button -> ?click_count:int -> ?trial:bool -> ?steps:int -> string -> t -> unit
-    val dblclick :
-        ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?delay:float ->
-        ?button:mouse_button -> ?trial:bool -> ?steps:int -> string -> t -> unit
-    val tap :
-        ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> string ->
-        t -> unit
-    val hover :
-        ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> string ->
-        t -> unit
-    val drag_and_drop :
-        ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?trial:bool -> ?source_position:float * float -> ?target_position:float * float ->
-        ?steps:int -> source:string -> target:string -> t -> unit
-    val fill : ?timeout:float -> ?strict:bool -> ?force:bool -> string -> value:string -> t -> unit
-    val focus : ?timeout:float -> ?strict:bool -> string -> t -> unit
-    val blur : ?timeout:float -> ?strict:bool -> string -> t -> unit
-    val press : ?timeout:float -> ?strict:bool -> ?delay:float -> ?no_wait_after:bool -> string -> key:string -> t -> unit
-    val type_ : ?timeout:float -> ?strict:bool -> ?delay:float -> string -> text:string -> t -> unit
-    val check : ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> string -> t -> unit
-    val uncheck : ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> string -> t -> unit
-    val set_checked : ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> string -> bool -> t -> unit
-    val select_option : ?timeout:float -> ?strict:bool -> ?force:bool -> string -> select_option list -> t -> string list
-    val set_input_files : ?timeout:float -> ?strict:bool -> string -> string list -> t -> unit
-    val set_input_payloads : ?timeout:float -> ?strict:bool -> string -> file_payload list -> t -> unit
-    val text_content : ?timeout:float -> ?strict:bool -> string -> t -> string option
-    val inner_text : ?timeout:float -> ?strict:bool -> string -> t -> string
-    val inner_html : ?timeout:float -> ?strict:bool -> string -> t -> string
-    val get_attribute : ?timeout:float -> ?strict:bool -> string -> name:string -> t -> string option
-    val input_value : ?timeout:float -> ?strict:bool -> string -> t -> string
-    val is_checked : ?timeout:float -> ?strict:bool -> string -> t -> bool
-    val is_disabled : ?timeout:float -> ?strict:bool -> string -> t -> bool
-    val is_editable : ?timeout:float -> ?strict:bool -> string -> t -> bool
-    val is_enabled : ?timeout:float -> ?strict:bool -> string -> t -> bool
-    val is_hidden : ?strict:bool -> string -> t -> bool
-    val is_visible : ?strict:bool -> string -> t -> bool
 end
 
 (* {1 Objects} *)

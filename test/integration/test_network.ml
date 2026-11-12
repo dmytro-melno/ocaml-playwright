@@ -206,7 +206,7 @@ let test_context_network_settings t () =
     Alcotest.(check int) "credentials" 200 (Page.goto (Server.url t.server "/secret") page |> Option.get |> Response.status);
     let headers () =
         ignore (Page.goto (Server.url t.server "/echo") page);
-        Yojson.Safe.from_string (Page.inner_text "body" page) |> Yojson.Safe.Util.member "headers"
+        Yojson.Safe.from_string (Locator.inner_text (Page.locator "body" page)) |> Yojson.Safe.Util.member "headers"
     in
     let header name = Yojson.Safe.Util.member name (headers ()) in
     Alcotest.check json "context header" (`String "c") (header "x-context");
@@ -335,7 +335,7 @@ let test_client_certificates t () =
             (fun () ->
                 let page = BrowserContext.new_page context in
                 ignore (Page.goto origin page);
-                Page.inner_text "body" page)
+                Locator.inner_text (Page.locator "body" page))
     in
     let known = "client: " ^ Tls_server.common_name in
     let cert = Tls_server.certificate and key = Tls_server.private_key in

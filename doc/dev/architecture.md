@@ -14,7 +14,7 @@ the Playwright repository, from which every client generates code.
 
 ```
    your program
-        │  Playwright.Page.click ...
+        │  Playwright.Locator.click ...
 ┌───────▼──────────────────────────────────────────────┐
 │ playwright.mli / playwright.ml   the public face     │  library playwright
 ├──────────────────────────────────────────────────────┤

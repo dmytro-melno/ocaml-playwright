@@ -58,17 +58,11 @@ let test_history t page =
     Server.page t.server "/one" {|<title>One</title><a href="/two">next</a>|};
     Server.page t.server "/two" "<title>Two</title>";
     ignore (Page.goto (Server.url t.server "/one") page);
-    let response = Page.expect_navigation (fun () -> Page.click "a" page) page |> Option.get in
-    Alcotest.(check string) "navigated by a click" (Server.url t.server "/two") (Response.url response);
+    Locator.click (Page.locator "a" page);
+    Page.wait_for_url "**/two" page;
+    Alcotest.(check string) "navigated by a click" "Two" (Page.title page);
     ignore (Page.go_back page);
     Alcotest.(check string) "back" "One" (Page.title page);
-    (* A navigation is the awaited one when its URL meets all of the conditions given. *)
-    let two = contains ~sub:"/two" in
-    ignore (Page.expect_navigation ~url:"**/t*" ~url_matching:two (fun () -> Page.click "a" page) page);
-    ignore (Page.go_back page);
-    check_failure "the pattern holds, the predicate does not" ~kind:Timeout (fun () ->
-        Page.expect_navigation ~timeout:300. ~url:"**/two" ~url_matching:(fun url -> not (two url)) (fun () -> Page.click "a" page) page);
-    ignore (Page.go_back page);
     ignore (Page.go_forward page);
     Alcotest.(check string) "forward" "Two" (Page.title page);
     Alcotest.(check int) "reload" 200 (Page.reload page |> Option.get |> Response.status);
@@ -127,12 +121,12 @@ let test_handles _ page =
     let list = JSHandle.get_property "list" handle in
     let element = JSHandle.as_element list |> Option.get in
     Alcotest.(check bool) "a number is no element" true (Option.is_none (JSHandle.as_element n));
-    Alcotest.(check string) "element" "onetwo" (ElementHandle.text_content element |> Option.get);
+    Alcotest.(check string) "element" "onetwo" (ElementHandle.evaluate "ul => ul.textContent" element |> Js.to_string);
     Alcotest.(check (list string)) "properties" [ "list"; "n" ] (List.map fst (JSHandle.get_properties handle));
     Alcotest.check js "a handle as an argument" (Js.Number 2.) (Page.evaluate "ul => ul.children.length" ~arg:(Js.Handle list) page);
     Alcotest.check js "handles inside a structure" (Js.String "LI/2")
         (Page.evaluate "({ item, n }) => item.tagName + '/' + n"
-             ~arg:(Js.obj [ "item", Js.Handle (ElementHandle.as_js_handle (ElementHandle.query_selector "li" element |> Option.get)); "n", Js.Handle n ])
+             ~arg:(Js.obj [ "item", Js.Handle (JSHandle.evaluate_handle "ul => ul.firstElementChild" list); "n", Js.Handle n ])
              page);
     Alcotest.check js "evaluate on a handle" (Js.Number 3.) (JSHandle.evaluate "(o, extra) => o.n + extra" ~arg:(Js.int 1) handle);
     (* A handle stands for an object in the page; as data it is nothing. *)

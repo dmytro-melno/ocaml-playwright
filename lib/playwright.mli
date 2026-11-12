@@ -28,7 +28,7 @@
     - The object a function operates on comes {e last}, so calls compose with [|>]. Required arguments are
       positional and precede it; everything optional is an optional labelled argument. Where two required
       arguments of the same type follow each other, a label tells them apart:
-      [Page.fill "#name" ~value:"Ada" page], [Mouse.move ~x:10. ~y:20. mouse].
+      [WebStorage.set_item "theme" ~value:"dark" storage], [Mouse.move ~x:10. ~y:20. mouse].
     - Timeouts and other durations are in milliseconds, as in Playwright. A timeout of [0.] disables the timeout.
     - JavaScript regular expressions are given as literals in a string, such as ["/sign (in|up)/i"], to the
       functions and arguments named [..._regex].
@@ -289,7 +289,6 @@ type 'a with_context_options =
     ?base_url:string ->
     ?record_video_dir:string ->
     ?record_video_size:int * int ->
-    ?strict_selectors:bool ->
     ?service_workers:[ `Allow | `Block ] ->
     ?storage_state:Yojson.Safe.t ->
     'a
@@ -480,11 +479,8 @@ module type Locator_queries = sig
     val get_by_test_id_regex : string -> t -> locator
 end
 
-(** What {!Page} and {!Frame} have in common; the functions of a page operate on its main frame.
-
-    The functions that take a selector are the older way of interacting with a page. They are kept for completeness;
-    prefer {!Locator}s, which offer the same operations and can be reused, narrowed down and asserted on. With
-    [strict], a selector that matches several elements is an error rather than a reference to the first of them. *)
+(** What {!Page} and {!Frame} have in common: navigation and JavaScript. The functions of a page operate on its main
+    frame. Elements are found and acted on through {!Locator}s. *)
 module type Frame_operations = sig
     type t
 
@@ -518,14 +514,6 @@ module type Frame_operations = sig
 
     val wait_for_url_matching : ?timeout:float -> ?wait_until:lifecycle_event -> (string -> bool) -> t -> unit
 
-    val expect_navigation :
-        ?timeout:float -> ?wait_until:lifecycle_event -> ?url:string -> ?url_matching:(string -> bool) -> (unit -> unit) -> t -> response option
-    (** Runs the action and waits for the navigation that it causes: the next one, or the next one to a URL that
-        matches the glob pattern [url] and satisfies [url_matching], as far as they are given. *)
-
-    val wait_for_timeout : float -> t -> unit
-    (** Sleeps. Meant for debugging: waiting for a fixed time makes automation slow and flaky. *)
-
     (** {2 Evaluating JavaScript} *)
 
     val evaluate : ?arg:js_value -> string -> t -> js_value
@@ -552,72 +540,6 @@ module type Frame_operations = sig
     val add_style_tag : [ `Content of string | `Url of string ] -> t -> element_handle
     (** Adds a [<style>] element with the content, or a [<link rel="stylesheet">] to the URL. *)
 
-    (** {2 Operations by selector} *)
-
-    val query_selector : ?strict:bool -> string -> t -> element_handle option
-    val query_selector_all : string -> t -> element_handle list
-
-    val wait_for_selector : ?timeout:float -> ?strict:bool -> ?state:element_state -> string -> t -> element_handle option
-    (** Waits for an element to reach [state], [`Visible] by default. [None] when waiting for [`Hidden] or [`Detached]. *)
-
-    val eval_on_selector : ?strict:bool -> ?arg:js_value -> string -> expression:string -> t -> js_value
-    (** [eval_on_selector selector expression] calls the function that [expression] evaluates to with the element. *)
-
-    val eval_on_selector_all : ?arg:js_value -> string -> expression:string -> t -> js_value
-    val dispatch_event : ?timeout:float -> ?strict:bool -> ?event_init:js_value -> string -> type_:string -> t -> unit
-
-    val click :
-        ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?no_wait_after:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float ->
-        ?delay:float -> ?button:mouse_button -> ?click_count:int -> ?trial:bool -> ?steps:int -> string -> t -> unit
-
-    val dblclick :
-        ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?delay:float ->
-        ?button:mouse_button -> ?trial:bool -> ?steps:int -> string -> t -> unit
-
-    val tap :
-        ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> string ->
-        t -> unit
-
-    val hover :
-        ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> string ->
-        t -> unit
-
-    val drag_and_drop :
-        ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?trial:bool -> ?source_position:float * float -> ?target_position:float * float ->
-        ?steps:int -> source:string -> target:string -> t -> unit
-
-    val fill : ?timeout:float -> ?strict:bool -> ?force:bool -> string -> value:string -> t -> unit
-    (** [fill selector value]. *)
-
-    val focus : ?timeout:float -> ?strict:bool -> string -> t -> unit
-    val blur : ?timeout:float -> ?strict:bool -> string -> t -> unit
-
-    val press : ?timeout:float -> ?strict:bool -> ?delay:float -> ?no_wait_after:bool -> string -> key:string -> t -> unit
-    (** [press selector key]. *)
-
-    val type_ : ?timeout:float -> ?strict:bool -> ?delay:float -> string -> text:string -> t -> unit
-    (** [type_ selector text]. *)
-
-    val check : ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> string -> t -> unit
-    val uncheck : ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> string -> t -> unit
-    val set_checked : ?timeout:float -> ?strict:bool -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> string -> bool -> t -> unit
-    val select_option : ?timeout:float -> ?strict:bool -> ?force:bool -> string -> select_option list -> t -> string list
-    val set_input_files : ?timeout:float -> ?strict:bool -> string -> string list -> t -> unit
-    val set_input_payloads : ?timeout:float -> ?strict:bool -> string -> file_payload list -> t -> unit
-    val text_content : ?timeout:float -> ?strict:bool -> string -> t -> string option
-    val inner_text : ?timeout:float -> ?strict:bool -> string -> t -> string
-    val inner_html : ?timeout:float -> ?strict:bool -> string -> t -> string
-
-    val get_attribute : ?timeout:float -> ?strict:bool -> string -> name:string -> t -> string option
-    (** [get_attribute selector name]. *)
-
-    val input_value : ?timeout:float -> ?strict:bool -> string -> t -> string
-    val is_checked : ?timeout:float -> ?strict:bool -> string -> t -> bool
-    val is_disabled : ?timeout:float -> ?strict:bool -> string -> t -> bool
-    val is_editable : ?timeout:float -> ?strict:bool -> string -> t -> bool
-    val is_enabled : ?timeout:float -> ?strict:bool -> string -> t -> bool
-    val is_hidden : ?strict:bool -> string -> t -> bool
-    val is_visible : ?strict:bool -> string -> t -> bool
 end
 
 (** {1 JavaScript values}
@@ -1416,7 +1338,7 @@ and Locator : sig
     (** Calls the function with the array of all elements that match right now. *)
 
     val element_handle : ?timeout:float -> t -> ElementHandle.t
-    val element_handles : t -> ElementHandle.t list
+    (** A handle to the element that the locator matches now, waiting for it to be there. *)
 
     include Identity with type t := t
 end
@@ -1470,8 +1392,9 @@ and JSHandle : sig
     include Identity with type t := t
 end
 
-(** A reference to a DOM element in a page. {!Locator}s are the better tool for nearly everything: an element
-    handle refers to one particular element, which the page may replace at any time. *)
+(** A {!JSHandle} of a DOM element. It refers to one particular element, which the page may replace at any time, so
+    elements are acted on through {!Locator}s. A handle serves to pass the element to JavaScript, as a [Js.Handle]
+    argument, and to get from an [<iframe>] element to its frame. *)
 and ElementHandle : sig
     type t
 
@@ -1485,56 +1408,6 @@ and ElementHandle : sig
 
     val content_frame : t -> Frame.t option
     (** For an [<iframe>] element: the frame that it holds. *)
-
-    val query_selector : string -> t -> t option
-    val query_selector_all : string -> t -> t list
-    val eval_on_selector : ?arg:Js.t -> string -> expression:string -> t -> Js.t
-    val eval_on_selector_all : ?arg:Js.t -> string -> expression:string -> t -> Js.t
-    val wait_for_selector : ?timeout:float -> ?strict:bool -> ?state:element_state -> string -> t -> t option
-    val wait_for_element_state : ?timeout:float -> [ `Visible | `Hidden | `Stable | `Enabled | `Disabled | `Editable ] -> t -> unit
-    val get_attribute : string -> t -> string option
-    val text_content : t -> string option
-    val inner_text : t -> string
-    val inner_html : t -> string
-    val input_value : t -> string
-    val is_checked : t -> bool
-    val is_disabled : t -> bool
-    val is_editable : t -> bool
-    val is_enabled : t -> bool
-    val is_hidden : t -> bool
-    val is_visible : t -> bool
-    val bounding_box : t -> rect option
-
-    val screenshot :
-        ?timeout:float -> ?type_:[ `Png | `Jpeg | `Webp ] -> ?quality:int -> ?omit_background:bool ->
-        ?caret:[ `Hide | `Initial ] -> ?animations:[ `Allow | `Disabled ] -> ?scale:[ `Css | `Device ] -> ?mask:Locator.t list ->
-        ?mask_color:string -> ?style:string -> t -> string
-    (** A screenshot of the element, with the options of {!Page.screenshot}. *)
-
-    val scroll_into_view_if_needed : ?timeout:float -> t -> unit
-    val dispatch_event : ?event_init:Js.t -> string -> t -> unit
-
-    val click :
-        ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?no_wait_after:bool -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?delay:float ->
-        ?button:mouse_button -> ?click_count:int -> ?trial:bool -> ?steps:int -> t -> unit
-
-    val dblclick :
-        ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?delay:float -> ?button:mouse_button ->
-        ?trial:bool -> ?steps:int -> t -> unit
-
-    val tap : ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> t -> unit
-    val hover : ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?modifiers:keyboard_modifier list -> ?position:float * float -> ?trial:bool -> t -> unit
-    val fill : ?timeout:float -> ?force:bool -> string -> t -> unit
-    val select_text : ?timeout:float -> ?force:bool -> t -> unit
-    val focus : t -> unit
-    val press : ?timeout:float -> ?delay:float -> ?no_wait_after:bool -> string -> t -> unit
-    val type_ : ?timeout:float -> ?delay:float -> string -> t -> unit
-    val check : ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> t -> unit
-    val uncheck : ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> t -> unit
-    val set_checked : ?timeout:float -> ?force:bool -> ?scroll:[ `Auto | `None ] -> ?position:float * float -> ?trial:bool -> bool -> t -> unit
-    val select_option : ?timeout:float -> ?force:bool -> select_option list -> t -> string list
-    val set_input_files : ?timeout:float -> string list -> t -> unit
-    val set_input_payloads : ?timeout:float -> file_payload list -> t -> unit
 
     include Identity with type t := t
 end

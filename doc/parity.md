@@ -21,7 +21,7 @@ of the module `Playwright`, built with `dune build @doc`.
 | A method: `page.waitForURL(url)` | A function that takes the object last: `Page.wait_for_url url page`. Chains are written with the pipe operator. |
 | A property that is an object: `page.keyboard`, `context.tracing` | A function: `Page.keyboard page`, `BrowserContext.tracing context`. |
 | An options object: `{ timeout: 500, force: true }` | Optional labelled arguments: `~timeout:500. ~force:true`. |
-| A second required argument of the same type | A label: `Page.fill "#name" ~value:"Ada" page`. |
+| A second required argument of the same type | A label: `WebStorage.set_item "theme" ~value:"dark" storage`. |
 | A name that is a keyword of OCaml | A trailing underscore: `Keyboard.type_`, `Request.method_`, `Locator.and_`. |
 | `async` functions and promises | Functions that block the calling fiber. Concurrency is a matter of [Eio](https://github.com/ocaml-multicore/eio) fibers. |
 | `AbortSignal`, the option `signal` | Cancellation of the fiber: `Eio.Cancel`, `Eio.Time.with_timeout`, a switch that is turned off. |
@@ -47,10 +47,8 @@ of the module `Playwright`, built with `dune build @doc`.
 
 | Playwright | Here |
 | --- | --- |
-| `page.$`, `page.$$`, `page.$eval`, `page.$$eval` | `Page.query_selector`, `query_selector_all`, `eval_on_selector`, `eval_on_selector_all` |
 | `page.waitForEvent('popup')` | `Page.expect_event Page.Popup ignore page` |
 | `Promise.all([page.waitForEvent('popup'), action()])`; `with page.expect_popup()` | `Page.expect_event Page.Popup action page` |
-| `page.waitForNavigation()` | `Page.expect_navigation action page` |
 | `page.waitForRequest(urlOrPredicate)` | `Page.expect_request ?url ?predicate action page` |
 | `page.route(url, handler)` with a regular expression or a predicate | `Page.route_matching predicate handler page` |
 | `page.unroute(url, handler)` | `Disposable.dispose` of what `Page.route` returned |
@@ -152,6 +150,10 @@ of the module `Playwright`, built with `dune build @doc`.
 | `routeFromHAR()`, the `recordHar` options, `tracing.startHar()` | Not covered: recording and replaying HAR files. `Page.route` with `Route.fulfill` mocks; traces record the network. |
 | `browserType.connect()`, `browserType.launchServer()`, `BrowserServer`, `browser.bind()` | Not covered: browsers behind a Playwright server. `BrowserType.connect_over_cdp` reaches a remote Chromium. |
 | `connectOverCDP` with a transport object | Not covered. `BrowserType.connect_over_cdp` takes an endpoint. |
+| The operations by selector of `Page` and `Frame` (`page.click(selector)`, `page.$`, `page.$eval`, `page.waitForSelector` and the like) | Not there: Playwright discourages them. A `Locator` does each of them: `Locator.click (Page.locator selector page)`. |
+| The operations of `ElementHandle` | Not there: Playwright discourages them. A handle can be passed to JavaScript and asked for its frames; a `Locator` acts on elements. `locator.elementHandles()` is `Locator.all`. |
+| `page.waitForNavigation()`, `page.waitForTimeout()`, `page.type()` | Not there: deprecated in Playwright. `Page.wait_for_url`, `Eio.Time.sleep` and `Locator.press_sequentially` take their places. |
+| `page.waitForEvent()`, `page.waitForRequest()` and the `expect_<event>` methods of Python | One function, `expect_event`, with the event as a value and `ignore` for no action; `Page.expect_request` and `Page.expect_response` match URLs. |
 | `context.backgroundPages()`, the event `backgroundpage` | Not there: deprecated in Playwright. |
 | `context.setHTTPCredentials()` | Not there: deprecated in Playwright. Credentials are given when the context is created. |
 | The option `noWaitAfter` | Only where Playwright still honours it: `click`, `press` and `add_locator_handler`. |

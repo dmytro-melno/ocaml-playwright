@@ -53,8 +53,20 @@ module File_chooser = struct
     let page (c : t) = c.fc_page
     let element (c : t) = c.fc_element
     let is_multiple (c : t) = c.is_multiple
-    let set_files ?timeout paths (c : t) = Element_handle.set_input_files ?timeout paths c.fc_element
-    let set_payloads ?timeout payloads (c : t) = Element_handle.set_input ?timeout (Frame.Payloads payloads) c.fc_element
+
+    let set ?timeout files (c : t) =
+        let converted = Frame.convert_input_files files in
+        let payloads =
+            Option.map
+                (List.map (fun (p : Protocol.Frame.Set_input_files_payloads.t) : Protocol.Element_handle.Set_input_files_payloads.t ->
+                     { name = p.name; mime_type = p.mime_type; buffer = p.buffer }))
+                converted.payloads
+        in
+        Protocol.Element_handle.set_input_files ~timeout:(Timeouts.action ?timeout c.fc_page.p_timeouts) ?payloads
+            ?local_directory:converted.local_directory ?local_paths:converted.local_paths (element_channel c.fc_element)
+
+    let set_files ?timeout paths (c : t) = set ?timeout (Frame.Paths paths) c
+    let set_payloads ?timeout payloads (c : t) = set ?timeout (Frame.Payloads payloads) c
 end
 
 module Web_error = struct

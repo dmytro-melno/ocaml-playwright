@@ -83,7 +83,7 @@ rules of translation:
   trailing underscore: `Keyboard.type_`, `Request.method_`.
 - **The object comes last**, required arguments come before it, and everything optional is a
   labelled optional argument. Where two required arguments of the same type follow each other, a
-  label tells them apart: `Page.fill "#name" ~value:"Ada" page`, `Mouse.move ~x:10. ~y:20. mouse`.
+  label tells them apart: `WebStorage.set_item "theme" ~value:"dark" storage`, `Mouse.move ~x:10. ~y:20. mouse`.
   Having the object last makes calls compose with `|>`:
 
   ```ocaml
@@ -251,8 +251,7 @@ ignore (Page.goto "/settings" page)
 
 There is seldom a reason to wait for a navigation explicitly, because the actions and
 assertions that follow wait for what they need. When there is one, there are
-`Page.wait_for_url`, `Page.wait_for_load_state` and, for navigations caused by an action,
-`Page.expect_navigation`.
+`Page.wait_for_url` and `Page.wait_for_load_state`.
 
 `Page.set_content html page` loads a document from a string, which is handy in tests.
 

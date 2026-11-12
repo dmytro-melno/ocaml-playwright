@@ -20,7 +20,6 @@ let test_screenshots t () =
     Alcotest.(check (pair int int)) "full page" (500, 2080) (png_size (Page.screenshot ~full_page:true page));
     Alcotest.(check (pair int int)) "clip" (50, 60) (png_size (Page.screenshot ~clip:{ x = 10.; y = 10.; width = 50.; height = 60. } page));
     Alcotest.(check (pair int int)) "element" (120, 80) (png_size (Page.locator "#box" page |> Locator.screenshot));
-    Alcotest.(check (pair int int)) "element handle" (120, 80) (png_size (Page.query_selector "#box" page |> Option.get |> ElementHandle.screenshot));
     let jpeg = Page.screenshot ~type_:`Jpeg ~quality:50 page in
     Alcotest.(check string) "jpeg" "\xFF\xD8\xFF" (String.sub jpeg 0 3);
     Alcotest.(check (pair int int)) "masked" (500, 400) (png_size (Page.screenshot ~mask:[ Page.locator "#box" page ] ~mask_color:"black" page));
@@ -61,10 +60,10 @@ let test_keyboard_and_mouse _ page =
     Keyboard.press "KeyW" keyboard;
     Keyboard.up "Shift" keyboard;
     Keyboard.insert_text "\xC3\xB6rld" keyboard;
-    Alcotest.(check string) "typed" "helloW\xC3\xB6rld" (Page.input_value "#field" page);
+    Alcotest.(check string) "typed" "helloW\xC3\xB6rld" (Locator.input_value (Page.locator "#field" page));
     Keyboard.press "ControlOrMeta+A" keyboard;
     Keyboard.press "Backspace" keyboard;
-    Alcotest.(check string) "select all and delete" "" (Page.input_value "#field" page);
+    Alcotest.(check string) "select all and delete" "" (Locator.input_value (Page.locator "#field" page));
     Mouse.move ~x:50. ~y:120. mouse;
     Mouse.down mouse;
     Mouse.move ~steps:2 ~x:70. ~y:140. mouse;
@@ -183,13 +182,13 @@ let test_concurrency t () =
 let test_cancellation t page =
     Page.set_content "<p>here</p>" page;
     let started = Unix.gettimeofday () in
-    Fiber.first (fun () -> ignore (Page.wait_for_selector "#never" page)) (fun () -> sleep t 0.1);
+    Fiber.first (fun () -> ignore (Locator.wait_for (Page.locator "#never" page))) (fun () -> sleep t 0.1);
     Alcotest.(check bool) "returns when the other fiber is done" true (Unix.gettimeofday () -. started < 2.);
     (match Eio.Time.with_timeout (Eio.Stdenv.clock t.env) 0.1 (fun () -> Ok (Locator.click (Page.locator "#never" page))) with
     | Error `Timeout -> ()
     | Ok () -> Alcotest.fail "the click cannot have happened");
     (* The page is none the worse for it. *)
-    Alcotest.(check string) "still usable" "here" (Page.inner_text "p" page);
+    Alcotest.(check string) "still usable" "here" (Locator.inner_text (Page.locator "p" page));
     ignore (Page.evaluate "new Promise(resolve => setTimeout(resolve, 50))" page)
 
 (* {1 Browsers and drivers} *)
@@ -207,7 +206,7 @@ let test_browser_closing t () =
     let listener _ = incr disconnected in
     Browser.on_disconnected listener browser |> ignore;
     let page = Browser.new_page browser in
-    let pending = Fiber.fork_promise ~sw:t.sw (fun () -> Page.wait_for_selector "#never" page) in
+    let pending = Fiber.fork_promise ~sw:t.sw (fun () -> Locator.wait_for (Page.locator "#never" page)) in
     Fiber.yield ();
     Browser.close ~reason:"the test is over" browser;
     (match Promise.await pending with
@@ -254,7 +253,7 @@ let test_artifacts_dir t () =
     let browser = BrowserType.launch ?executable_path:t.executable_path ~artifacts_dir:dir (chromium t.pw) in
     let page = Browser.new_page browser in
     Page.set_content (Printf.sprintf {|<a href="%s">download</a>|} (Server.url t.server "/artifact")) page;
-    let download = Page.expect_event Page.Download (fun () -> Page.click "a" page) page in
+    let download = Page.expect_event Page.Download (fun () -> Locator.click (Page.locator "a" page)) page in
     let path = Download.path download in
     Alcotest.(check bool) "downloads go there" true (String.starts_with ~prefix:dir path);
     Browser.close browser;
@@ -314,7 +313,7 @@ let check_instance_end t what ~create ~obtain end_ =
             (fun (name, wait) -> name, Fiber.fork_promise ~sw:t.sw wait)
             [ "a call", (fun () -> ignore (Page.evaluate "new Promise(() => {})" page));
               "an event", (fun () -> ignore (Page.expect_event ~timeout:0. Page.Popup ignore page));
-              "an element", (fun () -> ignore (Page.wait_for_selector ~timeout:0. "#never" page));
+              "an element", (fun () -> ignore (Locator.wait_for ~timeout:0. (Page.locator "#never" page)));
               "the body of a response", (fun () -> Response.finished response);
               "an assertion", (fun () -> Expect.to_have_title ~timeout:0. "Never" page) ]
     in
@@ -487,10 +486,10 @@ let test_identity t page =
     Alcotest.(check bool) "another selector" false (Locator.equal items (Page.locator "ul" page));
     Alcotest.(check bool) "another page" false (Locator.equal items (Page.locator "li" other) || Locator.compare items (Page.locator "li" other) = 0);
     (* A handle is one object, whatever it is seen as; two handles are two objects, whatever they refer to. *)
-    let element = Page.query_selector "li" page |> Option.get in
+    let element = Locator.element_handle (Locator.first (Page.locator "li" page)) in
     Alcotest.(check bool) "an element as a handle" true
         (Option.equal ElementHandle.equal (JSHandle.as_element (ElementHandle.as_js_handle element)) (Some element));
-    Alcotest.(check bool) "two handles to one element" false (ElementHandle.equal element (Page.query_selector "li" page |> Option.get));
+    Alcotest.(check bool) "two handles to one element" false (ElementHandle.equal element (Locator.element_handle (Locator.first (Page.locator "li" page))));
     Alcotest.(check bool) "the parts of a page" true
         (Keyboard.equal (Page.keyboard page) (Page.keyboard again)
         && (not (Mouse.equal (Page.mouse page) (Page.mouse other)))

@@ -50,8 +50,7 @@ let () =
 1. **Required arguments are positional now.** `~url`, `~selector`, `~expression`, `~key`,
    `~name`, `~text` and the like have lost their labels. The object still comes last. Where
    two required arguments of the same type follow each other, the second keeps a label, so
-   that they cannot be swapped: `Page.fill "#name" ~value:"Ada" page`,
-   `Page.eval_on_selector "ul" ~expression:"ul => ul.children.length" page`. The compiler
+   that they cannot be swapped: `WebStorage.set_item "theme" ~value:"dark" storage`. The compiler
    points at every place: a label that no longer exists is an error.
 2. **The driver's functions are at the top level.** `Playwright.Playwright.chromium` is
    `Playwright.chromium`, and `Playwright.destroy` is `Playwright.close`.
@@ -111,11 +110,13 @@ let () =
 | `Page.get_by_role ~name "button" page` | `` Page.get_by_role ~name `Button page `` |
 | `Page.evaluate ~expression ?is_function ?arg page` | `Page.evaluate ?arg expression page`, with `Js.t` |
 | `Page.wait_for_function ~expression ~polling_interval page` | `Page.wait_for_function ~polling expression page` |
-| `Page.eval_on_selector ~selector ~expression page` | `Page.eval_on_selector selector ~expression page` |
-| `Page.dispatch_event ~selector ~type_ page` | `Page.dispatch_event selector ~type_ page` |
+| `Page.eval_on_selector ~selector ~expression page` | `Locator.evaluate expression (Page.locator selector page)` |
+| `Page.dispatch_event ~selector ~type_ page` | `Locator.dispatch_event type_ (Page.locator selector page)` |
 | `Locator.locator ~selector locator` | `Locator.locator selector locator` |
 | `Locator.fill ~value locator` | `Locator.fill value locator` |
-| `Page.fill ~selector ~value page` | `Page.fill selector ~value page` |
+| `Page.fill ~selector ~value page`, and the other operations by selector | `Locator.fill value (Page.locator selector page)` |
+| `Page.wait_for_selector ~selector page` | `Locator.wait_for (Page.locator selector page)` |
+| `ElementHandle.click handle`, and the other operations on handles | the same operation of a `Locator` |
 | `Locator.press ~key locator` | `Locator.press key locator` |
 | `Locator.type_ ~text locator` | `Locator.press_sequentially text locator` |
 | `Locator.get_attribute ~name locator` | `Locator.get_attribute name locator` |
@@ -123,7 +124,7 @@ let () =
 | `Locator.select_option ~options:[\| ... \|] locator` | `` Locator.select_option [ `Value "v" ] locator `` |
 | `Locator.set_input_files ~local_paths:[\| p \|] locator` | `Locator.set_input_files [ p ] locator` |
 | `Locator.element_handle locator` (an option) | returns the handle, or raises |
-| `Locator.element_handles locator` (an array) | a list |
+| `Locator.element_handles locator` | `Locator.all locator`, or `Locator.evaluate_all` for the elements in the page |
 | `Locator.is_visible ~timeout locator` | `Locator.is_visible locator` |
 | `Locator.bounding_box` returning `Api.Rect.Wrap.t option` | returns `rect option` |
 | `Locator.click ~strict:false locator` | removed; use `Locator.first` |

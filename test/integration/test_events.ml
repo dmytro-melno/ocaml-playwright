@@ -64,7 +64,7 @@ let test_popups t page =
     Server.page t.server "/opener" {|<a target="_blank" href="/popup">open</a>|};
     ignore (Page.goto (Server.url t.server "/opener") page);
     let context = Page.context page in
-    let popup = Page.expect_event Page.Popup (fun () -> Page.click "a" page) page in
+    let popup = Page.expect_event Page.Popup (fun () -> Locator.click (Page.locator "a" page)) page in
     Page.wait_for_load_state popup;
     Alcotest.(check string) "title" "Popup" (Page.title popup);
     Alcotest.(check bool) "opener" true (Option.equal Page.equal (Page.opener popup) (Some page));
@@ -82,7 +82,7 @@ let test_downloads t page =
     Server.route t.server "/report" (fun _ -> Server.respond ~headers:[ "content-disposition", "attachment; filename=report.txt" ] "the report");
     Server.page t.server "/downloads" {|<a href="/report">download</a>|};
     ignore (Page.goto (Server.url t.server "/downloads") page);
-    let download = Page.expect_event Page.Download (fun () -> Page.click "a" page) page in
+    let download = Page.expect_event Page.Download (fun () -> Locator.click (Page.locator "a" page)) page in
     Alcotest.(check string) "suggested name" "report.txt" (Download.suggested_filename download);
     Alcotest.(check string) "url" (Server.url t.server "/report") (Download.url download);
     Alcotest.(check bool) "page" true (Page.equal (Download.page download) page);
@@ -280,7 +280,7 @@ let test_closing t () =
     let context_closed = ref false in
     BrowserContext.on BrowserContext.Close (fun _ -> context_closed := true) context |> ignore;
     (* An operation that is under way when the page closes fails with a telling error. *)
-    let pending = Fiber.fork_promise ~sw:t.sw (fun () -> Page.wait_for_selector "#never" page) in
+    let pending = Fiber.fork_promise ~sw:t.sw (fun () -> Locator.wait_for (Page.locator "#never" page)) in
     Fiber.yield ();
     Page.close page;
     (match Promise.await pending with
@@ -291,7 +291,7 @@ let test_closing t () =
     Page.close page;
     Alcotest.(check bool) "closing twice is fine" true (Page.is_closed page);
     let other = BrowserContext.new_page context in
-    let pending = Fiber.fork_promise ~sw:t.sw (fun () -> Page.wait_for_selector "#never" other) in
+    let pending = Fiber.fork_promise ~sw:t.sw (fun () -> Locator.wait_for (Page.locator "#never" other)) in
     Fiber.yield ();
     BrowserContext.close ~reason:"done with it" context;
     (match Promise.await pending with

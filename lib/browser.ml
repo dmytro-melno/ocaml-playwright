@@ -76,7 +76,7 @@ let new_context_with (o : Context_options.t) (browser : t) =
             ?extra_http_headers:o.extra_http_headers ?offline:o.offline ?http_credentials:o.http_credentials
             ?device_scale_factor:o.device_scale_factor ?is_mobile:o.is_mobile ?has_touch:o.has_touch ?color_scheme:o.color_scheme
             ?reduced_motion:o.reduced_motion ?forced_colors:o.forced_colors ?accept_downloads:o.accept_downloads ?contrast:o.contrast
-            ?base_url:o.base_url ?record_video:o.record_video ?strict_selectors:o.strict_selectors ?service_workers:o.service_workers
+            ?base_url:o.base_url ?record_video:o.record_video ?service_workers:o.service_workers
             ?selector_engines ?test_id_attribute_name ?proxy ?storage_state browser.b_channel
         |> Types.browser_context
     in

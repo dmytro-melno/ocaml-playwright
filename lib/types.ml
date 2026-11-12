@@ -199,7 +199,6 @@ and frame = {
 and navigation = {
     n_url : string;
     n_error : string option;
-    n_request : request option;  (* the document request, for navigations that load a new document *)
 }
 
 and locator = {

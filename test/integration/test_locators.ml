@@ -181,31 +181,18 @@ let test_waiting_and_strictness _ page =
     Page.set_default_timeout 100. page;
     check_failure "page default" ~message:"Timeout 100ms" (fun () -> Locator.click late)
 
-let test_selector_operations _ page =
+(* A handle is for what locators cannot do: passing the element to JavaScript, and finding its frame. *)
+let test_element_handles _ page =
     Page.set_content form page;
-    Page.fill "#name" ~value:"Ada" page;
-    Page.click "text=Submit" page;
-    Alcotest.(check string) "fill and click" "submitted Ada" (Page.inner_text "#out" page);
-    Alcotest.(check (option string)) "text content" (Some "Sign up") (Page.text_content "h1" page);
-    Alcotest.(check (option string)) "attribute" (Some "Your name") (Page.get_attribute "#name" ~name:"placeholder" page);
-    Alcotest.(check string) "input value" "Ada" (Page.input_value "#name" page);
-    Page.check "#terms" page;
-    Alcotest.(check bool) "checked" true (Page.is_checked "#terms" page);
-    Alcotest.(check bool) "states" true (Page.is_visible "h1" page && Page.is_hidden "#hidden" page && Page.is_disabled "text=Disabled" page);
-    Alcotest.(check (list string)) "select" [ "g" ] (Page.select_option "#colour" [ `Value "g" ] page);
-    Alcotest.check js "eval on selector" (Js.String "Apple!") (Page.eval_on_selector "li" ~expression:"(li, suffix) => li.textContent + suffix" ~arg:(Js.string "!") page);
-    Alcotest.check js "eval on all" (Js.Number 3.) (Page.eval_on_selector_all "li" ~expression:"items => items.length" page);
-    Alcotest.(check int) "query all" 3 (List.length (Page.query_selector_all "li" page));
-    Alcotest.(check bool) "query nothing" true (Option.is_none (Page.query_selector "#missing" page));
-    let element = Page.wait_for_selector "#name" page |> Option.get in
-    ElementHandle.fill "Grace" element;
-    ElementHandle.press "Tab" element;
-    Alcotest.(check string) "element handle" "Grace" (ElementHandle.input_value element);
-    Alcotest.(check bool) "element state" true (ElementHandle.is_visible element && ElementHandle.is_enabled element);
-    Alcotest.(check (option string)) "element attribute" (Some "name") (ElementHandle.get_attribute "id" element);
+    let element = Locator.element_handle (Page.locator "#name" page) in
+    Alcotest.check js "as an argument" (Js.String "name") (Page.evaluate "element => element.id" ~arg:(Js.Handle (ElementHandle.as_js_handle element)) page);
+    Alcotest.check js "evaluated on" (Js.String "INPUT") (ElementHandle.evaluate "element => element.tagName" element);
     Alcotest.(check bool) "owner frame" true (Option.equal Frame.equal (ElementHandle.owner_frame element) (Some (Page.main_frame page)));
-    Alcotest.(check bool) "waiting for hidden yields nothing" true (Option.is_none (Page.wait_for_selector ~state:`Hidden "#hidden" page));
-    check_failure "strict selector" ~message:"strict mode violation" (fun () -> Page.click ~strict:true "li" page)
+    Alcotest.(check bool) "an input holds no frame" true (Option.is_none (ElementHandle.content_frame element));
+    ElementHandle.dispose element;
+    check_failure "disposed" (fun () -> ElementHandle.evaluate "element => element.id" element);
+    check_failure "several elements" ~message:"strict mode violation" (fun () -> Locator.element_handle (Page.locator "li" page));
+    check_failure "no element" ~kind:Timeout (fun () -> Locator.element_handle ~timeout:100. (Page.locator "#missing" page))
 
 (* What came with Playwright 1.6x: references into snapshots, normalized locators, and so on. *)
 let test_references _ page =
@@ -305,7 +292,7 @@ let test_uploads t page =
     Page.locator "#one" page |> Locator.set_input_files [];
     Alcotest.(check string) "cleared" "" (describe "one");
     check_failure "several files for a single input" ~message:"Non-multiple file input" (fun () -> Page.locator "#one" page |> Locator.set_input_files [ a; b ]);
-    let chooser = Page.expect_event Page.File_chooser (fun () -> Page.click "#many" page) page in
+    let chooser = Page.expect_event Page.File_chooser (fun () -> Locator.click (Page.locator "#many" page)) page in
     Alcotest.(check bool) "multiple" true (FileChooser.is_multiple chooser);
     Alcotest.(check bool) "its page" true (Page.equal (FileChooser.page chooser) page);
     FileChooser.set_files [ b ] chooser;
@@ -407,7 +394,7 @@ let tests t =
         page_case t "actions" (test_actions t);
         page_case t "mouse actions" (test_mouse_actions t);
         page_case t "waiting and strictness" (test_waiting_and_strictness t);
-        page_case t "selector operations and element handles" (test_selector_operations t);
+        page_case t "element handles" (test_element_handles t);
         page_case t "references, descriptions and snapshots" (test_references t);
         page_case t "uploads" (test_uploads t);
         page_case t "drop" (test_drop t) ];
