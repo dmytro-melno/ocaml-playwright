@@ -276,6 +276,9 @@ let test_tracing t page =
     Alcotest.(check bool) "the first part holds the page and its screenshots" true ((Unix.stat first).st_size > 2000)
 
 let test_video t () =
+    let unrecorded = Browser.new_context t.browser in
+    Alcotest.(check bool) "a page that is not recorded has no video" true (Option.is_none (Page.video (BrowserContext.new_page unrecorded)));
+    BrowserContext.close unrecorded;
     let dir = scratch_file t "videos" in
     let context = Browser.new_context t.browser ~record_video_dir:dir ~record_video_size:(320, 240) in
     match BrowserContext.new_page context with
@@ -292,7 +295,9 @@ let test_video t () =
         Alcotest.(check bool) "recorded into the directory" true (Filename.dirname path = dir && (Unix.stat path).st_size > 0);
         let copy = scratch_file t "copy.webm" in
         Video.save_as video copy;
-        Alcotest.(check bool) "copied" true ((Unix.stat copy).st_size > 0)
+        Alcotest.(check bool) "copied" true ((Unix.stat copy).st_size > 0);
+        Video.delete video;
+        Alcotest.(check bool) "deleted" false (Sys.file_exists path)
 
 let tests t =
     [ "context",

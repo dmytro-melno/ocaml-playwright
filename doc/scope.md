@@ -130,7 +130,7 @@ What somebody who knows Playwright would not expect. The guide explains each at 
   Playwright returns a disposable; they have their counterparts `stop` and `group_end`.
   `route_web_socket` and `Page.add_locator_handler` return a disposable where Playwright
   returns nothing.
-- **Some values differ.** `Page.video` is `None` unless the context records videos;
+- **Some values differ.** `Page.video` is `None` unless the page is being recorded;
   `~http_credentials` is always a list; `Client_certificate` values carry the bytes of the
   certificates.
 - **The driver is told that its client speaks Python.** That is where the notation of

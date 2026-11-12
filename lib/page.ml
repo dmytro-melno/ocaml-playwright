@@ -252,7 +252,7 @@ let url (page : t) = page.main_frame.f_url
 let viewport_size (page : t) = Option.map (fun (size : size) -> size.width, size.height) page.viewport_size
 let is_closed (page : t) = page.closed
 let workers (page : t) = page.workers
-let video (page : t) = if page.context.records_video then Some page else None
+let video (page : t) = page.video_artifact
 let set_default_timeout (page : t) timeout = Timeouts.set_default page.p_timeouts timeout
 let set_default_navigation_timeout (page : t) timeout = Timeouts.set_default_navigation page.p_timeouts timeout
 
@@ -474,17 +474,13 @@ module Touchscreen = struct
     let tap ~x ~y (page : t) = Protocol.Page.touchscreen_tap ~x ~y page.p_channel
 end
 
+(* A video is the file that the driver records a page into.  A page has one from its beginning or never. *)
 module Video = struct
-    type t = page
-
-    let artifact (page : t) =
-        match page.video_artifact with
-        | Some artifact -> artifact
-        | None -> Error.raise_ "Video recording has not been started."
+    type t = Protocol.Artifact.t
 
     (* Where the browser writes the video.  The file is complete once the page is closed. *)
-    let path (page : t) = (Protocol.Artifact.initializer_ (artifact page)).absolute_path
+    let path (video : t) = (Protocol.Artifact.initializer_ video).absolute_path
 
-    let save_as (page : t) path = Artifact.save_as (artifact page) path
-    let delete (page : t) = Option.iter Artifact.delete page.video_artifact
+    let save_as = Artifact.save_as
+    let delete = Artifact.delete
 end

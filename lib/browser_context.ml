@@ -235,7 +235,7 @@ let create session (channel : Protocol.Browser_context.t) : t =
     let c_timeouts = request.a_timeouts in
     let context =
         { c_channel = channel; c_session = session; browser = None; pages = []; c_routes = []; c_ws_routes = []; c_bindings = Hashtbl.create 4;
-          c_timeouts; base_url = init.options.base_url; records_video = init.options.record_video <> None;
+          c_timeouts; base_url = init.options.base_url;
           tracing = Types.tracing init.tracing; request; service_workers = []; close_state = Closing.create (); c_close_reason = None; c_closed;
           c_closed_resolver; ce_close = Emitter.create (); ce_console = Emitter.create (); ce_dialog = Emitter.create ();
           ce_page = Emitter.create (); ce_web_error = Emitter.create (); ce_request = Emitter.create (); ce_request_failed = Emitter.create ();

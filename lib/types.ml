@@ -108,7 +108,6 @@ and browser_context = {
     c_bindings : (string, binding) Hashtbl.t;
     c_timeouts : Timeouts.t;
     base_url : string option;
-    records_video : bool;
     tracing : tracing;
     request : api_request_context;
     mutable service_workers : worker list;

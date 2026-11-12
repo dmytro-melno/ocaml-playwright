@@ -965,7 +965,8 @@ and Page : sig
     (** The same as {!BrowserContext.request} of the page's context. *)
 
     val video : t -> Video.t option
-    (** The video recording of the page, when the context was created with [record_video_dir]. *)
+    (** The video that the page is recorded into; [None] when it is not recorded, which is the case unless its
+        context was created with [record_video_dir]. *)
 
     val close : ?run_before_unload:bool -> ?reason:string -> t -> unit
     (** Closes the page. Does nothing if it is closed already. With [run_before_unload], the page's [beforeunload]
