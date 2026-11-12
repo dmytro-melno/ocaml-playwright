@@ -18,7 +18,7 @@ module Context = struct
           a_close_state = Closing.create () }
 
     let fetch ?timeout ?method_ ?headers ?params ?data ?json ?form ?(multipart : (string * multipart_value) list option) ?fail_on_status_code ?ignore_https_errors ?max_redirects
-        ?max_retries ?(request : request option) url (t : t) : api_response =
+        ?max_retries ?(request : request option) (t : t) url : api_response =
         if not (Closing.is_open t.a_close_state) then raise (Error.E (Error.target_closed ?message:t.a_close_reason ()));
         let bodies = List.length (List.filter Fun.id [ data <> None; json <> None; form <> None; multipart <> None ]) in
         if bodies > 1 then invalid_arg "Playwright: only one of ~data, ~json, ~form and ~multipart can be specified";
@@ -54,9 +54,9 @@ module Context = struct
         { ar_context = t; ar_init = response }
 
     let with_method method_ ?timeout ?headers ?params ?data ?json ?form ?multipart ?fail_on_status_code ?ignore_https_errors ?max_redirects
-        ?max_retries url t =
-        fetch ?timeout ~method_ ?headers ?params ?data ?json ?form ?multipart ?fail_on_status_code ?ignore_https_errors ?max_redirects
-            ?max_retries url t
+        ?max_retries t url =
+        fetch t ?timeout ~method_ ?headers ?params ?data ?json ?form ?multipart ?fail_on_status_code ?ignore_https_errors ?max_redirects
+            ?max_retries url
 
     let get = with_method "GET"
     let post = with_method "POST"
@@ -69,7 +69,7 @@ module Context = struct
         Protocol.Api_request_context.storage_state ?indexed_db ?opfs t.a_channel |> Protocol.Api_request_context.Storage_state_result.to_json
 
     let cookies ?(urls = []) (t : t) = Protocol.Api_request_context.cookies ~urls t.a_channel |> List.map Cookie.of_protocol
-    let add_cookies cookies (t : t) = Protocol.Api_request_context.add_cookies ~cookies t.a_channel
+    let add_cookies (t : t) cookies = Protocol.Api_request_context.add_cookies ~cookies t.a_channel
     let clear_cookies ?name ?domain ?path (t : t) = Protocol.Api_request_context.clear_cookies ?name ?domain ?path t.a_channel
 
     let tracing (t : t) = t.a_tracing

@@ -230,17 +230,17 @@ include Frame.Operations (struct
     let frame (page : t) = page.main_frame
 end)
 
-include Locator.Queries (struct
+include Locator.Handle_queries (struct
     type t = page
 
     let session = session
     let find (page : t) selector = Locator.make page.main_frame selector
 end)
 
-let locator ?has_text ?has_text_regex ?has_not_text ?has_not_text_regex ?has ?has_not selector (page : t) =
+let locator ?has_text ?has_text_regex ?has_not_text ?has_not_text_regex ?has ?has_not (page : t) selector =
     Locator.make ?has_text ?has_text_regex ?has_not_text ?has_not_text_regex ?has ?has_not page.main_frame selector
 
-let frame_locator selector (page : t) : frame_locator = { fl_frame = page.main_frame; frame_selector = selector }
+let frame_locator (page : t) selector : frame_locator = { fl_frame = page.main_frame; frame_selector = selector }
 
 (* {1 Accessors} *)
 
@@ -253,10 +253,10 @@ let viewport_size (page : t) = Option.map (fun (size : size) -> size.width, size
 let is_closed (page : t) = page.closed
 let workers (page : t) = page.workers
 let video (page : t) = if page.context.records_video then Some page else None
-let set_default_timeout timeout (page : t) = Timeouts.set_default page.p_timeouts timeout
-let set_default_navigation_timeout timeout (page : t) = Timeouts.set_default_navigation page.p_timeouts timeout
+let set_default_timeout (page : t) timeout = Timeouts.set_default page.p_timeouts timeout
+let set_default_navigation_timeout (page : t) timeout = Timeouts.set_default_navigation page.p_timeouts timeout
 
-let frame (which : [ `Name of string | `Url of string ]) (page : t) =
+let frame (page : t) (which : [ `Name of string | `Url of string ]) =
     match which with
     | `Name name -> List.find_opt (fun (frame : frame) -> frame.f_name = name) page.frames
     | `Url glob ->
@@ -265,10 +265,10 @@ let frame (which : [ `Name of string | `Url of string ]) (page : t) =
 
 (* {1 Events for the user} *)
 
-let on event listener (page : t) = Disposable.listener (Emitter.on (emitter page event) listener)
-let once event listener (page : t) = Disposable.listener (Emitter.once (emitter page event) listener)
+let on (page : t) event listener = Disposable.listener (Emitter.on (emitter page event) listener)
+let once (page : t) event listener = Disposable.listener (Emitter.once (emitter page event) listener)
 
-let expect_event (type a) ?timeout ?predicate (event : a event) action (page : t) : a =
+let expect_event (type a) ?timeout ?predicate (page : t) (event : a event) action : a =
     let timeout = Timeouts.action ?timeout page.p_timeouts in
     let rejections waiter =
         (match event with
@@ -287,11 +287,11 @@ let url_predicate (page : t) ?url ?predicate url_of =
         (match matches with Some matches -> matches (url_of value) | None -> true)
         && match predicate with Some predicate -> predicate value | None -> true
 
-let expect_request ?timeout ?url ?predicate action page =
-    expect_event ?timeout ~predicate:(url_predicate page ?url ?predicate Network.Request.url) Request action page
+let expect_request ?timeout ?url ?predicate page action =
+    expect_event page ?timeout ~predicate:(url_predicate page ?url ?predicate Network.Request.url) Request action
 
-let expect_response ?timeout ?url ?predicate action page =
-    expect_event ?timeout ~predicate:(url_predicate page ?url ?predicate Network.Response.url) Response action page
+let expect_response ?timeout ?url ?predicate page action =
+    expect_event page ?timeout ~predicate:(url_predicate page ?url ?predicate Network.Response.url) Response action
 
 (* {1 Navigation and state} *)
 
@@ -326,30 +326,30 @@ module Web_storage = struct
     let items ((page, kind) : t) =
         Protocol.Page.web_storage_items ~kind page.p_channel |> List.map (fun (item : Protocol.Name_value.t) -> item.name, item.value)
 
-    let get_item name ((page, kind) : t) = Protocol.Page.web_storage_get_item ~kind ~name page.p_channel
-    let set_item name ~value ((page, kind) : t) = Protocol.Page.web_storage_set_item ~kind ~name ~value page.p_channel
-    let remove_item name ((page, kind) : t) = Protocol.Page.web_storage_remove_item ~kind ~name page.p_channel
+    let get_item ((page, kind) : t) name = Protocol.Page.web_storage_get_item ~kind ~name page.p_channel
+    let set_item ((page, kind) : t) name ~value = Protocol.Page.web_storage_set_item ~kind ~name ~value page.p_channel
+    let remove_item ((page, kind) : t) name = Protocol.Page.web_storage_remove_item ~kind ~name page.p_channel
     let clear ((page, kind) : t) = Protocol.Page.web_storage_clear ~kind page.p_channel
 end
 
 let local_storage (page : t) : Web_storage.t = page, `Local
 let session_storage (page : t) : Web_storage.t = page, `Session
 
-let set_viewport_size (width, height) (page : t) =
+let set_viewport_size (page : t) (width, height) =
     page.viewport_size <- Some { width; height };
     Protocol.Page.set_viewport_size ~viewport_size:{ width; height } page.p_channel
 
 let emulate_media ?media ?color_scheme ?reduced_motion ?forced_colors ?contrast (page : t) =
     Protocol.Page.emulate_media ?media ?color_scheme ?reduced_motion ?forced_colors ?contrast page.p_channel
 
-let set_extra_http_headers headers (page : t) = Protocol.Page.set_extra_http_headers ~headers:(Network.name_values headers) page.p_channel
+let set_extra_http_headers (page : t) headers = Protocol.Page.set_extra_http_headers ~headers:(Network.name_values headers) page.p_channel
 
-let add_init_script source (page : t) = Disposable.of_channel (Protocol.Page.add_init_script ~source page.p_channel)
+let add_init_script (page : t) source = Disposable.of_channel (Protocol.Page.add_init_script ~source page.p_channel)
 
-let expose_binding name (binding : binding) (page : t) =
+let expose_binding (page : t) name (binding : binding) =
     Browser_context.keep_binding page.p_bindings name binding (Protocol.Page.expose_binding ~name page.p_channel)
 
-let expose_function name f page = expose_binding name (fun _ args -> f args) page
+let expose_function page name f = expose_binding page name (fun _ args -> f args)
 
 let aria_snapshot ?timeout ?mode ?depth ?boxes (page : t) =
     Protocol.Frame.aria_snapshot ~timeout:(Timeouts.action ?timeout page.p_timeouts) ?mode ?depth ?boxes page.main_frame.f_channel
@@ -358,7 +358,7 @@ let aria_snapshot_json ?timeout ?mode ?depth ?boxes (page : t) =
     Protocol.Frame.aria_snapshot_json ~timeout:(Timeouts.action ?timeout page.p_timeouts) ?mode ?depth ?boxes page.main_frame.f_channel
 
 (* The element that a snapshot for machines marked with [ref=...]. *)
-let get_by_ref reference (page : t) = Locator.make page.main_frame ("aria-ref=" ^ reference)
+let get_by_ref (page : t) reference = Locator.make page.main_frame ("aria-ref=" ^ reference)
 
 (* Lets the person in front of a headed browser point at an element. *)
 let pick_locator (page : t) = Locator.make page.main_frame (Protocol.Page.pick_locator page.p_channel)
@@ -381,8 +381,8 @@ let add_route ?times matcher handler (page : t) =
     Connection.guard (conn page) "taking back a route" ~undo:remove (fun () -> update_interception page);
     Disposable.registration (conn page) remove
 
-let route ?times glob handler page = add_route ?times (Glob glob) handler page
-let route_matching ?times predicate handler page = add_route ?times (Predicate predicate) handler page
+let route ?times page glob handler = add_route ?times (Glob glob) handler page
+let route_matching ?times page predicate handler = add_route ?times (Predicate predicate) handler page
 let unroute_all ?behavior page = remove_routes ?behavior (fun _ -> true) page
 
 let add_web_socket_route matcher handler (page : t) =
@@ -395,12 +395,12 @@ let add_web_socket_route matcher handler (page : t) =
     Connection.guard (conn page) "taking back a WebSocket route" ~undo:remove (fun () -> update_web_socket_interception page);
     Disposable.registration (conn page) remove
 
-let route_web_socket glob handler page = add_web_socket_route (Glob glob) handler page
-let route_web_socket_matching predicate handler page = add_web_socket_route (Predicate predicate) handler page
+let route_web_socket page glob handler = add_web_socket_route (Glob glob) handler page
+let route_web_socket_matching page predicate handler = add_web_socket_route (Predicate predicate) handler page
 
 (* {1 Locator handlers} *)
 
-let add_locator_handler ?times ?no_wait_after (locator : locator) handler (page : t) =
+let add_locator_handler ?times ?no_wait_after (page : t) (locator : locator) handler =
     if locator.l_frame != page.main_frame then invalid_arg "Playwright: the locator must belong to the main frame of this page";
     if times = Some 0 then Disposable.registration (conn page) ignore
     else begin
@@ -450,11 +450,11 @@ let pause (page : t) =
 module Keyboard = struct
     type t = page
 
-    let down key (page : t) = Protocol.Page.keyboard_down ~key page.p_channel
-    let up key (page : t) = Protocol.Page.keyboard_up ~key page.p_channel
-    let insert_text text (page : t) = Protocol.Page.keyboard_insert_text ~text page.p_channel
-    let type_ ?delay text (page : t) = Protocol.Page.keyboard_type ~text ?delay page.p_channel
-    let press ?delay key (page : t) = Protocol.Page.keyboard_press ~key ?delay page.p_channel
+    let down (page : t) key = Protocol.Page.keyboard_down ~key page.p_channel
+    let up (page : t) key = Protocol.Page.keyboard_up ~key page.p_channel
+    let insert_text (page : t) text = Protocol.Page.keyboard_insert_text ~text page.p_channel
+    let type_ ?delay (page : t) text = Protocol.Page.keyboard_type ~text ?delay page.p_channel
+    let press ?delay (page : t) key = Protocol.Page.keyboard_press ~key ?delay page.p_channel
 end
 
 module Mouse = struct
@@ -485,6 +485,6 @@ module Video = struct
     (* Where the browser writes the video.  The file is complete once the page is closed. *)
     let path (page : t) = (Protocol.Artifact.initializer_ (artifact page)).absolute_path
 
-    let save_as path (page : t) = Artifact.save_as (artifact page) path
+    let save_as (page : t) path = Artifact.save_as (artifact page) path
     let delete (page : t) = Option.iter Artifact.delete page.video_artifact
 end

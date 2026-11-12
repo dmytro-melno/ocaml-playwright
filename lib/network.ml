@@ -233,10 +233,10 @@ module Web_socket = struct
         | Frame_received -> "framereceived"
         | Socket_error -> "socketerror"
 
-    let on event listener (socket : t) = Disposable.listener (Emitter.on (emitter socket event) listener)
-    let once event listener (socket : t) = Disposable.listener (Emitter.once (emitter socket event) listener)
+    let on (socket : t) event listener = Disposable.listener (Emitter.on (emitter socket event) listener)
+    let once (socket : t) event listener = Disposable.listener (Emitter.once (emitter socket event) listener)
 
-    let expect_event (type a) ?timeout ?predicate (event : a event) action (socket : t) : a =
+    let expect_event (type a) ?timeout ?predicate (socket : t) (event : a event) action : a =
         let timeouts = match socket.ws_page with Some page -> page.p_timeouts | None -> Timeouts.create () in
         let rejections waiter =
             (match event with

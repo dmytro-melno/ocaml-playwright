@@ -38,9 +38,9 @@ let () =
     let browser = Playwright.BrowserType.launch ~executable_path:"/usr/bin/chromium" chromium in
     let context = Playwright.Browser.new_context browser in
     let page = Playwright.BrowserContext.new_page context in
-    ignore (Playwright.Page.goto ~timeout:15000. "https://example.com" page);
-    ignore (Playwright.Page.wait_for_function ~timeout:10000. "window.ready === true" page);
-    print_endline (Playwright.Page.evaluate "document.title" page |> Playwright.Js.to_string);
+    ignore (Playwright.Page.goto page ~timeout:15000. "https://example.com");
+    ignore (Playwright.Page.wait_for_function page ~timeout:10000. "window.ready === true");
+    print_endline (Playwright.Page.evaluate page "document.title" |> Playwright.Js.to_string);
     Playwright.Page.close page;
     Playwright.Browser.close browser
 ```
@@ -52,11 +52,16 @@ let () =
    which comes with the package and installs the driver and that browser, or call
    `Playwright.Driver.install ()`, for the driver alone, before `Playwright.create`. Without
    the driver, `Playwright.create` fails with an error that names the command.
-2. **Required arguments are positional.** `~url`, `~selector`, `~expression`, `~key`,
-   `~name`, `~text` and the like have lost their labels. The object still comes last. Where
+2. **Required arguments are positional, and the object comes first.** `~url`, `~selector`,
+   `~expression`, `~key`, `~name`, `~text` and the like have lost their labels. In 0.1 the
+   object was the only argument without a label, so `Page.goto ~url page` and
+   `Page.goto page ~url` were the same call. Now the order counts: a page, a context, a
+   browser or any other object comes first and the required arguments follow in Playwright's
+   order, as in `Page.goto page url`. Locators and `Js` values are the exception: they come
+   last, so that they can be piped, as in `Page.locator page "#save" |> Locator.click`. Where
    two required arguments of the same type follow each other, the second keeps a label:
-   `WebStorage.set_item "theme" ~value:"dark" storage`. The compiler points at every place:
-   a label that no longer exists is an error.
+   `WebStorage.set_item storage "theme" ~value:"dark"`. The compiler points at every place:
+   a label that no longer exists is an error, and so is an argument in the wrong position.
 3. **The driver's functions are at the top level.** `Playwright.Playwright.chromium` is
    `Playwright.chromium`, and `Playwright.destroy` is `Playwright.close`.
    `Playwright.create ~sw ~env ()` is as before; `Playwright.run ~env f` is new and takes
@@ -74,7 +79,7 @@ let () =
 6. **Lists, tuples and variants replace the arrays and records of the protocol.**
    `~args:[ "--no-sandbox" ]` instead of `~args:[| "--no-sandbox" |]`, `~position:(10., 20.)`
    instead of a point record, `` ~modifiers:[ `Shift ] ``, `` ~button:`Right ``, and
-   `` Page.get_by_role `Button `` instead of `Page.get_by_role "button"`.
+   `` Page.get_by_role page `Button `` instead of `Page.get_by_role "button" page`.
 7. **Types are abstract, and objects have identity.** A locator is no longer a record of a
    frame and a selector, and handles are not records with a `guid`. What was read from such
    fields is available through functions (`Locator.page`, `Locator.frame`,
@@ -83,8 +88,8 @@ let () =
    `Set.Make (Page)` and `Hashtbl.Make (Page)`.
 8. **Events are values, and registering returns something.**
    `BrowserContext.on_console context handler` is
-   `BrowserContext.on BrowserContext.Console handler context`, and `Page.wait_for_download page`
-   is `Page.expect_event Page.Download action page`, which runs the action that causes the
+   `BrowserContext.on context BrowserContext.Console handler`, and `Page.wait_for_download page`
+   is `Page.expect_event page Page.Download action`, which runs the action that causes the
    event. The events are those of Playwright's API rather than those of the protocol:
    console messages, dialogs and requests are events of a page as well as of its context,
    need no `Page.update_subscription`, and carry the object they are about, such as a
@@ -93,7 +98,7 @@ let () =
    init scripts and exposed functions return one as well.
 9. **Elements are reached through locators.** The operations that took a selector
    (`Page.fill ~selector`, `Page.eval_on_selector`, `Page.wait_for_selector`) and those of
-   `ElementHandle` are gone; Playwright discourages both. `Page.locator selector page` gives
+   `ElementHandle` are gone; Playwright discourages both. `Page.locator page selector` gives
    the locator that has the operation.
 10. **The protocol is internal.** `Playwright.Connection`, `Playwright.Transport`,
     `Playwright.Internal`, the `...Params`/`...Result` modules of the channels, and the
@@ -115,14 +120,14 @@ let () =
 | `Playwright.Playwright.chromium pw` (`firefox`, `webkit`) | `Playwright.chromium pw` |
 | `Playwright.Playwright.t` | `Playwright.t` |
 | `BrowserType.launch ~headless:true ~args:[\| a \|] bt` | `BrowserType.launch ~args:[ a ] bt`; headless is the default |
-| `Page.goto ~url page`, `Page.locator ~selector page`, `Locator.fill ~value locator`, `Locator.press ~key locator`, `Locator.get_attribute ~name locator`, ... | the same without the label: `Page.goto url page` |
-| `Page.get_by_role ~name "button" page` | `` Page.get_by_role ~name `Button page `` |
-| `Page.evaluate ~expression ?is_function ?arg page` | `Page.evaluate ?arg expression page`, with `Js.t` |
-| `Page.wait_for_function ~expression ~polling_interval page` | `Page.wait_for_function ~polling expression page` |
-| `Page.fill ~selector ~value page`, and the other operations by selector | `Locator.fill value (Page.locator selector page)` |
-| `Page.eval_on_selector ~selector ~expression page` | `Locator.evaluate expression (Page.locator selector page)` |
-| `Page.dispatch_event ~selector ~type_ page` | `Locator.dispatch_event type_ (Page.locator selector page)` |
-| `Page.wait_for_selector ~selector page` | `Locator.wait_for (Page.locator selector page)` |
+| `Page.goto ~url page`, `Page.locator ~selector page`, `Locator.fill ~value locator`, `Locator.press ~key locator`, `Locator.get_attribute ~name locator`, ... | the same without the label: `Page.goto page url` |
+| `Page.get_by_role ~name "button" page` | `` Page.get_by_role page ~name `Button `` |
+| `Page.evaluate ~expression ?is_function ?arg page` | `Page.evaluate page ?arg expression`, with `Js.t` |
+| `Page.wait_for_function ~expression ~polling_interval page` | `Page.wait_for_function page ~polling expression` |
+| `Page.fill ~selector ~value page`, and the other operations by selector | `Locator.fill value (Page.locator page selector)` |
+| `Page.eval_on_selector ~selector ~expression page` | `Locator.evaluate expression (Page.locator page selector)` |
+| `Page.dispatch_event ~selector ~type_ page` | `Locator.dispatch_event type_ (Page.locator page selector)` |
+| `Page.wait_for_selector ~selector page` | `Locator.wait_for (Page.locator page selector)`. Actions and assertions on a locator already wait, so the call can usually be dropped. |
 | `ElementHandle.click handle`, and the other operations on handles | the same operation of a `Locator` |
 | `Locator.type_ ~text locator` | `Locator.press_sequentially text locator` |
 | `Locator.select_option ~options:[\| ... \|] locator` | `` Locator.select_option [ `Value "v" ] locator `` |
@@ -133,8 +138,8 @@ let () =
 | `Locator.bounding_box` returning `Api.Rect.Wrap.t option` | returns `rect option` |
 | `Locator.click ~strict:false locator` | removed; use `Locator.first` |
 | `Locator.expect ...`, `Frame.expect ...` | the functions of `Expect` |
-| `Page.on_<event> page handler` | `Page.on Page.<Event> handler page \|> ignore` |
-| `Page.wait_for_<event> page` | `Page.expect_event Page.<Event> action page` |
+| `Page.on_<event> page handler` | `Page.on page Page.<Event> handler \|> ignore` |
+| `Page.wait_for_<event> page` | `Page.expect_event page Page.<Event> action` |
 | `Playwright.Error message` | `Playwright.Error { kind; message; ... }` |
 
 ## Behaviour that changed
@@ -185,13 +190,15 @@ and they are closed with `Playwright.Browser.close browser;;` and
 `Playwright.close playwright;;`. Two names differ from the old text:
 `Playwright.Playwright.chromium` and `Playwright.destroy`. It is worth adding a sentence on
 the conventions, since a model that knows the old API, or Playwright for another language,
-will otherwise guess the labels wrong: required arguments are positional and come before the
-object (`Playwright.Page.goto "https://..." page`), JavaScript values are `Playwright.Js.t`
-(`Playwright.Page.evaluate "document.title" page |> Playwright.Js.to_string`), `on` returns
-a `Playwright.Disposable.t` (`Playwright.Page.on Playwright.Page.Console f page |> ignore`),
-and `#show Playwright.Page;;` prints the functions of a module. For a model that is to act
-on pages, `Playwright.Page.aria_snapshot ~mode:`Ai page` and `Playwright.Page.get_by_ref`
-are the pair to mention: see [Elements by reference](guide.md#elements-by-reference).
+will otherwise guess the calls wrong: required arguments are positional; locators and `Js`
+values go last, everything else goes first (`Playwright.Page.goto page "https://..."`,
+`Playwright.Page.locator page "#save" |> Playwright.Locator.click`); JavaScript values are
+`Playwright.Js.t` (`Playwright.Page.evaluate page "document.title" |> Playwright.Js.to_string`);
+`on` returns a `Playwright.Disposable.t`
+(`Playwright.Page.on page Playwright.Page.Console f |> ignore`); and `#show Playwright.Page;;`
+prints the functions of a module. For a model that is to act on pages,
+`Playwright.Page.aria_snapshot page ~mode:`Ai` and `Playwright.Page.get_by_ref` are the pair
+to mention: see [Elements by reference](guide.md#elements-by-reference).
 
 *The driver.* Agentiko relied on `Playwright.create` to download the driver. Now either
 its installation runs `ocaml-playwright --version`, which fetches the driver and no browser,

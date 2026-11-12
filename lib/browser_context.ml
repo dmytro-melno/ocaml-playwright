@@ -124,8 +124,8 @@ let add_route ?times matcher handler (context : t) =
     Connection.guard context.c_session.conn "taking back a route" ~undo:remove (fun () -> update_interception context);
     Disposable.registration context.c_session.conn remove
 
-let route ?times glob handler context = add_route ?times (Glob glob) handler context
-let route_matching ?times predicate handler context = add_route ?times (Predicate predicate) handler context
+let route ?times context glob handler = add_route ?times (Glob glob) handler context
+let route_matching ?times context predicate handler = add_route ?times (Predicate predicate) handler context
 let unroute_all ?behavior context = remove_routes ?behavior (fun _ -> true) context
 
 let add_web_socket_route matcher handler (context : t) =
@@ -138,8 +138,8 @@ let add_web_socket_route matcher handler (context : t) =
     Connection.guard context.c_session.conn "taking back a WebSocket route" ~undo:remove (fun () -> update_web_socket_interception context);
     Disposable.registration context.c_session.conn remove
 
-let route_web_socket glob handler context = add_web_socket_route (Glob glob) handler context
-let route_web_socket_matching predicate handler context = add_web_socket_route (Predicate predicate) handler context
+let route_web_socket context glob handler = add_web_socket_route (Glob glob) handler context
+let route_web_socket_matching context predicate handler = add_web_socket_route (Predicate predicate) handler context
 
 (* {1 Events from the driver} *)
 
@@ -260,10 +260,10 @@ let create session (channel : Protocol.Browser_context.t) : t =
 
 (* {1 Events for the user} *)
 
-let on event listener (context : t) = Disposable.listener (Emitter.on (emitter context event) listener)
-let once event listener (context : t) = Disposable.listener (Emitter.once (emitter context event) listener)
+let on (context : t) event listener = Disposable.listener (Emitter.on (emitter context event) listener)
+let once (context : t) event listener = Disposable.listener (Emitter.once (emitter context event) listener)
 
-let expect_event (type a) ?timeout ?predicate (event : a event) action (context : t) : a =
+let expect_event (type a) ?timeout ?predicate (context : t) (event : a event) action : a =
     let timeout = Timeouts.action ?timeout context.c_timeouts in
     let rejections waiter =
         match event with
@@ -279,8 +279,8 @@ let pages (context : t) = context.pages
 let service_workers (context : t) = context.service_workers
 let tracing (context : t) = context.tracing
 let request (context : t) = context.request
-let set_default_timeout timeout (context : t) = Timeouts.set_default context.c_timeouts timeout
-let set_default_navigation_timeout timeout (context : t) = Timeouts.set_default_navigation context.c_timeouts timeout
+let set_default_timeout (context : t) timeout = Timeouts.set_default context.c_timeouts timeout
+let set_default_navigation_timeout (context : t) timeout = Timeouts.set_default_navigation context.c_timeouts timeout
 
 let new_page (context : t) =
     Protocol.Browser_context.new_page context.c_channel |> Types.page
@@ -288,12 +288,12 @@ let new_page (context : t) =
 module Cookie = Cookie
 
 let cookies ?(urls = []) (context : t) = Protocol.Browser_context.cookies ~urls context.c_channel |> List.map Cookie.of_protocol
-let add_cookies cookies (context : t) = Protocol.Browser_context.add_cookies ~cookies context.c_channel
+let add_cookies (context : t) cookies = Protocol.Browser_context.add_cookies ~cookies context.c_channel
 let clear_cookies ?name ?domain ?path (context : t) = Protocol.Browser_context.clear_cookies ?name ?domain ?path context.c_channel
-let grant_permissions ?origin permissions (context : t) = Protocol.Browser_context.grant_permissions ~permissions ?origin context.c_channel
+let grant_permissions ?origin (context : t) permissions = Protocol.Browser_context.grant_permissions ~permissions ?origin context.c_channel
 let clear_permissions (context : t) = Protocol.Browser_context.clear_permissions context.c_channel
 
-let set_geolocation (geolocation : Context_options.Geolocation.t option) (context : t) =
+let set_geolocation (context : t) (geolocation : Context_options.Geolocation.t option) =
     let geolocation =
         Option.map
             (fun (g : Context_options.Geolocation.t) : Protocol.Browser_context.Set_geolocation_geolocation.t ->
@@ -302,12 +302,12 @@ let set_geolocation (geolocation : Context_options.Geolocation.t option) (contex
     in
     Protocol.Browser_context.set_geolocation ?geolocation context.c_channel
 
-let set_extra_http_headers headers (context : t) =
+let set_extra_http_headers (context : t) headers =
     Protocol.Browser_context.set_extra_http_headers ~headers:(Network.name_values headers) context.c_channel
 
-let set_offline offline (context : t) = Protocol.Browser_context.set_offline ~offline context.c_channel
+let set_offline (context : t) offline = Protocol.Browser_context.set_offline ~offline context.c_channel
 
-let add_init_script source (context : t) = Disposable.of_channel (Protocol.Browser_context.add_init_script ~source context.c_channel)
+let add_init_script (context : t) source = Disposable.of_channel (Protocol.Browser_context.add_init_script ~source context.c_channel)
 
 (* Registers [binding] in [bindings] under [name]; [registration] is what the driver gave for it. *)
 let keep_binding bindings name (binding : binding) (registration : Protocol.Disposable.t) =
@@ -316,12 +316,12 @@ let keep_binding bindings name (binding : binding) (registration : Protocol.Disp
         (match Hashtbl.find_opt bindings name with Some current when current == binding -> Hashtbl.remove bindings name | _ -> ());
         Protocol.Disposable.dispose registration)
 
-let expose_binding name (binding : binding) (context : t) =
+let expose_binding (context : t) name (binding : binding) =
     keep_binding context.c_bindings name binding (Protocol.Browser_context.expose_binding ~name context.c_channel)
 
-let expose_function name f context = expose_binding name (fun _ args -> f args) context
+let expose_function context name f = expose_binding context name (fun _ args -> f args)
 
-let set_storage_state (state : Yojson.Safe.t) (context : t) =
+let set_storage_state (context : t) (state : Yojson.Safe.t) =
     Protocol.Browser_context.set_storage_state
         ~storage_state:(Protocol.Browser_context.Set_storage_state_storage_state.of_json context.c_session.conn state)
         context.c_channel
@@ -329,10 +329,10 @@ let set_storage_state (state : Yojson.Safe.t) (context : t) =
 let storage_state ?indexed_db ?opfs ?credentials (context : t) : Yojson.Safe.t =
     Protocol.Browser_context.storage_state ?indexed_db ?opfs ?credentials context.c_channel |> Protocol.Browser_context.Storage_state_result.to_json
 
-let new_cdp_session_for_page (page : page) (context : t) =
+let new_cdp_session_for_page (context : t) (page : page) =
     Protocol.Browser_context.new_cdp_session ~page:page.p_channel context.c_channel |> Types.cdp_session
 
-let new_cdp_session_for_frame (frame : frame) (context : t) =
+let new_cdp_session_for_frame (context : t) (frame : frame) =
     Protocol.Browser_context.new_cdp_session ~frame:frame.f_channel context.c_channel |> Types.cdp_session
 
 (* Closing is idempotent, and a context whose browser is already gone counts as closed. *)
@@ -347,10 +347,10 @@ let close ?reason (context : t) =
 
 module Clock = struct
     let install ?time (context : t) = Protocol.Browser_context.clock_install ?time_number:time context.c_channel
-    let fast_forward ticks (context : t) = Protocol.Browser_context.clock_fast_forward ~ticks_number:ticks context.c_channel
-    let pause_at time (context : t) = Protocol.Browser_context.clock_pause_at ~time_number:time context.c_channel
+    let fast_forward (context : t) ticks = Protocol.Browser_context.clock_fast_forward ~ticks_number:ticks context.c_channel
+    let pause_at (context : t) time = Protocol.Browser_context.clock_pause_at ~time_number:time context.c_channel
     let resume (context : t) = Protocol.Browser_context.clock_resume context.c_channel
-    let run_for ticks (context : t) = Protocol.Browser_context.clock_run_for ~ticks_number:ticks context.c_channel
-    let set_fixed_time time (context : t) = Protocol.Browser_context.clock_set_fixed_time ~time_number:time context.c_channel
-    let set_system_time time (context : t) = Protocol.Browser_context.clock_set_system_time ~time_number:time context.c_channel
+    let run_for (context : t) ticks = Protocol.Browser_context.clock_run_for ~ticks_number:ticks context.c_channel
+    let set_fixed_time (context : t) time = Protocol.Browser_context.clock_set_fixed_time ~time_number:time context.c_channel
+    let set_system_time (context : t) time = Protocol.Browser_context.clock_set_system_time ~time_number:time context.c_channel
 end

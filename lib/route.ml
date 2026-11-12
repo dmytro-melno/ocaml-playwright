@@ -99,8 +99,8 @@ let fetch ?timeout ?url ?method_ ?headers ?post_data ?max_redirects ?max_retries
     | None -> Error.raise_ "The route does not belong to a browser context"
     | Some context ->
         let request = route.rt_request in
-        Api_request.Context.fetch ?timeout ?method_ ?headers ?data:post_data ?max_redirects ?max_retries ~request
-            (Option.value url ~default:(Request.url request)) context.request
+        Api_request.Context.fetch context.request ?timeout ?method_ ?headers ?data:post_data ?max_redirects ?max_retries ~request
+            (Option.value url ~default:(Request.url request))
 
 (* {1 Handlers} *)
 
@@ -227,7 +227,7 @@ module Web_socket = struct
         quietly (fun () -> Protocol.Web_socket_route.connect t.wr_channel);
         { t with wr_side = `Server }
 
-    let send payload (t : t) =
+    let send (t : t) payload =
         let message, is_base64 = encode payload in
         quietly (fun () ->
             match t.wr_side with
@@ -240,12 +240,12 @@ module Web_socket = struct
             | `Page -> Protocol.Web_socket_route.close_page ?code ?reason ~was_clean:true t.wr_channel
             | `Server -> Protocol.Web_socket_route.close_server ?code ?reason ~was_clean:true t.wr_channel)
 
-    let on_message handler (t : t) =
+    let on_message (t : t) handler =
         match t.wr_side with
         | `Page -> t.wr_state.on_page_message <- Some handler
         | `Server -> t.wr_state.on_server_message <- Some handler
 
-    let on_close handler (t : t) =
+    let on_close (t : t) handler =
         match t.wr_side with
         | `Page -> t.wr_state.on_page_close <- Some handler
         | `Server -> t.wr_state.on_server_close <- Some handler

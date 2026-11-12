@@ -23,25 +23,25 @@ let form =
       <p style="display: none" id="hidden">Hidden text</p>|}
 
 let test_queries _ page =
-    Page.set_content form page;
+    Page.set_content page form;
     let text locator = Locator.inner_text locator in
-    Alcotest.(check string) "by role and name" "Submit" (Page.get_by_role `Button ~name:"Submit" page |> text);
-    Alcotest.(check string) "by role and name regex" "Submit" (Page.get_by_role `Button ~name_regex:"/^sub/i" page |> text);
-    Alcotest.(check int) "disabled buttons" 1 (Page.get_by_role `Button ~disabled:true page |> Locator.count);
-    Alcotest.(check int) "name is a substring match" 0 (Page.get_by_role `Button ~name:"Sub" ~exact:true page |> Locator.count);
-    Alcotest.(check string) "heading level" "Sign up" (Page.get_by_role `Heading ~level:1 page |> text);
-    Alcotest.(check string) "by label, for=" "name" (Page.get_by_label "Name" page |> Locator.get_attribute "id" |> Option.get);
-    Alcotest.(check string) "by label, wrapping" "email" (Page.get_by_label "Email" page |> Locator.get_attribute "type" |> Option.get);
-    Alcotest.(check string) "by aria-label" "TEXTAREA" (Page.get_by_label "Comment" page |> Locator.evaluate "e => e.tagName" |> Js.to_string);
-    Alcotest.(check int) "by placeholder" 1 (Page.get_by_placeholder "Your name" page |> Locator.count);
-    Alcotest.(check int) "by title regex" 1 (Page.get_by_title_regex "/email/i" page |> Locator.count);
-    Alcotest.(check int) "by alt text" 1 (Page.get_by_alt_text "logo" page |> Locator.count);
-    Alcotest.(check int) "by alt text, exact" 0 (Page.get_by_alt_text ~exact:true "logo" page |> Locator.count);
-    Alcotest.(check int) "by test id" 1 (Page.get_by_test_id "name-input" page |> Locator.count);
-    Alcotest.(check string) "by text" "Banana ripe" (Page.get_by_text "banana" page |> text);
-    Alcotest.(check int) "by exact text" 0 (Page.get_by_text ~exact:true "banana" page |> Locator.count);
-    Alcotest.(check string) "by text regex" "Cherry" (Page.get_by_text_regex "/^ch.rry$/i" page |> text);
-    let items = Page.get_by_role `Listitem page in
+    Alcotest.(check string) "by role and name" "Submit" (Page.get_by_role page `Button ~name:"Submit" |> text);
+    Alcotest.(check string) "by role and name regex" "Submit" (Page.get_by_role page `Button ~name_regex:"/^sub/i" |> text);
+    Alcotest.(check int) "disabled buttons" 1 (Page.get_by_role page `Button ~disabled:true |> Locator.count);
+    Alcotest.(check int) "name is a substring match" 0 (Page.get_by_role page `Button ~name:"Sub" ~exact:true |> Locator.count);
+    Alcotest.(check string) "heading level" "Sign up" (Page.get_by_role page `Heading ~level:1 |> text);
+    Alcotest.(check string) "by label, for=" "name" (Page.get_by_label page "Name" |> Locator.get_attribute "id" |> Option.get);
+    Alcotest.(check string) "by label, wrapping" "email" (Page.get_by_label page "Email" |> Locator.get_attribute "type" |> Option.get);
+    Alcotest.(check string) "by aria-label" "TEXTAREA" (Page.get_by_label page "Comment" |> Locator.evaluate "e => e.tagName" |> Js.to_string);
+    Alcotest.(check int) "by placeholder" 1 (Page.get_by_placeholder page "Your name" |> Locator.count);
+    Alcotest.(check int) "by title regex" 1 (Page.get_by_title_regex page "/email/i" |> Locator.count);
+    Alcotest.(check int) "by alt text" 1 (Page.get_by_alt_text page "logo" |> Locator.count);
+    Alcotest.(check int) "by alt text, exact" 0 (Page.get_by_alt_text page ~exact:true "logo" |> Locator.count);
+    Alcotest.(check int) "by test id" 1 (Page.get_by_test_id page "name-input" |> Locator.count);
+    Alcotest.(check string) "by text" "Banana ripe" (Page.get_by_text page "banana" |> text);
+    Alcotest.(check int) "by exact text" 0 (Page.get_by_text page ~exact:true "banana" |> Locator.count);
+    Alcotest.(check string) "by text regex" "Cherry" (Page.get_by_text_regex page "/^ch.rry$/i" |> text);
+    let items = Page.get_by_role page `Listitem in
     Alcotest.(check int) "count" 3 (Locator.count items);
     Alcotest.(check (list string)) "all texts" [ "Apple"; "Banana ripe"; "Cherry" ] (Locator.all_inner_texts items);
     Alcotest.(check (list string)) "all" [ "Apple"; "Banana ripe"; "Cherry" ] (List.map text (Locator.all items));
@@ -51,44 +51,44 @@ let test_queries _ page =
     Alcotest.(check string) "nth from the end" "Banana ripe" (Locator.nth (-2) items |> text);
     Alcotest.(check string) "filter by text" "Cherry" (Locator.filter ~has_text:"err" items |> text);
     Alcotest.(check (list string)) "filter by absent text" [ "Apple"; "Cherry" ] (Locator.filter ~has_not_text:"Banana" items |> Locator.all_inner_texts);
-    Alcotest.(check string) "filter by descendant" "Banana ripe" (Locator.filter ~has:(Page.locator "b" page) items |> text);
-    Alcotest.(check int) "filter by absent descendant" 2 (Locator.filter ~has_not:(Page.locator "b" page) items |> Locator.count);
+    Alcotest.(check string) "filter by descendant" "Banana ripe" (Locator.filter ~has:(Page.locator page "b") items |> text);
+    Alcotest.(check int) "filter by absent descendant" 2 (Locator.filter ~has_not:(Page.locator page "b") items |> Locator.count);
     Alcotest.(check string) "nested" "ripe" (Locator.locator "b" items |> text);
-    Alcotest.(check string) "nested query" "ripe" (Page.locator "ul" page |> Locator.get_by_text "ripe" ~exact:true |> text);
-    Alcotest.(check string) "and" "Submit" (Locator.and_ (Page.get_by_text "Submit" page) (Page.get_by_role `Button page) |> text);
-    Alcotest.(check int) "or" 2 (Locator.or_ (Page.get_by_role `Heading page) (Page.locator "#name" page) |> Locator.count);
-    Alcotest.(check int) "visible only" 0 (Page.locator "#hidden" page |> Locator.visible |> Locator.count);
-    Alcotest.(check int) "locator options" 1 (Page.locator "li" ~has_text_regex:"/^apple$/i" page |> Locator.count);
-    Alcotest.(check bool) "equal" true (Locator.equal (Page.locator "li" page) (Page.locator "li" page));
+    Alcotest.(check string) "nested query" "ripe" (Page.locator page "ul" |> Locator.get_by_text "ripe" ~exact:true |> text);
+    Alcotest.(check string) "and" "Submit" (Locator.and_ (Page.get_by_text page "Submit") (Page.get_by_role page `Button) |> text);
+    Alcotest.(check int) "or" 2 (Locator.or_ (Page.get_by_role page `Heading) (Page.locator page "#name") |> Locator.count);
+    Alcotest.(check int) "visible only" 0 (Page.locator page "#hidden" |> Locator.visible |> Locator.count);
+    Alcotest.(check int) "locator options" 1 (Page.locator page "li" ~has_text_regex:"/^apple$/i" |> Locator.count);
+    Alcotest.(check bool) "equal" true (Locator.equal (Page.locator page "li") (Page.locator page "li"));
     (* The conditions given all have to hold. *)
-    Alcotest.(check (list string)) "text and pattern" [ "Banana ripe" ] (Page.locator "li" ~has_text:"a" ~has_text_regex:"/^b/i" page |> Locator.all_inner_texts);
+    Alcotest.(check (list string)) "text and pattern" [ "Banana ripe" ] (Page.locator page "li" ~has_text:"a" ~has_text_regex:"/^b/i" |> Locator.all_inner_texts);
     Alcotest.(check (list string)) "neither text nor pattern" [ "Cherry" ]
         (Locator.filter ~has_not_text:"apple" ~has_not_text_regex:"/^b/i" items |> Locator.all_inner_texts)
 
 let test_reading _ page =
-    Page.set_content form page;
-    let name = Page.locator "#name" page in
+    Page.set_content page form;
+    let name = Page.locator page "#name" in
     Alcotest.(check (option string)) "attribute" (Some "Your name") (Locator.get_attribute "placeholder" name);
     Alcotest.(check (option string)) "absent attribute" None (Locator.get_attribute "nope" name);
-    Alcotest.(check (option string)) "text content includes hidden text" (Some "Hidden text") (Page.locator "#hidden" page |> Locator.text_content);
-    Alcotest.(check string) "inner html" "Banana <b>ripe</b>" (Page.locator "li" page |> Locator.nth 1 |> Locator.inner_html);
+    Alcotest.(check (option string)) "text content includes hidden text" (Some "Hidden text") (Page.locator page "#hidden" |> Locator.text_content);
+    Alcotest.(check string) "inner html" "Banana <b>ripe</b>" (Page.locator page "li" |> Locator.nth 1 |> Locator.inner_html);
     Alcotest.(check bool) "visible" true (Locator.is_visible name);
-    Alcotest.(check bool) "hidden" true (Page.locator "#hidden" page |> Locator.is_hidden);
-    Alcotest.(check bool) "a missing element is hidden, not an error" true (Page.locator "#missing" page |> Locator.is_hidden);
+    Alcotest.(check bool) "hidden" true (Page.locator page "#hidden" |> Locator.is_hidden);
+    Alcotest.(check bool) "a missing element is hidden, not an error" true (Page.locator page "#missing" |> Locator.is_hidden);
     Alcotest.(check bool) "enabled" true (Locator.is_enabled name && Locator.is_editable name);
-    Alcotest.(check bool) "disabled" true (Page.get_by_role `Button ~name:"Disabled" page |> Locator.is_disabled);
-    Alcotest.(check bool) "checked" true (Page.locator "[value=free]" page |> Locator.is_checked);
+    Alcotest.(check bool) "disabled" true (Page.get_by_role page `Button ~name:"Disabled" |> Locator.is_disabled);
+    Alcotest.(check bool) "checked" true (Page.locator page "[value=free]" |> Locator.is_checked);
     (match Locator.bounding_box name with
     | Some box -> Alcotest.(check bool) "bounding box" true (box.width > 10. && box.height > 5. && box.x >= 0.)
     | None -> Alcotest.fail "no bounding box");
-    Alcotest.(check bool) "no box for hidden elements" true (Page.locator "#hidden" page |> Locator.bounding_box = None);
-    Alcotest.check js "evaluate_all" (Js.Number 3.) (Page.locator "li" page |> Locator.evaluate_all "items => items.length");
+    Alcotest.(check bool) "no box for hidden elements" true (Page.locator page "#hidden" |> Locator.bounding_box = None);
+    Alcotest.check js "evaluate_all" (Js.Number 3.) (Page.locator page "li" |> Locator.evaluate_all "items => items.length");
     Alcotest.(check string) "selector text" "#name" (Locator.to_string name |> fun s -> String.sub s (String.length s - 5) 5);
     Alcotest.(check bool) "its page" true (Page.equal (Locator.page name) page)
 
 let test_actions _ page =
-    Page.set_content form page;
-    let name = Page.get_by_label "Name" page in
+    Page.set_content page form;
+    let name = Page.get_by_label page "Name" in
     Locator.fill "Ada" name;
     Alcotest.(check string) "fill" "Ada" (Locator.input_value name);
     Locator.press_sequentially " Lovelace" name;
@@ -100,20 +100,20 @@ let test_actions _ page =
     Locator.clear name;
     Alcotest.(check string) "clear" "" (Locator.input_value name);
     Locator.fill "Grace" name;
-    Page.get_by_role `Button ~name:"Submit" page |> Locator.click;
-    Alcotest.(check string) "click" "submitted Grace" (Page.locator "#out" page |> Locator.inner_text);
-    let terms = Page.get_by_label "Accept terms" page in
+    Page.get_by_role page `Button ~name:"Submit" |> Locator.click;
+    Alcotest.(check string) "click" "submitted Grace" (Page.locator page "#out" |> Locator.inner_text);
+    let terms = Page.get_by_label page "Accept terms" in
     Locator.check terms;
     Alcotest.(check bool) "check" true (Locator.is_checked terms);
     Locator.uncheck terms;
     Locator.set_checked true terms;
     Alcotest.(check bool) "set_checked" true (Locator.is_checked terms);
-    Page.get_by_label "Pro" page |> Locator.check;
+    Page.get_by_label page "Pro" |> Locator.check;
     Alcotest.(check string) "radio" "pro" (eval_string "document.querySelector('[name=plan]:checked').value" page);
-    let colour = Page.locator "#colour" page in
+    let colour = Page.locator page "#colour" in
     Alcotest.(check (list string)) "select by value and label" [ "r"; "b" ] (Locator.select_option [ `Value "r"; `Label "Blue" ] colour);
     Alcotest.(check (list string)) "select by index" [ "g" ] (Locator.select_option [ `Index 1 ] colour);
-    let comment = Page.get_by_label "Comment" page in
+    let comment = Page.get_by_label page "Comment" in
     Locator.focus comment;
     Alcotest.(check string) "focus" "TEXTAREA" (eval_string "document.activeElement.tagName" page);
     Locator.blur comment;
@@ -121,12 +121,12 @@ let test_actions _ page =
     Locator.fill "some text" comment;
     Locator.select_text comment;
     Alcotest.(check string) "select_text" "some text" (eval_string "getSelection().toString()" page);
-    ignore (Page.evaluate "document.querySelector('h1').addEventListener('click', e => { window.clicked = e.clientX })" page);
-    Page.get_by_role `Heading page |> Locator.dispatch_event "click" ~event_init:(Js.obj [ "clientX", Js.int 7 ]);
+    ignore (Page.evaluate page "document.querySelector('h1').addEventListener('click', e => { window.clicked = e.clientX })");
+    Page.get_by_role page `Heading |> Locator.dispatch_event "click" ~event_init:(Js.obj [ "clientX", Js.int 7 ]);
     Alcotest.(check int) "dispatch_event" 7 (eval_int "window.clicked" page)
 
 let test_mouse_actions _ page =
-    Page.set_content
+    Page.set_content page
         {|<style>div { width: 100px; height: 100px; margin: 20px; background: silver }</style>
           <div id="a" draggable="true" ondragstart="event.dataTransfer.setData('text', 'a')">A</div>
           <div id="b" ondragover="event.preventDefault()" ondrop="this.textContent = 'dropped ' + event.dataTransfer.getData('text')">B</div>
@@ -136,23 +136,22 @@ let test_mouse_actions _ page =
             const c = document.querySelector('#c');
             for (const type of ['mouseenter', 'click', 'dblclick', 'contextmenu'])
               c.addEventListener(type, e => { e.preventDefault(); window.log.push(type + (e.shiftKey ? '+shift' : '') + '@' + e.offsetX + ',' + e.offsetY) });
-          </script>|}
-        page;
-    let c = Page.locator "#c" page in
+          </script>|};
+    let c = Page.locator page "#c" in
     Locator.hover c;
     Locator.click ~position:(10., 20.) ~modifiers:[ `Shift ] c;
     Locator.click ~button:`Right c;
     Locator.dblclick ~position:(1., 1.) c;
     Alcotest.(check (list string)) "events"
         [ "mouseenter@50,50"; "click+shift@10,20"; "contextmenu@50,50"; "click@1,1"; "click@1,1"; "dblclick@1,1" ]
-        (Page.evaluate "window.log" page |> Js.to_list Js.to_string);
-    Locator.drag_to ~target:(Page.locator "#b" page) (Page.locator "#a" page);
-    Alcotest.(check string) "drag and drop" "dropped a" (Page.locator "#b" page |> Locator.inner_text);
+        (Page.evaluate page "window.log" |> Js.to_list Js.to_string);
+    Locator.drag_to ~target:(Page.locator page "#b") (Page.locator page "#a");
+    Alcotest.(check string) "drag and drop" "dropped a" (Page.locator page "#b" |> Locator.inner_text);
     Locator.click ~trial:true c;
     Alcotest.(check int) "a trial run does not click" 3 (eval_int "window.log.filter(entry => entry.startsWith('click')).length" page);
     (* What is out of sight is scrolled to, unless that is declined. *)
-    Page.set_content {|<div style="height: 3000px"></div><button onclick="window.pressed = (window.pressed || 0) + 1">Far down</button>|} page;
-    let button = Page.get_by_role `Button page in
+    Page.set_content page {|<div style="height: 3000px"></div><button onclick="window.pressed = (window.pressed || 0) + 1">Far down</button>|};
+    let button = Page.get_by_role page `Button in
     let error = failure "not scrolling" (fun () -> Locator.click ~scroll:`None ~timeout:300. button) in
     Alcotest.check error_kind "is to wait for somebody else to" Error.Timeout error.kind;
     check_contains "and says so" ~sub:"element is outside of the viewport" error.message;
@@ -161,40 +160,39 @@ let test_mouse_actions _ page =
     Alcotest.(check int) "within the viewport there is nothing to scroll" 2 (eval_int "window.pressed" page)
 
 let test_waiting_and_strictness _ page =
-    Page.set_content {|<button>One</button><button>Two</button><div id="late" style="display: none">Late</div>|} page;
-    let error = failure "two matches" (fun () -> Page.get_by_role `Button page |> Locator.click) in
+    Page.set_content page {|<button>One</button><button>Two</button><div id="late" style="display: none">Late</div>|};
+    let error = failure "two matches" (fun () -> Page.get_by_role page `Button |> Locator.click) in
     check_contains "strict mode violation" ~sub:"strict mode violation" error.message;
     check_contains "which names the candidates" ~sub:"get_by_role(\"button\", name=\"One\")" error.message;
     (* Actions wait for the element to become actionable. *)
-    ignore (Page.evaluate "setTimeout(() => { document.querySelector('#late').style.display = 'block' }, 150)" page);
-    let late = Page.locator "#late" page in
+    ignore (Page.evaluate page "setTimeout(() => { document.querySelector('#late').style.display = 'block' }, 150)");
+    let late = Page.locator page "#late" in
     Locator.click late;
-    ignore (Page.evaluate "setTimeout(() => document.querySelector('#late').remove(), 100)" page);
+    ignore (Page.evaluate page "setTimeout(() => document.querySelector('#late').remove(), 100)");
     Locator.wait_for ~state:`Detached late;
     let error = failure "never appears" (fun () -> Locator.click ~timeout:250. late) in
     Alcotest.check error_kind "timeout" Error.Timeout error.kind;
     check_contains "what was waited for" ~sub:"waiting for locator(\"#late\")" error.message;
     check_failure "wait_for times out too" ~kind:Timeout (fun () -> Locator.wait_for ~timeout:100. late);
     (* Default timeouts: the page's overrides the context's. *)
-    BrowserContext.set_default_timeout 150. (Page.context page);
+    BrowserContext.set_default_timeout (Page.context page) 150.;
     check_failure "context default" ~message:"Timeout 150ms" (fun () -> Locator.click late);
-    Page.set_default_timeout 100. page;
+    Page.set_default_timeout page 100.;
     check_failure "page default" ~message:"Timeout 100ms" (fun () -> Locator.click late)
 
 (* An overlay that gets in the way of an action is cleared away by a handler. *)
 let test_locator_handlers _ page =
-    Page.set_content
+    Page.set_content page
         {|<button id="target" onclick="window.clicks = (window.clicks || 0) + 1">Target</button>
-          <div id="overlay" style="position: fixed; inset: 0; background: white"><button onclick="this.parentElement.style.display = 'none'">Dismiss</button></div>|}
-        page;
-    let target = Page.locator "#target" page in
-    let cover () = ignore (Page.evaluate "document.querySelector('#overlay').style.display = 'block'" page) in
+          <div id="overlay" style="position: fixed; inset: 0; background: white"><button onclick="this.parentElement.style.display = 'none'">Dismiss</button></div>|};
+    let target = Page.locator page "#target" in
+    let cover () = ignore (Page.evaluate page "document.querySelector('#overlay').style.display = 'block'") in
     let calls = ref 0 in
     let dismiss overlay =
         incr calls;
         Locator.click (Locator.get_by_role `Button overlay)
     in
-    let handling = Page.add_locator_handler (Page.locator "#overlay" page) dismiss page in
+    let handling = Page.add_locator_handler page (Page.locator page "#overlay") dismiss in
     Locator.click target;
     Alcotest.(check (pair int int)) "the handler cleared the way" (1, 1) (!calls, eval_int "window.clicks" page);
     cover ();
@@ -205,39 +203,38 @@ let test_locator_handlers _ page =
     cover ();
     check_failure "without the handler the overlay is in the way" ~kind:Timeout (fun () -> Locator.click ~timeout:300. target);
     Alcotest.(check int) "and the handler is not called" 2 !calls;
-    let handling = Page.add_locator_handler ~times:1 (Page.locator "#overlay" page) dismiss page in
+    let handling = Page.add_locator_handler page ~times:1 (Page.locator page "#overlay") dismiss in
     Locator.click target;
     cover ();
     check_failure "a handler for one time is gone after it" ~kind:Timeout (fun () -> Locator.click ~timeout:300. target);
     Alcotest.(check (pair int int)) "it was called once" (3, 3) (!calls, eval_int "window.clicks" page);
     Disposable.dispose handling;
-    Page.set_content {|<iframe srcdoc="<p>inner</p>"></iframe>|} page;
+    Page.set_content page {|<iframe srcdoc="<p>inner</p>"></iframe>|};
     let frame = List.nth (Page.frames page) 1 in
     Alcotest.check_raises "the locator must be of the main frame" (Invalid_argument "Playwright: the locator must belong to the main frame of this page")
-        (fun () -> ignore (Page.add_locator_handler (Frame.locator "p" frame) ignore page))
+        (fun () -> ignore (Page.add_locator_handler page (Frame.locator frame "p") ignore))
 
 (* A handle is for what locators cannot do: passing the element to JavaScript, and finding its frame. *)
 let test_element_handles _ page =
-    Page.set_content form page;
-    let element = Locator.element_handle (Page.locator "#name" page) in
-    Alcotest.check js "as an argument" (Js.String "name") (Page.evaluate "element => element.id" ~arg:(Js.Handle (ElementHandle.as_js_handle element)) page);
-    Alcotest.check js "evaluated on" (Js.String "INPUT") (ElementHandle.evaluate "element => element.tagName" element);
+    Page.set_content page form;
+    let element = Locator.element_handle (Page.locator page "#name") in
+    Alcotest.check js "as an argument" (Js.String "name") (Page.evaluate page "element => element.id" ~arg:(Js.Handle (ElementHandle.as_js_handle element)));
+    Alcotest.check js "evaluated on" (Js.String "INPUT") (ElementHandle.evaluate element "element => element.tagName");
     Alcotest.(check bool) "owner frame" true (Option.equal Frame.equal (ElementHandle.owner_frame element) (Some (Page.main_frame page)));
     Alcotest.(check bool) "an input holds no frame" true (Option.is_none (ElementHandle.content_frame element));
     ElementHandle.dispose element;
-    check_failure "disposed" (fun () -> ElementHandle.evaluate "element => element.id" element);
-    check_failure "several elements" ~message:"strict mode violation" (fun () -> Locator.element_handle (Page.locator "li" page));
-    check_failure "no element" ~kind:Timeout (fun () -> Locator.element_handle ~timeout:100. (Page.locator "#missing" page))
+    check_failure "disposed" (fun () -> ElementHandle.evaluate element "element => element.id");
+    check_failure "several elements" ~message:"strict mode violation" (fun () -> Locator.element_handle (Page.locator page "li"));
+    check_failure "no element" ~kind:Timeout (fun () -> Locator.element_handle ~timeout:100. (Page.locator page "#missing"))
 
 (* What came with Playwright 1.6x: references into snapshots, normalized locators, and so on. *)
 let test_references _ page =
-    Page.set_content
+    Page.set_content page
         {|<table><tr><td>a1</td><td>b1</td><td>c1</td></tr><tr><td>a2</td><td>b2</td><td>c2</td></tr></table>
-          <button>Submit</button> <input aria-label="Amount" value="12">|}
-        page;
-    let third = Page.get_by_role `Cell page |> Locator.nth 2 |> Locator.within ~outer:(Page.get_by_role `Row page) in
+          <button>Submit</button> <input aria-label="Amount" value="12">|};
+    let third = Page.get_by_role page `Cell |> Locator.nth 2 |> Locator.within ~outer:(Page.get_by_role page `Row) in
     Alcotest.(check (list string)) "the third cell of every row" [ "c1"; "c2" ] (Locator.all_inner_texts third);
-    let button = Page.get_by_role `Button page in
+    let button = Page.get_by_role page `Button in
     let name = {|The "submit" >> internal:describe="button"|} in
     Alcotest.(check (option string)) "not described" None (Locator.description button);
     Alcotest.(check (option string)) "described" (Some name) (Locator.description (Locator.describe name button));
@@ -250,10 +247,10 @@ let test_references _ page =
         let start = Option.get (String.index_opt line '=') + 1 in
         String.sub line start (String.index_from line start ']' - start)
     in
-    let by_reference = Page.get_by_ref reference page in
+    let by_reference = Page.get_by_ref page reference in
     Alcotest.(check string) "by reference" "Submit" (Locator.inner_text by_reference);
-    Alcotest.(check string) "normalized" (Locator.to_string (Page.get_by_role `Button ~name:"Submit" page)) (Locator.to_string (Locator.normalize by_reference));
-    check_failure "nothing to normalize" ~message:"No element matching" (fun () -> Locator.normalize (Page.locator "#absent" page));
+    Alcotest.(check string) "normalized" (Locator.to_string (Page.get_by_role page `Button ~name:"Submit")) (Locator.to_string (Locator.normalize by_reference));
+    check_failure "nothing to normalize" ~message:"No element matching" (fun () -> Locator.normalize (Page.locator page "#absent"));
     let rec roles : Yojson.Safe.t -> string list = function
         | `Assoc fields ->
             (match List.assoc_opt "role" fields with Some (`String role) -> [ role ] | _ -> [])
@@ -264,8 +261,8 @@ let test_references _ page =
     Alcotest.(check bool) "the snapshot as JSON" true (List.mem "button" (roles (Page.aria_snapshot_json page)));
     Alcotest.(check (list string)) "of an element" [ "button" ] (roles (Locator.aria_snapshot_json button));
     (* Waiting for something about an element. *)
-    let input = Page.get_by_label "Amount" page in
-    ignore (Page.evaluate "setTimeout(() => document.querySelector('input').value = '1234', 50)" page);
+    let input = Page.get_by_label page "Amount" in
+    ignore (Page.evaluate page "setTimeout(() => document.querySelector('input').value = '1234', 50)");
     Locator.wait_for_function "(input, length) => input.value.length >= length" ~arg:(Js.int 4) input;
     Alcotest.(check string) "waited for the element" "1234" (Locator.input_value input);
     check_failure "which may not come" ~kind:Timeout (fun () -> Locator.wait_for_function ~timeout:100. "input => input.value === 'never'" input);
@@ -275,7 +272,7 @@ let test_references _ page =
     Disposable.dispose mark
 
 let test_drop t page =
-    Page.set_content
+    Page.set_content page
         {|<div id="zone" style="width: 200px; height: 100px; background: silver">Drop here</div>
           <script>
             const zone = document.querySelector('#zone');
@@ -286,12 +283,11 @@ let test_drop t page =
               const files = await Promise.all([...event.dataTransfer.files].map(async file => file.name + '=' + await file.text()));
               window.dropped = { text, files };
             });
-          </script>|}
-        page;
-    let zone = Page.locator "#zone" page in
+          </script>|};
+    let zone = Page.locator page "#zone" in
     let dropped () =
-        ignore (Page.wait_for_function "window.dropped" page);
-        let value = Page.evaluate "(() => { const d = window.dropped; window.dropped = undefined; return d })()" page in
+        ignore (Page.wait_for_function page "window.dropped");
+        let value = Page.evaluate page "(() => { const d = window.dropped; window.dropped = undefined; return d })()" in
         Js.to_string (Js.member "text" value), Js.to_list Js.to_string (Js.member "files" value)
     in
     Locator.drop ~data:[ "text/plain", "hello" ] zone;
@@ -307,51 +303,50 @@ let test_drop t page =
     | exception Invalid_argument _ -> ()
 
 let test_uploads t page =
-    Page.set_content {|<input type="file" id="one"><input type="file" id="many" multiple>|} page;
+    Page.set_content page {|<input type="file" id="one"><input type="file" id="many" multiple>|};
     let describe id =
-        Page.evaluate
+        Page.evaluate page
             (Printf.sprintf
                  "Promise.all([...document.querySelector('#%s').files].map(async f => f.name + ':' + f.type + ':' + await f.text())).then(l => l.join('|'))" id)
-            page
         |> Js.to_string
     in
     let a = scratch_file t "a.txt" and b = scratch_file t "b.json" in
     write_file a "alpha";
     write_file b "{}";
-    Page.locator "#one" page |> Locator.set_input_files [ a ];
+    Page.locator page "#one" |> Locator.set_input_files [ a ];
     Alcotest.(check string) "a file from disk" (Filename.basename a ^ ":text/plain:alpha") (describe "one");
-    Page.locator "#many" page |> Locator.set_input_files [ a; b ];
+    Page.locator page "#many" |> Locator.set_input_files [ a; b ];
     Alcotest.(check string) "several files" (Printf.sprintf "%s:text/plain:alpha|%s:application/json:{}" (Filename.basename a) (Filename.basename b)) (describe "many");
-    Page.locator "#one" page |> Locator.set_input_payloads [ { name = "memo.csv"; mime_type = Some "text/csv"; buffer = "x,y\n1,2" } ];
+    Page.locator page "#one" |> Locator.set_input_payloads [ { name = "memo.csv"; mime_type = Some "text/csv"; buffer = "x,y\n1,2" } ];
     Alcotest.(check string) "a file from memory" "memo.csv:text/csv:x,y\n1,2" (describe "one");
-    Page.locator "#one" page |> Locator.set_input_files [];
+    Page.locator page "#one" |> Locator.set_input_files [];
     Alcotest.(check string) "cleared" "" (describe "one");
-    check_failure "several files for a single input" ~message:"Non-multiple file input" (fun () -> Page.locator "#one" page |> Locator.set_input_files [ a; b ]);
-    let chooser = Page.expect_event Page.File_chooser (fun () -> Locator.click (Page.locator "#many" page)) page in
+    check_failure "several files for a single input" ~message:"Non-multiple file input" (fun () -> Page.locator page "#one" |> Locator.set_input_files [ a; b ]);
+    let chooser = Page.expect_event page Page.File_chooser (fun () -> Locator.click (Page.locator page "#many")) in
     Alcotest.(check bool) "multiple" true (FileChooser.is_multiple chooser);
     Alcotest.(check bool) "its page" true (Page.equal (FileChooser.page chooser) page);
-    FileChooser.set_files [ b ] chooser;
+    FileChooser.set_files chooser [ b ];
     Alcotest.(check string) "through the file chooser" (Filename.basename b ^ ":application/json:{}") (describe "many")
 
 let test_expect _ page =
-    Page.set_content form page;
-    let heading = Page.get_by_role `Heading page and name = Page.locator "#name" page and terms = Page.locator "#terms" page in
+    Page.set_content page form;
+    let heading = Page.get_by_role page `Heading and name = Page.locator page "#name" and terms = Page.locator page "#terms" in
     Expect.to_be_visible heading;
-    Expect.to_be_hidden (Page.locator "#hidden" page);
-    Expect.to_be_attached (Page.locator "#hidden" page);
-    Expect.Not.to_be_attached (Page.locator "#missing" page);
+    Expect.to_be_hidden (Page.locator page "#hidden");
+    Expect.to_be_attached (Page.locator page "#hidden");
+    Expect.Not.to_be_attached (Page.locator page "#missing");
     Expect.to_have_text "Sign up" heading;
     Expect.to_have_text ~ignore_case:true "sign   UP" heading;
     Expect.to_have_text_regex "/^sign/i" heading;
     Expect.to_contain_text "up" heading;
     Expect.Not.to_have_text "Sign" heading;
-    Expect.to_have_texts [ "Apple"; "Banana ripe"; "Cherry" ] (Page.locator "li" page);
-    Expect.to_contain_texts [ "App"; "Ban"; "Che" ] (Page.locator "li" page);
-    Expect.to_have_count 3 (Page.locator "li" page);
+    Expect.to_have_texts [ "Apple"; "Banana ripe"; "Cherry" ] (Page.locator page "li");
+    Expect.to_contain_texts [ "App"; "Ban"; "Che" ] (Page.locator page "li");
+    Expect.to_have_count 3 (Page.locator page "li");
     Expect.to_be_enabled name;
     Expect.to_be_editable name;
     Expect.to_be_empty name;
-    Expect.to_be_disabled (Page.get_by_text "Disabled" page);
+    Expect.to_be_disabled (Page.get_by_text page "Disabled");
     Expect.to_have_attribute "placeholder" ~value:"Your name" name;
     Expect.to_have_attribute_regex "placeholder" ~value:"/name$/" name;
     Expect.to_have_attribute_present "data-testid" name;
@@ -381,14 +376,14 @@ let test_expect _ page =
     Expect.to_have_js_property "value" (Js.string "Ada") name;
     Locator.focus name;
     Expect.to_be_focused name;
-    ignore (Locator.select_option [ `Value "r"; `Value "g" ] (Page.locator "#colour" page));
-    Expect.to_have_values [ "r"; "g" ] (Page.locator "#colour" page);
-    Expect.to_have_css "display" ~value:"none" (Page.locator "#hidden" page);
+    ignore (Locator.select_option [ `Value "r"; `Value "g" ] (Page.locator page "#colour"));
+    Expect.to_have_values [ "r"; "g" ] (Page.locator page "#colour");
+    Expect.to_have_css "display" ~value:"none" (Page.locator page "#hidden");
     Expect.to_be_in_viewport heading;
-    Expect.to_have_title "Form" page;
-    Expect.to_have_title_regex "/^F/" page;
-    Expect.to_have_url "about:blank" page;
-    Expect.Not.to_have_url "**/other" page;
+    Expect.to_have_title page "Form";
+    Expect.to_have_title_regex page "/^F/";
+    Expect.to_have_url page "about:blank";
+    Expect.Not.to_have_url page "**/other";
     Expect.to_match_aria_snapshot
         {|
           - list:
@@ -396,12 +391,12 @@ let test_expect _ page =
             - listitem: /Banana/
             - listitem: Cherry
         |}
-        (Page.locator "ul" page)
+        (Page.locator page "ul")
 
 let test_expect_waits_and_fails t page =
-    Page.set_content {|<p id="status">loading</p><ul><li>one</li></ul>|} page;
-    ignore (Page.evaluate "setTimeout(() => { document.querySelector('#status').textContent = 'ready' }, 150)" page);
-    let status = Page.locator "#status" page in
+    Page.set_content page {|<p id="status">loading</p><ul><li>one</li></ul>|};
+    ignore (Page.evaluate page "setTimeout(() => { document.querySelector('#status').textContent = 'ready' }, 150)");
+    let status = Page.locator page "#status" in
     Expect.to_have_text "ready" status;
     let error = failure "wrong text" (fun () -> Expect.to_have_text ~timeout:200. "done" status) in
     Alcotest.check error_kind "kind" Error.Assertion_failed error.kind;
@@ -410,16 +405,16 @@ let test_expect_waits_and_fails t page =
     check_contains "call log" ~sub:"Call log:" error.message;
     let error = failure "negated" (fun () -> Expect.Not.to_be_visible ~timeout:100. status) in
     check_contains "negated expectation" ~sub:"expected not to be visible" error.message;
-    let error = failure "missing element" (fun () -> Expect.to_be_visible ~timeout:100. (Page.locator "#nowhere" page)) in
+    let error = failure "missing element" (fun () -> Expect.to_be_visible ~timeout:100. (Page.locator page "#nowhere")) in
     Alcotest.check error_kind "a missing element is an assertion failure too" Error.Assertion_failed error.kind;
-    let error = failure "count" (fun () -> Expect.to_have_count ~timeout:100. 2 (Page.locator "li" page)) in
+    let error = failure "count" (fun () -> Expect.to_have_count ~timeout:100. 2 (Page.locator page "li")) in
     check_contains "count received" ~sub:"Received: 1" error.message;
-    let error = failure "snapshot" (fun () -> Expect.to_match_aria_snapshot ~timeout:100. "- list:\n  - listitem: two" (Page.locator "ul" page)) in
+    let error = failure "snapshot" (fun () -> Expect.to_match_aria_snapshot ~timeout:100. "- list:\n  - listitem: two" (Page.locator page "ul")) in
     check_contains "snapshot received" ~sub:"- listitem: one" error.message;
     (* The default timeout is a setting. *)
-    Expect.set_default_timeout 100. t.pw;
+    Expect.set_default_timeout t.pw 100.;
     Fun.protect
-        ~finally:(fun () -> Expect.set_default_timeout 5000. t.pw)
+        ~finally:(fun () -> Expect.set_default_timeout t.pw 5000.)
         (fun () -> check_failure "default timeout" ~kind:Assertion_failed ~message:"100ms" (fun () -> Expect.to_have_text "never" status))
 
 let tests t =

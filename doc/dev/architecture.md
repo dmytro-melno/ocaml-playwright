@@ -189,7 +189,9 @@ early in the chain depends on what a later one learns, that goes through data to
 and `Network` end their waits when the page goes away by listening to `page.pe_close` and
 awaiting `page.p_gone`, which `Page` fires and resolves. What pages and frames have in
 common is written once, in the functor `Frame.Operations`, which `Page` applies to its main
-frame.
+frame. The `get_by_*` family is written once as well, in the functor `Locator.Queries`, for
+locators and frame locators; `Locator.Handle_queries` gives the same functions the order of
+arguments that pages and frames have.
 
 `objects.ml` is the factory: when the connection reports a new channel, it calls the
 `create` function of the module for its interface, which builds the record, has the events
@@ -253,24 +255,29 @@ in `types.ml`. What takes a driver and returns an object (`chromium`, `APIReques
 declared after the group, as are `Expect`, `Clock` and `Selectors`.
 
 Signatures that several modules share are stated once, before the group: `Identity`,
-`Locator_queries` (the `get_by_*` family) and `Frame_operations` (what pages and frames have
-in common). Since they come before the types that they mention, they take these as
-parameters, which the modules substitute: `include Locator_queries with type t := t and
-type locator := Locator.t`. The two long lists of options that several functions accept are
-type abbreviations, `'a with_context_options` and `'a with_launch_options`.
+`Locator_queries` (the `get_by_*` family of pages and frames, which take the object first),
+`Chained_locator_queries` (the same family of locators and frame locators, which take the
+object last) and `Frame_operations` (what pages and frames have in common). Since they come
+before the types that they mention, they take these as parameters, which the modules
+substitute: `include Locator_queries with type t := t and type locator := Locator.t`. The
+two long lists of options that several functions accept are type abbreviations,
+`'a with_context_options` and `'a with_launch_options`.
 
 OCaml wants every type and module type that an interface defines to be defined by the
 implementation too. `playwright.ml` therefore begins with a second statement of the value
-types, the two abbreviations and the three shared signatures, without their documentation;
+types, the two abbreviations and the four shared signatures, without their documentation;
 the compiler checks that they agree with the interface, the order of optional arguments
 included. A third file for both to refer to would not remove the need: the interface would
 no longer be readable on its own. `Expect.Assertions` is not restated: it is `module type
 of` what the functor in `expect.ml` returns, which is why that functor keeps its helpers in
 an `open struct`.
 
-The conventions of the interface (the object comes last, required arguments are positional,
-options are labelled, timeouts are milliseconds, events are a GADT, a registration returns
-a `Disposable.t`) are stated at the top of `playwright.mli`. A new function follows them.
+The conventions of the interface (locators and `Js` values go last and every other object
+goes first, required arguments are positional, options are labelled, timeouts are
+milliseconds, events are a GADT, a registration returns a `Disposable.t`) are stated at the
+top of `playwright.mli`. A new function follows them. A function is declared as
+`?optional -> object -> required -> result` when the object goes first: options after the
+object could not be left out of a call that has no further argument.
 
 ### Identity
 

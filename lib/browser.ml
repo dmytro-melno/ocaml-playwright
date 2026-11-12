@@ -60,10 +60,10 @@ let contexts (browser : t) = browser.contexts
 let version (browser : t) = browser.version
 let name (browser : t) = browser.b_name
 let is_connected (browser : t) = not (Closing.is_closed browser.b_close_state)
-let on event listener (browser : t) = Disposable.listener (Emitter.on (emitter browser event) listener)
-let once event listener (browser : t) = Disposable.listener (Emitter.once (emitter browser event) listener)
+let on (browser : t) event listener = Disposable.listener (Emitter.on (emitter browser event) listener)
+let once (browser : t) event listener = Disposable.listener (Emitter.once (emitter browser event) listener)
 
-let expect_event (type a) ?timeout ?predicate (event : a event) action (browser : t) : a =
+let expect_event (type a) ?timeout ?predicate (browser : t) (event : a event) action : a =
     let timeout = Timeouts.action ?timeout (Timeouts.create ()) in
     let rejections waiter =
         match event with

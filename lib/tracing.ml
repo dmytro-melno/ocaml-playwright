@@ -11,7 +11,7 @@ let start ?name ?title ?(snapshots = false) ?(screenshots = false) ?(live = fals
 
 let start_chunk ?name ?title (t : t) = ignore (Protocol.Tracing.tracing_start_chunk ?name ?title t.t_channel : string)
 
-let group ?location name (t : t) =
+let group ?location (t : t) name =
     let location =
         Option.map (fun (file, line, column, _) : Protocol.Tracing.Tracing_group_location.t -> { file; line = Some line; column = Some column }) location
     in

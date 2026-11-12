@@ -66,35 +66,35 @@ binding on top of it is a few lines. A *convenience* that is missing is missing 
 
 The conventions are in the guide, under
 [How the API maps to OCaml](guide.md#how-the-api-maps-to-ocaml): a class is a module, a
-method is a function that takes the object last, options are labelled arguments, enumerations
-are variants, events are constructors, and promises are calls that block a fiber. What the
-conventions do not tell:
+method is a function that takes the object first, or last when it is a locator, options are
+labelled arguments, enumerations are variants, events are constructors, and promises are
+calls that block a fiber. What the conventions do not tell:
 
 | Playwright | Here |
 | --- | --- |
-| `playwright.chromium`, `playwright.devices`, `playwright.request`, `playwright.selectors` | `Playwright.chromium pw`, `Playwright.device "iPhone 15" pw`, `APIRequest.new_context pw`, `Selectors.register name ~script pw`, for a driver `pw` from `Playwright.run` or `Playwright.create` |
+| `playwright.chromium`, `playwright.devices`, `playwright.request`, `playwright.selectors` | `Playwright.chromium pw`, `Playwright.device pw "iPhone 15"`, `APIRequest.new_context pw`, `Selectors.register pw name ~script`, for a driver `pw` from `Playwright.run` or `Playwright.create` |
 | A property that is an object: `page.keyboard`, `context.tracing` | A function: `Page.keyboard page`, `BrowserContext.tracing context` |
-| `page.clock.install()`, `context.clock.runFor(ms)` | `Clock.install context`, `Clock.run_for ms context` |
+| `page.clock.install()`, `context.clock.runFor(ms)` | `Clock.install context`, `Clock.run_for context ms` |
 | `x.off('event', f)`, `removeAllListeners`, `await using` | `Disposable.dispose` of what `on` returned |
 | `AbortSignal`, the option `signal` | Cancellation of the fiber: `Eio.Cancel`, `Eio.Time.with_timeout`, a switch that is turned off |
 | Comparing objects with `===` | `Page.equal`, `Frame.equal`, …; every module of objects of the browser also has `compare` and `hash`, and so goes into `Set.Make` and `Hashtbl.Make` |
 | `expect(locator).not.toBeVisible()` | `Expect.Not.to_be_visible locator` |
 | `expect(locator).toHaveText([…])`, `toContainText([…])` | `Expect.to_have_texts`, `Expect.to_contain_texts` |
 | `expect(locator).toHaveAttribute(name)` | `Expect.to_have_attribute_present name` |
-| `expect.configure({ timeout })` | `Expect.set_default_timeout ms pw` |
-| `Promise.all([page.waitForEvent('popup'), action()])`; `with page.expect_popup()` | `Page.expect_event Page.Popup action page` |
-| `page.waitForRequest(urlOrPredicate)` | `Page.expect_request ?url ?predicate action page` |
-| `page.route(url, handler)` with a regular expression or a predicate | `Page.route_matching predicate handler page`; there are no regular expressions for URLs |
-| `page.frame('name')`, `page.frame({ url })` | ``Page.frame (`Name "name") page``, ``Page.frame (`Url glob) page`` |
-| `page.addScriptTag({ url })` | ``Page.add_script_tag (`Url url) page`` |
+| `expect.configure({ timeout })` | `Expect.set_default_timeout pw ms` |
+| `Promise.all([page.waitForEvent('popup'), action()])`; `with page.expect_popup()` | `Page.expect_event page Page.Popup action` |
+| `page.waitForRequest(urlOrPredicate)` | `Page.expect_request page ?url ?predicate action` |
+| `page.route(url, handler)` with a regular expression or a predicate | `Page.route_matching page predicate handler`; there are no regular expressions for URLs |
+| `page.frame('name')`, `page.frame({ url })` | ``Page.frame page (`Name "name")``, ``Page.frame page (`Url glob)`` |
+| `page.addScriptTag({ url })` | ``Page.add_script_tag page (`Url url)`` |
 | `locator.locator(otherLocator)` | `Locator.within ~outer inner` |
 | `locator.filter({ hasText: /…/ })` | `Locator.filter ~has_text_regex:"/…/"`: a JavaScript literal in a string |
 | `locator.setInputFiles({ name, mimeType, buffer })` | `Locator.set_input_payloads` |
 | `locator.toString()` | `Locator.to_string`; the selector alone is `Locator.selector` |
-| `cdpSession.on(event, f)` | `CDPSession.on_event (fun name params -> …)`, for all events of the session |
+| `cdpSession.on(event, f)` | `CDPSession.on_event session (fun name params -> …)`, for all events of the session |
 | `context.newCDPSession(frame)` | `BrowserContext.new_cdp_session_for_frame` |
 | `request.postDataBuffer()`, `response.body()` | `Request.post_data`, `Response.body`: strings hold bytes |
-| `apiRequestContext.get(url, { data })` with an object | `APIRequestContext.get ~json url request`; `~data` is a body as it is |
+| `apiRequestContext.get(url, { data })` with an object | `APIRequestContext.get request ~json url`; `~data` is a body as it is |
 | `TimeoutError`, `TargetClosedError` | `Playwright.Error` with the `kind` `Timeout` or `Target_closed` |
 | `npx playwright install` | `ocaml-playwright install` |
 
@@ -149,7 +149,7 @@ look for; they are not a ledger of Playwright's interface.
 
 | Playwright | Instead |
 | --- | --- |
-| The `path` options that make the client read or write a file: `screenshot`, `pdf`, `storageState`, `addInitScript`, `addScriptTag`, `route.fulfill`, client certificates | The functions take and return the content: `Page.add_init_script source page`, `Page.screenshot page`. A file is one line of the program: `Eio.Path.save`, `Out_channel.with_open_bin`. |
+| The `path` options that make the client read or write a file: `screenshot`, `pdf`, `storageState`, `addInitScript`, `addScriptTag`, `route.fulfill`, client certificates | The functions take and return the content: `Page.add_init_script page source`, `Page.screenshot page`. A file is one line of the program: `Eio.Path.save`, `Out_channel.with_open_bin`. |
 | `request.postDataJSON()`, `response.text()` | `Request.post_data` and `Response.body` are strings; `Yojson.Safe.from_string` parses them. |
 | `allHeaders()`, `headerValue()`, `headerValues()` | `headers` has lower-case names and merged values, for `List.assoc_opt`; `headers_array` has the headers as they went over the network. |
 | `page.waitForEvent()`, `page.waitForRequest()`, the `expect_<event>` methods of Python | One function, `expect_event`, with the event as a value and `ignore` for no action; `Page.expect_request` and `Page.expect_response` match URLs. |
@@ -164,7 +164,7 @@ look for; they are not a ledger of Playwright's interface.
 
 | Playwright | Instead |
 | --- | --- |
-| The operations by selector of `Page` and `Frame`: `page.click(selector)`, `page.$`, `page.$eval`, `page.waitForSelector` and the like | A `Locator` does each of them: `Locator.click (Page.locator selector page)`. |
+| The operations by selector of `Page` and `Frame`: `page.click(selector)`, `page.$`, `page.$eval`, `page.waitForSelector` and the like | A `Locator` does each of them: `Locator.click (Page.locator page selector)`. |
 | The operations of `ElementHandle` | A handle can be passed to JavaScript and asked for its frames; a `Locator` acts on elements. `locator.elementHandles()` is `Locator.all`. |
 | `page.waitForNavigation()`, `page.type()`, `locator.type()` | `Page.wait_for_url`, `Locator.press_sequentially`. |
 | `context.backgroundPages()`, the event `backgroundpage` | Nothing. |
@@ -199,11 +199,11 @@ look for; they are not a ledger of Playwright's interface.
   Coverage of JavaScript, for instance:
 
   ```ocaml
-  let session = BrowserContext.new_cdp_session page context in
-  ignore (CDPSession.send "Profiler.enable" session);
-  ignore (CDPSession.send "Profiler.startPreciseCoverage" ~params:(`Assoc [ "detailed", `Bool true ]) session);
-  ignore (Page.goto "https://example.com" page);
-  let coverage = CDPSession.send "Profiler.takePreciseCoverage" session in
+  let session = BrowserContext.new_cdp_session context page in
+  ignore (CDPSession.send session "Profiler.enable");
+  ignore (CDPSession.send session "Profiler.startPreciseCoverage" ~params:(`Assoc [ "detailed", `Bool true ]));
+  ignore (Page.goto page "https://example.com");
+  let coverage = CDPSession.send session "Profiler.takePreciseCoverage" in
   CDPSession.detach session;
   coverage
   ```

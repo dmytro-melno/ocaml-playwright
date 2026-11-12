@@ -15,16 +15,15 @@ let () =
     let tracing = BrowserContext.tracing context in
     Tracing.start ~screenshots:true ~snapshots:true ~title:"Search form" tracing;
     let page = BrowserContext.new_page context in
-    Page.set_content
+    Page.set_content page
         {|<form onsubmit="event.preventDefault(); document.querySelector('output').textContent = 'No results for ' + query.value">
             <label>Search <input name="query"></label> <button>Go</button> <output></output>
-          </form>|}
-        page;
-    Tracing.group "Fill in the form" tracing;
-    Page.get_by_label "Search" page |> Locator.fill "ocaml";
-    Page.get_by_role `Button ~name:"Go" page |> Locator.click;
+          </form>|};
+    Tracing.group tracing "Fill in the form";
+    Page.get_by_label page "Search" |> Locator.fill "ocaml";
+    Page.get_by_role page `Button ~name:"Go" |> Locator.click;
     Tracing.group_end tracing;
-    Expect.to_have_text "No results for ocaml" (Page.locator "output" page);
+    Expect.to_have_text "No results for ocaml" (Page.locator page "output");
     Tracing.stop ~path:"trace.zip" tracing;
     print_endline "saved trace.zip";
     Browser.close browser

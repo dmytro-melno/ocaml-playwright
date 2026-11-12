@@ -16,10 +16,11 @@ adapted; [doc/migration.md](doc/migration.md) says how.
   official Playwright libraries. It binds what the driver can do, not every convenience
   of those libraries; [doc/scope.md](doc/scope.md) states the rule, and lists what behaves
   differently and what is left out.
-- Conventions that hold throughout: the object is the last argument, so that calls can be
-  piped; required arguments are positional; everything optional is a labelled optional
-  argument; timeouts are in milliseconds; choices are polymorphic variants; collections are
-  lists.
+- Conventions that hold throughout: a page, a context, a browser or any other object is
+  the first argument, as in `Page.goto page url`, except for locators and `Js` values, which
+  are the last one, so that calls can be piped; required arguments are positional and in
+  Playwright's order; everything optional is a labelled optional argument; timeouts are in
+  milliseconds; choices are polymorphic variants; collections are lists.
 - The types of objects are abstract (`Page.t`, `Locator.t`, `Request.t`, ...), and what
   lives in the browser has `equal`, `compare` and `hash`.
 - `Playwright.run ~env f` starts the driver for the duration of a function.
@@ -28,7 +29,7 @@ adapted; [doc/migration.md](doc/migration.md) says how.
   `Target_closed`, `Assertion_failed`, `Other`), the message, the call log of the driver
   and the stack of a JavaScript error. Misuse that needs no browser to detect raises
   `Invalid_argument`.
-- Events are typed: `Page.on Page.Console (fun message -> ...) page`. There are `once`
+- Events are typed: `Page.on page Page.Console (fun message -> ...)`. There are `once`
   and `expect_event`, which runs an action and returns the event that it causes without a
   race, and `expect_request` and `expect_response`, which select by URL.
 - Whatever is registered (a listener, a route, an init script, an exposed function) returns

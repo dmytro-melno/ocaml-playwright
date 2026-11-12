@@ -55,14 +55,14 @@ let create session (channel : Protocol.Worker.t) : t =
 
 let url (worker : t) = worker.w_url
 
-let evaluate ?(arg = Js.Undefined) expression (worker : t) =
+let evaluate ?(arg = Js.Undefined) (worker : t) expression =
     Protocol.Worker.evaluate_expression ~expression ~arg:(Js.to_argument arg) worker.w_channel |> Js.of_wire
 
-let evaluate_handle ?(arg = Js.Undefined) expression (worker : t) =
+let evaluate_handle ?(arg = Js.Undefined) (worker : t) expression =
     Protocol.Worker.evaluate_expression_handle ~expression ~arg:(Js.to_argument arg) worker.w_channel |> Types.js_handle
 
-let on event listener (worker : t) = Disposable.listener (Emitter.on (emitter worker event) listener)
-let once event listener (worker : t) = Disposable.listener (Emitter.once (emitter worker event) listener)
+let on (worker : t) event listener = Disposable.listener (Emitter.on (emitter worker event) listener)
+let once (worker : t) event listener = Disposable.listener (Emitter.once (emitter worker event) listener)
 
 let timeouts (worker : t) =
     match worker.w_page, worker.w_context with
@@ -70,7 +70,7 @@ let timeouts (worker : t) =
     | None, Some context -> context.c_timeouts
     | None, None -> Timeouts.create ()
 
-let expect_event (type a) ?timeout ?predicate (event : a event) action (worker : t) : a =
+let expect_event (type a) ?timeout ?predicate (worker : t) (event : a event) action : a =
     let timeout = Timeouts.action ?timeout (timeouts worker) in
     let rejections waiter =
         match event with

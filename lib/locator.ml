@@ -53,14 +53,17 @@ let make ?has_text ?has_text_regex ?has_not_text ?has_not_text_regex ?has ?has_n
     in
     { l_frame = frame; selector = Selector.join (selector :: filters) }
 
-(* The ways of finding elements that pages, frames, locators and frame locators all offer. *)
-module Queries (T : sig
+(* The ways of finding elements that pages, frames, locators and frame locators all offer.  A locator and a frame
+   locator are the last argument of these functions, as of all their functions; a page and a frame are the first:
+   see [Handle_queries]. *)
+module type Searchable = sig
     type t
 
     val session : t -> session
     val find : t -> string -> locator
-end) =
-struct
+end
+
+module Queries (T : Searchable) = struct
     let get_by_text ?exact text t = T.find t (Selector.by_text ?exact (Text text))
     let get_by_text_regex regex t = T.find t (Selector.by_text (Regex regex))
     let get_by_label ?exact text t = T.find t (Selector.by_label ?exact (Text text))
@@ -86,6 +89,29 @@ struct
         T.find t
             (Selector.by_role ?checked ?disabled ?selected ?expanded ?include_hidden ?level ?name:(text "name" name name_regex)
                  ?description:(text "description" description description_regex) ?exact ?pressed (role_name role))
+end
+
+(* The same functions for a page and a frame. *)
+module Handle_queries (T : Searchable) = struct
+    module Q = Queries (T)
+
+    let get_by_text ?exact t text = Q.get_by_text ?exact text t
+    let get_by_text_regex t regex = Q.get_by_text_regex regex t
+    let get_by_label ?exact t text = Q.get_by_label ?exact text t
+    let get_by_label_regex t regex = Q.get_by_label_regex regex t
+    let get_by_placeholder ?exact t text = Q.get_by_placeholder ?exact text t
+    let get_by_placeholder_regex t regex = Q.get_by_placeholder_regex regex t
+    let get_by_alt_text ?exact t text = Q.get_by_alt_text ?exact text t
+    let get_by_alt_text_regex t regex = Q.get_by_alt_text_regex regex t
+    let get_by_title ?exact t text = Q.get_by_title ?exact text t
+    let get_by_title_regex t regex = Q.get_by_title_regex regex t
+    let get_by_test_id t id = Q.get_by_test_id id t
+    let get_by_test_id_regex t regex = Q.get_by_test_id_regex regex t
+
+    let get_by_role ?checked ?disabled ?selected ?expanded ?include_hidden ?level ?name ?name_regex ?description ?description_regex ?exact
+        ?pressed t role =
+        Q.get_by_role ?checked ?disabled ?selected ?expanded ?include_hidden ?level ?name ?name_regex ?description ?description_regex ?exact
+            ?pressed role t
 end
 
 let locator ?has_text ?has_text_regex ?has_not_text ?has_not_text_regex ?has ?has_not selector (parent : t) =
@@ -295,8 +321,8 @@ let with_element ?timeout (l : t) f =
             let remaining = if timeout > 0. then Float.max 1. (timeout -. ((Eio.Time.now clock -. started) *. 1000.)) else 0. in
             f handle (element_channel handle) remaining)
 
-let evaluate ?timeout ?arg expression (l : t) = with_element ?timeout l (fun handle _ _ -> Js_handle.evaluate ?arg expression handle)
-let evaluate_handle ?timeout ?arg expression (l : t) = with_element ?timeout l (fun handle _ _ -> Js_handle.evaluate_handle ?arg expression handle)
+let evaluate ?timeout ?arg expression (l : t) = with_element ?timeout l (fun handle _ _ -> Js_handle.evaluate handle ?arg expression)
+let evaluate_handle ?timeout ?arg expression (l : t) = with_element ?timeout l (fun handle _ _ -> Js_handle.evaluate_handle handle ?arg expression)
 let bounding_box ?timeout (l : t) = with_element ?timeout l (fun _ element _ -> Protocol.Element_handle.bounding_box element)
 
 let scroll_into_view_if_needed ?timeout (l : t) =

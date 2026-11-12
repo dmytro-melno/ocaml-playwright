@@ -34,9 +34,12 @@ type launch_options = {
     slow_mo : float option;
 }
 
-let collect_launch_options k ?channel ?executable_path ?args ?ignore_all_default_args ?ignore_default_args ?handle_sigint ?handle_sigterm
-    ?handle_sighup ?timeout ?env ?headless ?(proxy : Context_options.Proxy.t option) ?downloads_path ?traces_dir ?artifacts_dir ?chromium_sandbox
-    ?(firefox_user_prefs : (string * Yojson.Safe.t) list option) ?slow_mo target =
+(* Gathers the options and hands them to [k], which takes the arguments that follow them: the browser type, and for
+   a persistent context the options of a context before it.  That is why no positional argument ends the list here,
+   which the compiler would otherwise ask for. *)
+let[@warning "-unerasable-optional-argument"] collect_launch_options k ?channel ?executable_path ?args ?ignore_all_default_args
+    ?ignore_default_args ?handle_sigint ?handle_sigterm ?handle_sighup ?timeout ?env ?headless ?(proxy : Context_options.Proxy.t option)
+    ?downloads_path ?traces_dir ?artifacts_dir ?chromium_sandbox ?(firefox_user_prefs : (string * Yojson.Safe.t) list option) ?slow_mo =
     let options =
         { channel; executable_path; args; ignore_all_default_args; ignore_default_args; handle_sigint; handle_sigterm; handle_sighup;
           timeout = Timeouts.launch ?timeout ();
@@ -51,7 +54,7 @@ let collect_launch_options k ?channel ?executable_path ?args ?ignore_all_default
           firefox_user_prefs = Option.map (fun prefs -> `Assoc prefs) firefox_user_prefs;
           slow_mo }
     in
-    k options target
+    k options
 
 let adopt (t : t) (browser : browser) = Browser.adopt t browser
 
@@ -70,8 +73,8 @@ let launch =
 
 (* Launches a browser that keeps its profile in [user_data_dir] and returns its only context. *)
 let launch_persistent_context =
-    collect_launch_options (fun o user_data_dir ->
-        Context_options.collect (fun (c : Context_options.t) (t : t) ->
+    collect_launch_options (fun o ->
+        Context_options.collect (fun (c : Context_options.t) (t : t) user_data_dir ->
             if c.storage_state <> None then invalid_arg "Playwright: a persistent context takes its storage state from the user data directory";
             let selector_engines, test_id_attribute_name = Browser.selector_options t.bt_session in
             let user_data_dir = if user_data_dir = "" then user_data_dir else Files.absolute user_data_dir in
@@ -98,7 +101,7 @@ let launch_persistent_context =
             context))
 
 (* Attaches to a running browser through the Chrome DevTools Protocol. *)
-let connect_over_cdp ?timeout ?headers ?slow_mo ?is_local ?no_defaults ?artifacts_dir endpoint_url (t : t) =
+let connect_over_cdp ?timeout ?headers ?slow_mo ?is_local ?no_defaults ?artifacts_dir (t : t) endpoint_url =
     if t.bt_name <> "chromium" && t.bt_name <> "webkit" then Error.raise_ "Connecting over CDP is only supported in Chromium and WebKit.";
     let result =
         Protocol.Browser_type.connect_over_cdp ~timeout:(Timeouts.action ?timeout (Timeouts.create ())) ~endpoint_url

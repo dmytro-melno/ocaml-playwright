@@ -19,10 +19,10 @@ let () =
             ~finally:(fun () -> BrowserContext.close context)
             (fun () ->
                 let page = BrowserContext.new_page context in
-                match Page.goto ~timeout:20_000. url page with
+                match Page.goto page ~timeout:20_000. url with
                 | response ->
                     let status = Option.fold ~none:"-" ~some:(fun r -> string_of_int (Response.status r)) response in
-                    Printf.sprintf "%s %-28s %s (%d links)" status url (Page.title page) (Page.locator "a" page |> Locator.count)
+                    Printf.sprintf "%s %-28s %s (%d links)" status url (Page.title page) (Page.locator page "a" |> Locator.count)
                 | exception Playwright.Error error -> Printf.sprintf "ERR %-28s %s" url (List.hd (String.split_on_char '\n' error.message)))
     in
     (* At most four pages are loading at any time. *)

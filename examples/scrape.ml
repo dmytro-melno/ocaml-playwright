@@ -21,10 +21,10 @@ let () =
     Playwright.run ~env @@ fun pw ->
     let browser = BrowserType.launch ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") (chromium pw) in
     let page = BrowserContext.new_page (Browser.new_context browser) in
-    Page.set_content shop page;
+    Page.set_content page shop;
     (* One locator per product, and locators relative to it for the parts. *)
     let products =
-        Page.locator ".product" page |> Locator.all
+        Page.locator page ".product" |> Locator.all
         |> List.map (fun item ->
                { name = Locator.get_by_role `Link item |> Locator.inner_text;
                  price = Locator.locator ".price" item |> Locator.inner_text |> float_of_string;
@@ -33,10 +33,10 @@ let () =
     List.iter (fun p -> Printf.printf "%-8s %6.2f %s\n" p.name p.price (if p.available then "" else "(sold out)")) products;
     (* The same question answered by the page itself.  The result arrives as a [Js.t]. *)
     let total =
-        Page.evaluate "[...document.querySelectorAll('.price')].reduce((sum, e) => sum + Number(e.textContent), 0)" page |> Js.to_float
+        Page.evaluate page "[...document.querySelectorAll('.price')].reduce((sum, e) => sum + Number(e.textContent), 0)" |> Js.to_float
     in
     Printf.printf "total    %6.2f\n" total;
     (* Locators can be narrowed down by what they contain. *)
-    let sold_out = Page.locator ".product" page |> Locator.filter ~has:(Page.get_by_role `Button ~disabled:true page) in
+    let sold_out = Page.locator page ".product" |> Locator.filter ~has:(Page.get_by_role page `Button ~disabled:true) in
     Printf.printf "sold out: %s\n" (Locator.get_by_role `Link sold_out |> Locator.inner_text);
     Browser.close browser

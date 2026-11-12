@@ -165,11 +165,11 @@ let wait_for_load_state ?timeout ?(state = `Load) (frame : t) =
         end
         else Waiter.next waiter (fun reached -> if reached = state then Some () else None))
 
-let wait_for_url_matching ?timeout ?wait_until matches (frame : t) =
+let wait_for_url_matching ?timeout ?wait_until (frame : t) matches =
     if matches frame.f_url then wait_for_load_state ?timeout ?state:wait_until frame
     else wait_for_navigation ?timeout ?wait_until ~matches frame
 
-let wait_for_url ?timeout ?wait_until glob (frame : t) = wait_for_url_matching ?timeout ?wait_until (url_matcher frame glob) frame
+let wait_for_url ?timeout ?wait_until (frame : t) glob = wait_for_url_matching frame ?timeout ?wait_until (url_matcher frame glob)
 
 (* {1 Assertions} *)
 
@@ -208,30 +208,30 @@ module Operations (T : sig
     val frame : t -> frame
 end) =
 struct
-    let goto ?timeout ?(wait_until = `Load) ?referer url t =
+    let goto ?timeout ?(wait_until = `Load) ?referer t url =
         let frame = T.frame t in
         Protocol.Frame.goto ~timeout:(navigation_timeout ?timeout frame) ~url ~wait_until ?referer frame.f_channel
         |> Option.map Types.response
 
-    let set_content ?timeout ?(wait_until = `Load) html t =
+    let set_content ?timeout ?(wait_until = `Load) t html =
         let frame = T.frame t in
         Protocol.Frame.set_content ~timeout:(navigation_timeout ?timeout frame) ~html ~wait_until frame.f_channel
 
     let content ?include_shadow t = Protocol.Frame.content ?include_shadow (T.frame t).f_channel
     let title t = Protocol.Frame.title (T.frame t).f_channel
     let wait_for_load_state ?timeout ?state t = wait_for_load_state ?timeout ?state (T.frame t)
-    let wait_for_url ?timeout ?wait_until glob t = wait_for_url ?timeout ?wait_until glob (T.frame t)
-    let wait_for_url_matching ?timeout ?wait_until matches t = wait_for_url_matching ?timeout ?wait_until matches (T.frame t)
+    let wait_for_url ?timeout ?wait_until t glob = wait_for_url (T.frame t) ?timeout ?wait_until glob
+    let wait_for_url_matching ?timeout ?wait_until t matches = wait_for_url_matching (T.frame t) ?timeout ?wait_until matches
 
     (* {2 JavaScript} *)
 
-    let evaluate ?(arg = Js.Undefined) expression t =
+    let evaluate ?(arg = Js.Undefined) t expression =
         Protocol.Frame.evaluate_expression ~expression ~arg:(Js.to_argument arg) (T.frame t).f_channel |> Js.of_wire
 
-    let evaluate_handle ?(arg = Js.Undefined) expression t =
+    let evaluate_handle ?(arg = Js.Undefined) t expression =
         Protocol.Frame.evaluate_expression_handle ~expression ~arg:(Js.to_argument arg) (T.frame t).f_channel |> Types.js_handle
 
-    let wait_for_function ?timeout ?polling ?(arg = Js.Undefined) expression t =
+    let wait_for_function ?timeout ?polling ?(arg = Js.Undefined) t expression =
         let frame = T.frame t in
         match
             Protocol.Frame.wait_for_function ~timeout:(action_timeout ?timeout frame) ~expression ~arg:(Js.to_argument arg)
@@ -244,11 +244,11 @@ struct
         | `Url url -> Some url, None
         | `Content content -> None, Some content
 
-    let add_script_tag ?type_ source t =
+    let add_script_tag ?type_ t source =
         let url, content = tag_source source in
         Protocol.Frame.add_script_tag ?url ?content ?type_ (T.frame t).f_channel |> Types.element
 
-    let add_style_tag source t =
+    let add_style_tag t source =
         let url, content = tag_source source in
         Protocol.Frame.add_style_tag ?url ?content (T.frame t).f_channel |> Types.element
 

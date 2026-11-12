@@ -17,9 +17,9 @@ let () =
     Playwright.run ~env @@ fun pw ->
     let browser = BrowserType.launch (chromium pw) in
     let page = BrowserContext.new_page (Browser.new_context browser) in
-    ignore (Page.goto "https://playwright.dev" page);
-    Page.get_by_role `Link ~name:"Get started" page |> Locator.click;
-    Expect.to_be_visible (Page.get_by_role `Heading ~name:"Installation" page);
+    ignore (Page.goto page "https://playwright.dev");
+    Page.get_by_role page `Link ~name:"Get started" |> Locator.click;
+    Expect.to_be_visible (Page.get_by_role page `Heading ~name:"Installation");
     print_endline (Page.title page);
     Browser.close browser
 ```
@@ -76,40 +76,40 @@ Elements are found with locators, the way a user would describe them. Actions wa
 element is there and ready, so there is no need for sleeps:
 
 ```ocaml
-Page.get_by_label "Email" page |> Locator.fill "ada@example.com";
-Page.get_by_role `Button ~name:"Sign in" page |> Locator.click;
-Page.locator "ul.results > li" page |> Locator.filter ~has_text:"OCaml" |> Locator.first |> Locator.click
+Page.get_by_label page "Email" |> Locator.fill "ada@example.com";
+Page.get_by_role page `Button ~name:"Sign in" |> Locator.click;
+Page.locator page "ul.results > li" |> Locator.filter ~has_text:"OCaml" |> Locator.first |> Locator.click
 ```
 
 Assertions retry until they hold, and explain themselves when they give up:
 
 ```ocaml
-Expect.to_have_title "Dashboard" page;
-Expect.to_have_text "3 items" (Page.get_by_test_id "cart-count" page);
-Expect.Not.to_be_visible (Page.get_by_role `Progressbar page)
+Expect.to_have_title page "Dashboard";
+Expect.to_have_text "3 items" (Page.get_by_test_id page "cart-count");
+Expect.Not.to_be_visible (Page.get_by_role page `Progressbar)
 ```
 
 JavaScript runs in the page and its values come back typed:
 
 ```ocaml
-let width = Page.evaluate "window.innerWidth" page |> Js.to_int in
-let sum = Page.evaluate "([a, b]) => a + b" ~arg:(Js.list Js.int [ 1; 2 ]) page |> Js.to_int in
+let width = Page.evaluate page "window.innerWidth" |> Js.to_int in
+let sum = Page.evaluate page "([a, b]) => a + b" ~arg:(Js.list Js.int [ 1; 2 ]) |> Js.to_int in
 Printf.printf "%d %d\n" width sum
 ```
 
 Requests can be observed, changed, answered or refused:
 
 ```ocaml
-Page.route "**/api/user" (Route.fulfill ~json:(`Assoc [ "name", `String "Ada" ])) page |> ignore;
-Page.route "**/*.{png,jpg}" Route.abort page |> ignore;
-Page.on Page.Response (fun response -> Printf.printf "%d %s\n" (Response.status response) (Response.url response)) page
+Page.route page "**/api/user" (Route.fulfill ~json:(`Assoc [ "name", `String "Ada" ])) |> ignore;
+Page.route page "**/*.{png,jpg}" Route.abort |> ignore;
+Page.on page Page.Response (fun response -> Printf.printf "%d %s\n" (Response.status response) (Response.url response))
 ```
 
 Events that an action causes are awaited around the action, so that they cannot be missed:
 
 ```ocaml
-let download = Page.expect_event Page.Download (fun () -> Page.get_by_text "Export" page |> Locator.click) page in
-Download.save_as "export.csv" download
+let download = Page.expect_event page Page.Download (fun () -> Page.get_by_text page "Export" |> Locator.click) in
+Download.save_as download "export.csv"
 ```
 
 Every call blocks its fiber only, so several pages are driven concurrently with plain Eio:
@@ -118,7 +118,7 @@ Every call blocks its fiber only, so several pages are driven concurrently with 
 let title url =
     let page = BrowserContext.new_page context in
     Fun.protect ~finally:(fun () -> Page.close page) (fun () ->
-        ignore (Page.goto url page);
+        ignore (Page.goto page url);
         Page.title page)
 in
 Eio.Fiber.List.map title [ "https://ocaml.org"; "https://playwright.dev" ]

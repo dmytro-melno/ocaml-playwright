@@ -149,6 +149,6 @@ let check_failure what ?kind ?message f =
     Option.iter (fun kind -> Alcotest.check error_kind (what ^ ": kind") kind error.kind) kind;
     Option.iter (fun sub -> check_contains (what ^ ": message") ~sub error.message) message
 
-let eval_string expression page = Page.evaluate expression page |> Js.to_string
-let eval_int expression page = Page.evaluate expression page |> Js.to_int
-let eval_bool expression page = Page.evaluate expression page |> Js.to_bool
+let eval_string expression page = Page.evaluate page expression |> Js.to_string
+let eval_int expression page = Page.evaluate page expression |> Js.to_int
+let eval_bool expression page = Page.evaluate page expression |> Js.to_bool

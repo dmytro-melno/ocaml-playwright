@@ -123,6 +123,27 @@ module type Locator_queries = sig
 
     val get_by_role :
         ?checked:bool -> ?disabled:bool -> ?selected:bool -> ?expanded:bool -> ?include_hidden:bool -> ?level:int -> ?name:string ->
+        ?name_regex:string -> ?description:string -> ?description_regex:string -> ?exact:bool -> ?pressed:bool -> t -> aria_role -> locator
+    val get_by_text : ?exact:bool -> t -> string -> locator
+    val get_by_text_regex : t -> string -> locator
+    val get_by_label : ?exact:bool -> t -> string -> locator
+    val get_by_label_regex : t -> string -> locator
+    val get_by_placeholder : ?exact:bool -> t -> string -> locator
+    val get_by_placeholder_regex : t -> string -> locator
+    val get_by_alt_text : ?exact:bool -> t -> string -> locator
+    val get_by_alt_text_regex : t -> string -> locator
+    val get_by_title : ?exact:bool -> t -> string -> locator
+    val get_by_title_regex : t -> string -> locator
+    val get_by_test_id : t -> string -> locator
+    val get_by_test_id_regex : t -> string -> locator
+end
+
+module type Chained_locator_queries = sig
+    type t
+    type locator
+
+    val get_by_role :
+        ?checked:bool -> ?disabled:bool -> ?selected:bool -> ?expanded:bool -> ?include_hidden:bool -> ?level:int -> ?name:string ->
         ?name_regex:string -> ?description:string -> ?description_regex:string -> ?exact:bool -> ?pressed:bool -> aria_role -> t -> locator
     val get_by_text : ?exact:bool -> string -> t -> locator
     val get_by_text_regex : string -> t -> locator
@@ -145,18 +166,18 @@ module type Frame_operations = sig
     type element_handle
     type response
 
-    val goto : ?timeout:float -> ?wait_until:lifecycle_event -> ?referer:string -> string -> t -> response option
-    val set_content : ?timeout:float -> ?wait_until:lifecycle_event -> string -> t -> unit
+    val goto : ?timeout:float -> ?wait_until:lifecycle_event -> ?referer:string -> t -> string -> response option
+    val set_content : ?timeout:float -> ?wait_until:lifecycle_event -> t -> string -> unit
     val content : ?include_shadow:bool -> t -> string
     val title : t -> string
     val wait_for_load_state : ?timeout:float -> ?state:lifecycle_event -> t -> unit
-    val wait_for_url : ?timeout:float -> ?wait_until:lifecycle_event -> string -> t -> unit
-    val wait_for_url_matching : ?timeout:float -> ?wait_until:lifecycle_event -> (string -> bool) -> t -> unit
-    val evaluate : ?arg:js_value -> string -> t -> js_value
-    val evaluate_handle : ?arg:js_value -> string -> t -> js_handle
-    val wait_for_function : ?timeout:float -> ?polling:float -> ?arg:js_value -> string -> t -> js_handle
-    val add_script_tag : ?type_:string -> [ `Content of string | `Url of string ] -> t -> element_handle
-    val add_style_tag : [ `Content of string | `Url of string ] -> t -> element_handle
+    val wait_for_url : ?timeout:float -> ?wait_until:lifecycle_event -> t -> string -> unit
+    val wait_for_url_matching : ?timeout:float -> ?wait_until:lifecycle_event -> t -> (string -> bool) -> unit
+    val evaluate : ?arg:js_value -> t -> string -> js_value
+    val evaluate_handle : ?arg:js_value -> t -> string -> js_handle
+    val wait_for_function : ?timeout:float -> ?polling:float -> ?arg:js_value -> t -> string -> js_handle
+    val add_script_tag : ?type_:string -> t -> [ `Content of string | `Url of string ] -> element_handle
+    val add_style_tag : t -> [ `Content of string | `Url of string ] -> element_handle
 end
 
 (* {1 Objects} *)
@@ -172,24 +193,24 @@ module BrowserContext = struct
     type binding_source = { context : Types.browser_context; page : Types.page; frame : Types.frame }
 
     let binding f : Types.binding = fun source args -> f { context = source.bs_context; page = source.bs_page; frame = source.bs_frame } args
-    let expose_binding name f context = Browser_context.expose_binding name (binding f) context
+    let expose_binding context name f = Browser_context.expose_binding context name (binding f)
     let new_cdp_session = new_cdp_session_for_page
 end
 
 module Frame = struct
     include Frame
 
-    include Locator.Queries (struct
+    include Locator.Handle_queries (struct
         type t = Types.frame
 
         let session (frame : t) = frame.f_session
         let find (frame : t) selector = Locator.make frame selector
     end)
 
-    let locator ?has_text ?has_text_regex ?has_not_text ?has_not_text_regex ?has ?has_not selector (frame : t) =
+    let locator ?has_text ?has_text_regex ?has_not_text ?has_not_text_regex ?has ?has_not (frame : t) selector =
         Locator.make ?has_text ?has_text_regex ?has_not_text ?has_not_text_regex ?has ?has_not frame selector
 
-    let frame_locator selector (frame : t) : Types.frame_locator = { fl_frame = frame; frame_selector = selector }
+    let frame_locator (frame : t) selector : Types.frame_locator = { fl_frame = frame; frame_selector = selector }
 end
 
 module Page = struct
@@ -199,7 +220,7 @@ module Page = struct
     let mouse (page : t) : Mouse.t = page
     let touchscreen (page : t) : Touchscreen.t = page
     let request (page : t) = Browser_context.request (context page)
-    let expose_binding name f page = Page.expose_binding name (BrowserContext.binding f) page
+    let expose_binding page name f = Page.expose_binding page name (BrowserContext.binding f)
 end
 
 module Locator = Locator
@@ -211,7 +232,7 @@ module Expect = struct
 
     include Expect
 
-    let set_default_timeout timeout (t : t) = set_default_timeout timeout t.session
+    let set_default_timeout (t : t) timeout = set_default_timeout t.session timeout
 end
 
 module JSHandle = Js_handle
@@ -280,16 +301,16 @@ module APIRequestContext = struct
         'a
 
     let fetch ?method_ ?timeout ?headers ?params ?data ?json ?form ?multipart ?fail_on_status_code ?ignore_https_errors ?max_redirects
-        ?max_retries url t =
-        Api_request.Context.fetch ?timeout ?method_ ?headers ?params ?data ?json ?form ?multipart ?fail_on_status_code ?ignore_https_errors
-            ?max_redirects ?max_retries url t
+        ?max_retries t url =
+        Api_request.Context.fetch t ?timeout ?method_ ?headers ?params ?data ?json ?form ?multipart ?fail_on_status_code ?ignore_https_errors
+            ?max_redirects ?max_retries url
 end
 
 module CDPSession = Cdp_session
 
 module Selectors = struct
-    let register ?content_script name ~script (t : t) = Misc.Selectors.register ?content_script name script t.session
-    let set_test_id_attribute name (t : t) = Misc.Selectors.set_test_id_attribute name t.session
+    let register ?content_script (t : t) name ~script = Misc.Selectors.register ?content_script t.session name ~script
+    let set_test_id_attribute (t : t) name = Misc.Selectors.set_test_id_attribute t.session name
 end
 
 (* {1 The driver session} *)
@@ -302,7 +323,7 @@ let chromium (t : t) = t.chromium
 let firefox (t : t) = t.firefox
 let webkit (t : t) = t.webkit
 let devices (t : t) = t.session.devices
-let device name (t : t) = List.find_opt (fun (device : Device.t) -> device.device_name = name) t.session.devices
+let device (t : t) name = List.find_opt (fun (device : Device.t) -> device.device_name = name) t.session.devices
 
 module APIRequest = struct
     let new_context = Api_request.new_context

@@ -22,7 +22,7 @@ let () =
     let device =
         Option.map
             (fun name ->
-                match Playwright.device name pw with
+                match Playwright.device pw name with
                 | Some device -> device
                 | None ->
                     Printf.eprintf "unknown device %S; some that exist:\n" name;
@@ -33,7 +33,7 @@ let () =
     let browser = BrowserType.launch ?executable_path:(Sys.getenv_opt "CHROMIUM_PATH") (chromium pw) in
     let context = match device with Some device -> Browser.new_context ~device browser | None -> Browser.new_context ~viewport:(1280, 800) browser in
     let page = BrowserContext.new_page context in
-    (match Page.goto ~wait_until:`Networkidle url page with
+    (match Page.goto page ~wait_until:`Networkidle url with
     | Some response -> Printf.printf "%d %s\n" (Response.status response) (Page.url page)
     | None -> ());
     let image = Page.screenshot ~full_page:true ?type_ page in

@@ -68,7 +68,7 @@ let () =
     Playwright.run ~env @@ fun pw ->
     let browser = BrowserType.launch (chromium pw) in
     let page = BrowserContext.new_page (Browser.new_context browser) in
-    ignore (Page.goto "https://example.com" page);
+    ignore (Page.goto page "https://example.com");
     print_endline (Page.title page);
     Eio.Path.(save ~create:(`Or_truncate 0o644) (Eio.Stdenv.cwd env / "example.png") (Page.screenshot page));
     Browser.close browser
@@ -89,14 +89,22 @@ leaves out, and where it behaves differently, is in [scope.md](scope.md). The ru
 - **Classes are modules.** `Page`, `Locator`, `BrowserContext`, `Request` and so on; a method
   `page.waitForURL` is a function `Page.wait_for_url`. Names that are OCaml keywords get a
   trailing underscore: `Keyboard.type_`, `Request.method_`.
-- **The object comes last**, required arguments come before it, and everything optional is a
-  labelled optional argument. Where two required arguments of the same type follow each other, a
-  label tells them apart: `WebStorage.set_item "theme" ~value:"dark" storage`, `Mouse.move ~x:10. ~y:20. mouse`.
-  Having the object last makes calls compose with `|>`:
+- **Locators and `Js` values go last, everything else goes first.** A page, a context, a
+  browser or any other object is the first argument, where Playwright has it:
+  `page.goto(url)` is `Page.goto page url`. A locator is the last argument, and so is a
+  `Js.t`, because these are the values that calls are chained on with `|>`:
 
   ```ocaml
-  Page.get_by_role `Listitem page |> Locator.filter ~has_text:"Milk" |> Locator.get_by_role `Button ~name:"Remove" |> Locator.click
+  Page.get_by_role page `Listitem |> Locator.filter ~has_text:"Milk" |> Locator.get_by_role `Button ~name:"Remove" |> Locator.click
   ```
+
+  An assertion has the order of what it is about: `Expect.to_have_title page "Cart"`, but
+  `Expect.to_have_text "3 items" locator`.
+- **Required arguments are positional** and keep Playwright's order. Everything optional is
+  a labelled optional argument, and a labelled argument may be written anywhere in a call:
+  `Page.goto page ~timeout:5000. url`. Where two required arguments of the same type follow
+  each other, a label tells them apart: `WebStorage.set_item storage "theme" ~value:"dark"`,
+  `Mouse.move mouse ~x:10. ~y:20.`.
 
 - **Calls block** the calling fiber until the browser has answered. There are no promises;
   [concurrency](#concurrency) is a matter of Eio fibers.
@@ -107,22 +115,22 @@ leaves out, and where it behaves differently, is in [scope.md](scope.md). The ru
   [Errors, timeouts and cancellation](#errors-timeouts-and-cancellation).
 - **Regular expressions** are JavaScript's, since it is the browser that applies them. They
   are written as JavaScript literals in a string and go to the functions and arguments named
-  `..._regex`: `Page.get_by_text_regex "/^total: \\d+$/i" page`.
+  `..._regex`: `Page.get_by_text_regex page "/^total: \\d+$/i"`.
 - **URL patterns** are [glob patterns](https://playwright.dev/docs/network#glob-url-patterns)
   such as `"**/api/*"`: `*` stands for any characters except `/`, `**` for any characters,
   `{a,b}` for either of two, and a backslash makes the next character literal. A pattern has to
   match the whole URL. Where Playwright also accepts a regular expression or a predicate, there
   is a second function named `..._matching` which takes an OCaml predicate:
-  `Page.wait_for_url_matching (String.ends_with ~suffix:"/done") page`.
+  `Page.wait_for_url_matching page (String.ends_with ~suffix:"/done")`.
 - **JavaScript values** are of type `Js.t`, see [JavaScript](#javascript). Where plain JSON
   is all that can occur, as in the body of a response, it is `Yojson.Safe.t`. `evaluate`
   takes JavaScript source, not a function of the host language.
 - **Events** are constructors of a GADT that determines the type of what the event carries:
-  `Page.on Page.Console (fun message -> ...) page`. See [Events](#events).
+  `Page.on page Page.Console (fun message -> ...)`. See [Events](#events).
 - **Registrations return a `Disposable.t`.** Whatever is set up for later, be it an event
   listener, a route, an init script or an exposed function, returns a value that takes it back:
   `Disposable.dispose`. Most registrations last as long as their page, and the value is
-  ignored: `Page.on Page.Console print page |> ignore`.
+  ignored: `Page.on page Page.Console print |> ignore`.
 - **Objects have identity**: `equal`, `compare` and `hash`, see [Identity](#identity).
 - **Files are the program's business.** The library takes and returns content: a screenshot
   or a PDF is a string of bytes, the state of a context a JSON value, a script or a
@@ -212,7 +220,7 @@ browser, from `Browser` and `Page` to `Request`, `JSHandle` and `Locator`, have 
 ```ocaml
 let module Pages = Set.Make (Page) in
 let seen = ref Pages.empty in
-BrowserContext.on BrowserContext.Page (fun page -> seen := Pages.add page !seen) context |> ignore;
+BrowserContext.on context BrowserContext.Page (fun page -> seen := Pages.add page !seen) |> ignore;
 let page = BrowserContext.new_page context in
 assert (Page.equal page (List.hd (BrowserContext.pages context)));
 assert (Frame.equal (Page.main_frame page) (List.hd (Page.frames page)))
@@ -224,11 +232,11 @@ look into the internals of the library, and may raise or never return.
 ## Navigation
 
 ```ocaml
-let response = Page.goto "https://example.com/login" page in
+let response = Page.goto page "https://example.com/login" in
 Option.iter (fun response -> assert (Response.ok response)) response;
 ignore (Page.reload page);
 ignore (Page.go_back page);
-Page.wait_for_url "**/dashboard" page
+Page.wait_for_url page "**/dashboard"
 ```
 
 `Page.goto` returns when the page has fired its `load` event; `~wait_until` selects another
@@ -244,14 +252,14 @@ patterns:
 ```ocaml
 let context = Browser.new_context ~base_url:"http://localhost:8080" browser in
 let page = BrowserContext.new_page context in
-ignore (Page.goto "/settings" page)
+ignore (Page.goto page "/settings")
 ```
 
 There is seldom a reason to wait for a navigation explicitly, because the actions and
 assertions that follow wait for what they need. When there is one, there are
 `Page.wait_for_url` and `Page.wait_for_load_state`.
 
-`Page.set_content html page` loads a document from a string, which is handy in tests.
+`Page.set_content page html` loads a document from a string, which is handy in tests.
 
 ## Locators
 
@@ -264,34 +272,34 @@ depth.
 The recommended locators find elements the way people and assistive technology do:
 
 ```ocaml
-[ Page.get_by_role `Button ~name:"Submit" page;
-  Page.get_by_role `Heading ~level:1 page;
-  Page.get_by_role `Checkbox ~checked:true page;
-  Page.get_by_label "Password" page;
-  Page.get_by_placeholder "Search..." page;
-  Page.get_by_text "Welcome back" page;
-  Page.get_by_text ~exact:true "Log in" page;
-  Page.get_by_alt_text "Company logo" page;
-  Page.get_by_title "Close" page;
-  Page.get_by_test_id "checkout" page ]
+[ Page.get_by_role page `Button ~name:"Submit";
+  Page.get_by_role page `Heading ~level:1;
+  Page.get_by_role page `Checkbox ~checked:true;
+  Page.get_by_label page "Password";
+  Page.get_by_placeholder page "Search...";
+  Page.get_by_text page "Welcome back";
+  Page.get_by_text page ~exact:true "Log in";
+  Page.get_by_alt_text page "Company logo";
+  Page.get_by_title page "Close";
+  Page.get_by_test_id page "checkout" ]
 ```
 
 Text is matched case-insensitively and as a substring unless `~exact:true` is given. Each of
 these has a variant that takes a regular expression, and `get_by_role` has `~name_regex`:
 
 ```ocaml
-[ Page.get_by_text_regex "/^\\d+ results?$/" page; Page.get_by_role `Link ~name_regex:"/sign (in|up)/i" page ]
+[ Page.get_by_text_regex page "/^\\d+ results?$/"; Page.get_by_role page `Link ~name_regex:"/sign (in|up)/i" ]
 ```
 
 `Page.locator` takes a [CSS or XPath selector](https://playwright.dev/docs/other-locators),
 or any other selector that Playwright understands:
 
 ```ocaml
-[ Page.locator "form#login input[type=submit]" page; Page.locator "xpath=//table//tr[2]" page ]
+[ Page.locator page "form#login input[type=submit]"; Page.locator page "xpath=//table//tr[2]" ]
 ```
 
 `get_by_test_id` looks at the attribute `data-testid`;
-`Selectors.set_test_id_attribute "data-test" pw` makes it use another one.
+`Selectors.set_test_id_attribute pw "data-test"` makes it use another one.
 
 ### Narrowing down
 
@@ -300,10 +308,10 @@ the locator. Together with `Locator.filter` and the functions that pick by posit
 gives precise descriptions without brittle selectors:
 
 ```ocaml
-let row = Page.get_by_role `Row page |> Locator.filter ~has_text:"Ada Lovelace" in
-let with_button = Page.get_by_role `Listitem page |> Locator.filter ~has:(Page.get_by_role `Button ~name:"Buy" page) in
-let second = Page.get_by_role `Listitem page |> Locator.nth 1 in
-let either = Locator.or_ (Page.get_by_text "Accept" page) (Page.get_by_text "Agree" page) in
+let row = Page.get_by_role page `Row |> Locator.filter ~has_text:"Ada Lovelace" in
+let with_button = Page.get_by_role page `Listitem |> Locator.filter ~has:(Page.get_by_role page `Button ~name:"Buy") in
+let second = Page.get_by_role page `Listitem |> Locator.nth 1 in
+let either = Locator.or_ (Page.get_by_text page "Accept") (Page.get_by_text page "Agree") in
 Locator.get_by_role `Button ~name:"Edit" row |> Locator.click;
 ignore (with_button, second, either)
 ```
@@ -326,7 +334,7 @@ let snapshot = Page.aria_snapshot ~mode:`Ai page in
      - textbox "Name" [ref=e4]
      - button "Submit" [ref=e5] *)
 print_string snapshot;
-let button = Page.get_by_ref "e5" page in
+let button = Page.get_by_ref page "e5" in
 Locator.click button;
 print_endline (Locator.normalize button |> Locator.selector)
 (* internal:role=button[name="Submit"i] *)
@@ -347,7 +355,7 @@ lists what matched. Make the locator more specific, or say which element is mean
 Operations on all elements have no such restriction:
 
 ```ocaml
-let items = Page.get_by_role `Listitem page in
+let items = Page.get_by_role page `Listitem in
 Printf.printf "%d items: %s\n" (Locator.count items) (String.concat ", " (Locator.all_inner_texts items));
 List.iter (fun item -> print_endline (Locator.inner_text item)) (Locator.all items)
 ```
@@ -361,13 +369,13 @@ needed. If the element does not get there within the timeout, the action fails w
 that says what it was waiting for.
 
 ```ocaml
-Page.get_by_label "Name" page |> Locator.fill "Ada";
-Page.get_by_label "Subscribe" page |> Locator.check;
-Page.get_by_label "Colour" page |> Locator.select_option [ `Label "Blue" ] |> ignore;
-Page.get_by_label "Photo" page |> Locator.set_input_files [ "photo.jpg" ];
-Page.get_by_role `Textbox ~name:"Comment" page |> Locator.press_sequentially ~delay:50. "typed key by key";
-Page.get_by_role `Textbox ~name:"Comment" page |> Locator.press "Control+A";
-Page.get_by_role `Button ~name:"Send" page |> Locator.click
+Page.get_by_label page "Name" |> Locator.fill "Ada";
+Page.get_by_label page "Subscribe" |> Locator.check;
+Page.get_by_label page "Colour" |> Locator.select_option [ `Label "Blue" ] |> ignore;
+Page.get_by_label page "Photo" |> Locator.set_input_files [ "photo.jpg" ];
+Page.get_by_role page `Textbox ~name:"Comment" |> Locator.press_sequentially ~delay:50. "typed key by key";
+Page.get_by_role page `Textbox ~name:"Comment" |> Locator.press "Control+A";
+Page.get_by_role page `Button ~name:"Send" |> Locator.click
 ```
 
 | Function | What it does |
@@ -392,7 +400,7 @@ the page is.
 Lower-level input goes through the keyboard, mouse and touchscreen of the page:
 
 ```ocaml
-Keyboard.press "Escape" (Page.keyboard page);
+Keyboard.press (Page.keyboard page) "Escape";
 Mouse.move ~x:100. ~y:200. (Page.mouse page);
 Mouse.wheel ~delta_x:0. ~delta_y:500. (Page.mouse page)
 ```
@@ -400,11 +408,11 @@ Mouse.wheel ~delta_x:0. ~delta_y:500. (Page.mouse page)
 ### Reading from the page
 
 ```ocaml
-let heading = Page.get_by_role `Heading page |> Locator.first in
+let heading = Page.get_by_role page `Heading |> Locator.first in
 let text = Locator.inner_text heading in
-let link = Page.get_by_role `Link ~name:"Docs" page |> Locator.get_attribute "href" in
-let value = Page.get_by_label "Name" page |> Locator.input_value in
-let visible = Page.get_by_text "Error" page |> Locator.is_visible in
+let link = Page.get_by_role page `Link ~name:"Docs" |> Locator.get_attribute "href" in
+let value = Page.get_by_label page "Name" |> Locator.input_value in
+let visible = Page.get_by_text page "Error" |> Locator.is_visible in
 (text, link, value, visible)
 ```
 
@@ -423,26 +431,26 @@ until it holds or a timeout, 5 seconds by default, has passed. They return `()` 
 This removes the main cause of flaky tests, a check that runs a moment too early.
 
 ```ocaml
-Expect.to_be_visible (Page.get_by_role `Alert page);
-Expect.to_have_text "Saved" (Page.get_by_role `Status page);
-Expect.to_contain_text "3 results" (Page.locator "#summary" page);
-Expect.to_have_count 3 (Page.get_by_role `Listitem page);
-Expect.to_have_texts [ "One"; "Two"; "Three" ] (Page.get_by_role `Listitem page);
-Expect.to_have_value "Ada" (Page.get_by_label "Name" page);
-Expect.to_be_checked (Page.get_by_label "Subscribe" page);
-Expect.to_have_attribute "href" ~value:"/docs" (Page.get_by_role `Link ~name:"Docs" page);
-Expect.to_have_url "https://example.com/dashboard" page;
-Expect.to_have_title_regex "/dashboard/i" page
+Expect.to_be_visible (Page.get_by_role page `Alert);
+Expect.to_have_text "Saved" (Page.get_by_role page `Status);
+Expect.to_contain_text "3 results" (Page.locator page "#summary");
+Expect.to_have_count 3 (Page.get_by_role page `Listitem);
+Expect.to_have_texts [ "One"; "Two"; "Three" ] (Page.get_by_role page `Listitem);
+Expect.to_have_value "Ada" (Page.get_by_label page "Name");
+Expect.to_be_checked (Page.get_by_label page "Subscribe");
+Expect.to_have_attribute "href" ~value:"/docs" (Page.get_by_role page `Link ~name:"Docs");
+Expect.to_have_url page "https://example.com/dashboard";
+Expect.to_have_title_regex page "/dashboard/i"
 ```
 
 Each assertion has its negation in `Expect.Not`:
 
 ```ocaml
-Expect.Not.to_be_visible (Page.get_by_text "Loading" page);
-Expect.Not.to_have_class "disabled" (Page.get_by_role `Button ~name:"Send" page)
+Expect.Not.to_be_visible (Page.get_by_text page "Loading");
+Expect.Not.to_have_class "disabled" (Page.get_by_role page `Button ~name:"Send")
 ```
 
-`~timeout` changes the time allowed for one assertion, and `Expect.set_default_timeout 10_000. pw`
+`~timeout` changes the time allowed for one assertion, and `Expect.set_default_timeout pw 10_000.`
 that of all assertions about the pages of a driver. An assertion that fails raises `Playwright.Error` with the kind
 `Assertion_failed` and a message like this one:
 
@@ -471,12 +479,12 @@ if the expression is a function, the function is called, with `~arg` if that is 
 Promises are awaited.
 
 ```ocaml
-let title = Page.evaluate "document.title" page |> Js.to_string in
-let links = Page.evaluate "() => [...document.links].map(link => link.href)" page |> Js.to_list Js.to_string in
+let title = Page.evaluate page "document.title" |> Js.to_string in
+let links = Page.evaluate page "() => [...document.links].map(link => link.href)" |> Js.to_list Js.to_string in
 let area =
-    Page.evaluate "({ width, height }) => width * height" ~arg:(Js.obj [ "width", Js.int 3; "height", Js.int 4 ]) page |> Js.to_int
+    Page.evaluate page "({ width, height }) => width * height" ~arg:(Js.obj [ "width", Js.int 3; "height", Js.int 4 ]) |> Js.to_int
 in
-let status = Page.evaluate "fetch('/health').then(response => response.status)" page |> Js.to_int in
+let status = Page.evaluate page "fetch('/health').then(response => response.status)" |> Js.to_int in
 (title, links, area, status)
 ```
 
@@ -498,8 +506,8 @@ The same function exists for locators, where the function receives the element, 
 frames, workers and handles:
 
 ```ocaml
-let id = Page.get_by_role `Row page |> Locator.first |> Locator.evaluate "row => row.dataset.id" |> Js.to_string in
-let widths = Page.locator "td" page |> Locator.evaluate_all "cells => cells.map(cell => cell.offsetWidth)" |> Js.to_list Js.to_float in
+let id = Page.get_by_role page `Row |> Locator.first |> Locator.evaluate "row => row.dataset.id" |> Js.to_string in
+let widths = Page.locator page "td" |> Locator.evaluate_all "cells => cells.map(cell => cell.offsetWidth)" |> Js.to_list Js.to_float in
 (id, widths)
 ```
 
@@ -511,8 +519,8 @@ the page, so dispose of them when they are no longer needed. They are rarely nec
 locators do the same job for elements, without the bookkeeping.
 
 ```ocaml
-let map = Page.evaluate_handle "new Map([['answer', 42]])" page in
-let answer = Page.evaluate "map => map.get('answer')" ~arg:(Js.Handle map) page |> Js.to_int in
+let map = Page.evaluate_handle page "new Map([['answer', 42]])" in
+let answer = Page.evaluate page "map => map.get('answer')" ~arg:(Js.Handle map) |> Js.to_int in
 JSHandle.dispose map;
 answer
 ```
@@ -523,8 +531,8 @@ answer
 page it returns a promise.
 
 ```ocaml
-Page.expose_function "sha256" (function [ Js.String text ] -> Js.string (Digest.to_hex (Digest.string text)) | _ -> Js.null) page |> ignore;
-Page.evaluate "sha256('hello')" page |> Js.to_string
+Page.expose_function page "sha256" (function [ Js.String text ] -> Js.string (Digest.to_hex (Digest.string text)) | _ -> Js.null) |> ignore;
+Page.evaluate page "sha256('hello')" |> Js.to_string
 ```
 
 `Page.add_init_script` runs JavaScript in every document of the page before the page's own
@@ -537,10 +545,10 @@ Pages, contexts, WebSockets and workers emit events. A listener is registered wi
 with `once` for the next occurrence only:
 
 ```ocaml
-Page.on Page.Console (fun message -> Printf.printf "console.%s: %s\n" (ConsoleMessage.type_ message) (ConsoleMessage.text message)) page |> ignore;
-Page.on Page.Page_error (fun (error : Error.t) -> prerr_endline ("uncaught: " ^ error.message)) page |> ignore;
-Page.on Page.Request_failed (fun request -> prerr_endline ("failed: " ^ Request.url request)) page |> ignore;
-Page.once Page.Close (fun _ -> print_endline "the page was closed") page |> ignore
+Page.on page Page.Console (fun message -> Printf.printf "console.%s: %s\n" (ConsoleMessage.type_ message) (ConsoleMessage.text message)) |> ignore;
+Page.on page Page.Page_error (fun (error : Error.t) -> prerr_endline ("uncaught: " ^ error.message)) |> ignore;
+Page.on page Page.Request_failed (fun request -> prerr_endline ("failed: " ^ Request.url request)) |> ignore;
+Page.once page Page.Close (fun _ -> print_endline "the page was closed") |> ignore
 ```
 
 The event determines the type of the listener's argument: `Page.Console` carries a console
@@ -553,8 +561,8 @@ navigation in any frame. A browser has two events: `Browser.Context` for a new c
 `Browser.Disconnected` for its end.
 
 ```ocaml
-BrowserContext.on BrowserContext.Frame_navigated (fun frame -> print_endline ("now at " ^ Frame.url frame)) context |> ignore;
-BrowserContext.on BrowserContext.Page_close (fun page -> print_endline ("closed " ^ Page.url page)) context |> ignore
+BrowserContext.on context BrowserContext.Frame_navigated (fun frame -> print_endline ("now at " ^ Frame.url frame)) |> ignore;
+BrowserContext.on context BrowserContext.Page_close (fun page -> print_endline ("closed " ^ Page.url page)) |> ignore
 ```
 
 `Page.on` returns a `Disposable.t`. Most listeners stay for as long as their page, and what
@@ -562,8 +570,8 @@ they return is ignored. To remove one, keep it and dispose of it. A listener tha
 removed is not called again, not even for events that had arrived already.
 
 ```ocaml
-let logging = Page.on Page.Request (fun request -> print_endline (Request.url request)) page in
-ignore (Page.goto "https://example.com" page);
+let logging = Page.on page Page.Request (fun request -> print_endline (Request.url request)) in
+ignore (Page.goto page "https://example.com");
 Disposable.dispose logging
 ```
 
@@ -604,14 +612,14 @@ event. Waiting only after the action would be a race, since the event may have h
 by then.
 
 ```ocaml
-let popup = Page.expect_event Page.Popup (fun () -> Page.get_by_text "Open in a new tab" page |> Locator.click) page in
+let popup = Page.expect_event page Page.Popup (fun () -> Page.get_by_text page "Open in a new tab" |> Locator.click) in
 Page.wait_for_load_state popup;
 print_endline (Page.title popup);
 
-let request = Page.expect_request ~url:"**/api/save" (fun () -> Page.get_by_role `Button ~name:"Save" page |> Locator.click) page in
+let request = Page.expect_request page ~url:"**/api/save" (fun () -> Page.get_by_role page `Button ~name:"Save" |> Locator.click) in
 print_endline (Option.value (Request.post_data request) ~default:"");
 
-let response = Page.expect_response ~url:"**/api/items" ~predicate:Response.ok (fun () -> ignore (Page.reload page)) page in
+let response = Page.expect_response page ~url:"**/api/items" ~predicate:Response.ok (fun () -> ignore (Page.reload page)) in
 Response.json response
 ```
 
@@ -632,27 +640,26 @@ While there is no listener for `Page.Dialog`, they are dismissed automatically. 
 them otherwise:
 
 ```ocaml
-Page.on Page.Dialog
+Page.on page Page.Dialog
     (fun dialog ->
         Printf.printf "%s: %s\n" (Dialog.type_ dialog) (Dialog.message dialog);
         Dialog.accept ~prompt_text:"yes" dialog)
-    page
 |> ignore
 ```
 
 ### Downloads and uploads
 
 ```ocaml
-let download = Page.expect_event Page.Download (fun () -> Page.get_by_role `Link ~name:"Invoice" page |> Locator.click) page in
-Download.save_as ("downloads/" ^ Download.suggested_filename download) download;
+let download = Page.expect_event page Page.Download (fun () -> Page.get_by_role page `Link ~name:"Invoice" |> Locator.click) in
+Download.save_as download ("downloads/" ^ Download.suggested_filename download);
 
 (* An upload through the file input itself... *)
-Page.get_by_label "Attachment" page |> Locator.set_input_files [ "report.pdf" ];
+Page.get_by_label page "Attachment" |> Locator.set_input_files [ "report.pdf" ];
 (* ...from memory... *)
-Page.get_by_label "Attachment" page |> Locator.set_input_payloads [ { name = "notes.txt"; mime_type = Some "text/plain"; buffer = "hello" } ];
+Page.get_by_label page "Attachment" |> Locator.set_input_payloads [ { name = "notes.txt"; mime_type = Some "text/plain"; buffer = "hello" } ];
 (* ...or through the file chooser that a button opens. *)
-let chooser = Page.expect_event Page.File_chooser (fun () -> Page.get_by_role `Button ~name:"Upload" page |> Locator.click) page in
-FileChooser.set_files [ "report.pdf" ] chooser
+let chooser = Page.expect_event page Page.File_chooser (fun () -> Page.get_by_role page `Button ~name:"Upload" |> Locator.click) in
+FileChooser.set_files chooser [ "report.pdf" ]
 ```
 
 ### Looking back
@@ -670,11 +677,10 @@ Requests and responses are events (`Page.Request`, `Page.Response`, `Page.Reques
 methods, headers, bodies and timing:
 
 ```ocaml
-Page.on Page.Response
+Page.on page Page.Response
     (fun response ->
         let request = Response.request response in
         Printf.printf "%s %s -> %d\n" (Request.method_ request) (Request.url request) (Response.status response))
-    page
 |> ignore
 ```
 
@@ -686,26 +692,24 @@ context.
 
 ```ocaml
 (* Answer without asking the server. *)
-Page.route "**/api/profile" (Route.fulfill ~json:(`Assoc [ "name", `String "Ada" ])) page |> ignore;
+Page.route page "**/api/profile" (Route.fulfill ~json:(`Assoc [ "name", `String "Ada" ])) |> ignore;
 
 (* Refuse. *)
-Page.route "**/*.{png,jpg,jpeg,webp}" Route.abort page |> ignore;
+Page.route page "**/*.{png,jpg,jpeg,webp}" Route.abort |> ignore;
 
 (* Let the request through, with a change. *)
-Page.route "**/api/**"
+Page.route page "**/api/**"
     (fun route ->
         let headers = ("x-test", "1") :: Request.headers (Route.request route) in
         Route.continue ~headers route)
-    page
 |> ignore;
 
 (* Get the real response and change it on its way to the page. *)
-Page.route "**/api/items"
+Page.route page "**/api/items"
     (fun route ->
         let response = Route.fetch route in
         let items = match APIResponse.json response with `List items -> items | _ -> [] in
         Route.fulfill ~response ~json:(`List (List.filteri (fun index _ -> index < 3) items)) route)
-    page
 |> ignore
 ```
 
@@ -723,8 +727,8 @@ a predicate on the URL instead of a pattern. `Page.route` returns a `Disposable.
 disposing of it removes that handler; `Page.unroute_all` removes them all:
 
 ```ocaml
-let offline = Page.route "**/api/**" Route.abort page in
-Page.get_by_role `Button ~name:"Retry" page |> Locator.click;
+let offline = Page.route page "**/api/**" Route.abort in
+Page.get_by_role page `Button ~name:"Retry" |> Locator.click;
 Disposable.dispose offline
 ```
 
@@ -745,12 +749,10 @@ show their frames. `Page.route_web_socket` intercepts connections: the handler t
 server, or sits between the page and the real server.
 
 ```ocaml
-Page.route_web_socket "wss://chat.example/socket"
+Page.route_web_socket page "wss://chat.example/socket"
     (fun socket ->
-        WebSocketRoute.on_message
-            (function Text "ping" -> WebSocketRoute.send (Text "pong") socket | _ -> ())
-            socket)
-    page
+        WebSocketRoute.on_message socket
+            (function Text "ping" -> WebSocketRoute.send socket (Text "pong") | _ -> ()))
 |> ignore
 ```
 
@@ -767,13 +769,13 @@ its cookies, so it is logged in whenever the pages are, and the other way round.
 
 ```ocaml
 let api = BrowserContext.request context in
-let response = APIRequestContext.post "https://example.com/api/items" ~json:(`Assoc [ "title", `String "New" ]) api in
+let response = APIRequestContext.post api "https://example.com/api/items" ~json:(`Assoc [ "title", `String "New" ]) in
 Expect.to_be_ok response;
 let id = APIResponse.json response |> Yojson.Safe.Util.member "id" in
 
 (* A context that is independent of any browser. *)
 let standalone = APIRequest.new_context ~base_url:"https://example.com" ~extra_http_headers:[ "authorization", "Bearer token" ] pw in
-let items = APIRequestContext.get "/api/items" ~params:[ "page", "2" ] standalone |> APIResponse.json in
+let items = APIRequestContext.get standalone "/api/items" ~params:[ "page", "2" ] |> APIResponse.json in
 APIRequestContext.dispose standalone;
 (id, items)
 ```
@@ -796,7 +798,7 @@ A whole device is emulated with one of Playwright's device descriptors, which se
 viewport, user agent, pixel density and touch support together:
 
 ```ocaml
-let phone = Option.get (Playwright.device "iPhone 15" pw) in
+let phone = Option.get (Playwright.device pw "iPhone 15") in
 let context = Browser.new_context ~device:phone ~locale:"en-GB" browser in
 BrowserContext.new_page context
 ```
@@ -818,14 +820,14 @@ Browser.new_context ~client_certificates:[ certificate ] browser
 ### Cookies and storage
 
 ```ocaml
-BrowserContext.add_cookies [ Cookie.make ~url:"https://example.com" "session" ~value:"abc123" ] context;
+BrowserContext.add_cookies context [ Cookie.make ~url:"https://example.com" "session" ~value:"abc123" ];
 let cookies = BrowserContext.cookies ~urls:[ "https://example.com" ] context in
 List.iter (fun (cookie : Cookie.t) -> Printf.printf "%s=%s\n" cookie.name cookie.value) cookies;
 BrowserContext.clear_cookies ~name:"session" context;
 
 let storage = Page.local_storage page in
-WebStorage.set_item "theme" ~value:"dark" storage;
-WebStorage.get_item "theme" storage
+WebStorage.set_item storage "theme" ~value:"dark";
+WebStorage.get_item storage "theme"
 ```
 
 ### Logging in once
@@ -837,11 +839,11 @@ which then start out logged in. This is the usual way to keep the login out of e
 (* Once: *)
 let context = Browser.new_context browser in
 let page = BrowserContext.new_page context in
-ignore (Page.goto "https://example.com/login" page);
-Page.get_by_label "User" page |> Locator.fill "ada";
-Page.get_by_label "Password" page |> Locator.fill "secret";
-Page.get_by_role `Button ~name:"Log in" page |> Locator.click;
-Page.wait_for_url "**/home" page;
+ignore (Page.goto page "https://example.com/login");
+Page.get_by_label page "User" |> Locator.fill "ada";
+Page.get_by_label page "Password" |> Locator.fill "secret";
+Page.get_by_role page `Button ~name:"Log in" |> Locator.click;
+Page.wait_for_url page "**/home";
 Yojson.Safe.to_file "auth.json" (BrowserContext.storage_state context);
 BrowserContext.close context;
 
@@ -856,9 +858,9 @@ animations that take minutes can be tested in an instant:
 
 ```ocaml
 Clock.install ~time:1_700_000_000_000. context;
-ignore (Page.goto "https://example.com/session" page);
-Clock.fast_forward (30. *. 60_000.) context;
-Expect.to_be_visible (Page.get_by_text "Your session has expired" page)
+ignore (Page.goto page "https://example.com/session");
+Clock.fast_forward context (30. *. 60_000.);
+Expect.to_be_visible (Page.get_by_text page "Your session has expired")
 ```
 
 ## Frames
@@ -867,7 +869,7 @@ Elements inside an `<iframe>` are reached with a frame locator, which works like
 for the frame and gives access to the locators within it:
 
 ```ocaml
-let payment = Page.frame_locator "iframe[title='Payment']" page in
+let payment = Page.frame_locator page "iframe[title='Payment']" in
 FrameLocator.get_by_label "Card number" payment |> Locator.fill "4242 4242 4242 4242";
 FrameLocator.get_by_role `Button ~name:"Pay" payment |> Locator.click
 ```
@@ -882,7 +884,7 @@ locators, evaluation.
 let save name bytes = Eio.Path.(save ~create:(`Or_truncate 0o644) (Eio.Stdenv.cwd env / name) bytes) in
 save "page.png" (Page.screenshot ~full_page:true page);
 save "detail.jpg" (Page.screenshot ~type_:`Jpeg ~quality:80 ~clip:{ x = 0.; y = 0.; width = 400.; height = 300. } page);
-save "table.png" (Page.get_by_role `Table page |> Locator.screenshot ~animations:`Disabled);
+save "table.png" (Page.get_by_role page `Table |> Locator.screenshot ~animations:`Disabled);
 save "page.pdf" (Page.pdf ~format:"A4" ~print_background:true page)
 ```
 
@@ -896,7 +898,7 @@ is complete when the page has been closed:
 ```ocaml
 let context = Browser.new_context ~record_video_dir:"videos" ~record_video_size:(1280, 720) browser in
 let page = BrowserContext.new_page context in
-ignore (Page.goto "https://example.com" page);
+ignore (Page.goto page "https://example.com");
 BrowserContext.close context;
 Option.map Video.path (Page.video page)
 ```
@@ -912,8 +914,8 @@ console output. It is the best tool for finding out why a test failed on another
 ```ocaml
 let tracing = BrowserContext.tracing context in
 Tracing.start ~screenshots:true ~snapshots:true tracing;
-ignore (Page.goto "https://example.com" page);
-Page.get_by_role `Link page |> Locator.first |> Locator.click;
+ignore (Page.goto page "https://example.com");
+Page.get_by_role page `Link |> Locator.first |> Locator.click;
 Tracing.stop ~path:"trace.zip" tracing
 ```
 
@@ -934,7 +936,7 @@ let check url =
         ~finally:(fun () -> BrowserContext.close context)
         (fun () ->
             let page = BrowserContext.new_page context in
-            let response = Page.goto url page in
+            let response = Page.goto page url in
             url, Option.map Response.status response)
 in
 Eio.Fiber.List.map ~max_fibers:4 check [ "https://ocaml.org"; "https://example.com"; "https://playwright.dev" ]
@@ -970,7 +972,7 @@ Every failure is reported as the exception `Playwright.Error` with a record of t
 | `log` | the steps that the browser took, one per item |
 
 ```ocaml
-match Page.get_by_role `Button ~name:"Accept cookies" page |> Locator.click ~timeout:2_000. with
+match Page.get_by_role page `Button ~name:"Accept cookies" |> Locator.click ~timeout:2_000. with
 | () -> ()
 | exception Playwright.Error { kind = Timeout; _ } -> (* No cookie banner this time. *) ()
 ```
@@ -1000,8 +1002,8 @@ a whole sequence of operations:
 ```ocaml
 match
     Eio.Time.with_timeout env#clock 10. (fun () ->
-        ignore (Page.goto "https://example.com" page);
-        Page.get_by_role `Link page |> Locator.first |> Locator.click;
+        ignore (Page.goto page "https://example.com");
+        Page.get_by_role page `Link |> Locator.first |> Locator.click;
         Ok (Page.title page))
 with
 | Ok title -> print_endline title
@@ -1024,9 +1026,9 @@ profile directory that outlives it, and returns the browser's single context. It
 options of both `launch` and `new_context`:
 
 ```ocaml
-let context = BrowserType.launch_persistent_context ~headless:false "/home/ada/.cache/my-profile" (chromium pw) in
+let context = BrowserType.launch_persistent_context (chromium pw) ~headless:false "/home/ada/.cache/my-profile" in
 let page = match BrowserContext.pages context with page :: _ -> page | [] -> BrowserContext.new_page context in
-ignore (Page.goto "https://example.com" page);
+ignore (Page.goto page "https://example.com");
 BrowserContext.close context
 ```
 
@@ -1034,7 +1036,7 @@ BrowserContext.close context
 that was started with `--remote-debugging-port`, including its open tabs:
 
 ```ocaml
-let browser = BrowserType.connect_over_cdp "http://localhost:9222" (chromium pw) in
+let browser = BrowserType.connect_over_cdp (chromium pw) "http://localhost:9222" in
 let pages = List.concat_map BrowserContext.pages (Browser.contexts browser) in
 List.iter (fun page -> print_endline (Page.url page)) pages
 ```
@@ -1047,8 +1049,8 @@ For Chromium there is also direct access to the
 things that Playwright has no function for:
 
 ```ocaml
-let session = BrowserContext.new_cdp_session page context in
-let metrics = CDPSession.send "Performance.getMetrics" session in
+let session = BrowserContext.new_cdp_session context page in
+let metrics = CDPSession.send session "Performance.getMetrics" in
 CDPSession.detach session;
 metrics
 ```
@@ -1101,7 +1103,7 @@ system libraries of that browser: `ocaml-playwright install --with-deps chromium
   `Page.aria_snapshot` (the accessibility tree as text, which shows what `get_by_role` sees)
   tell what the page looked like. `Locator.highlight` marks the elements of a locator in a
   headed browser.
-- **Read the browser's console.** `Page.on Page.Console` and `Page.on Page.Page_error`.
+- **Read the browser's console.** `Page.on page Page.Console` and `Page.on page Page.Page_error`.
 - **Protocol log.** `DEBUG=pw:channel` in the environment prints every message exchanged with
   the driver to standard error. `DEBUG=pw:api` and `DEBUG=pw:browser*` make the driver itself
   talkative.

@@ -27,7 +27,7 @@ let test_closing t () =
     let context = Browser.new_context t.browser in
     let page = BrowserContext.new_page context in
     let closes = ref 0 in
-    BrowserContext.on Close (fun _ -> incr closes) context |> ignore;
+    BrowserContext.on context Close (fun _ -> incr closes) |> ignore;
     cancelled (fun () -> BrowserContext.close context);
     Alcotest.(check bool) "closing" true (BrowserContext.is_closed context);
     BrowserContext.close context;
@@ -46,13 +46,13 @@ let test_closing t () =
     (* What a context holds goes the same way. *)
     let request = BrowserContext.request context in
     Server.page t.server "/blank" "<title>Blank</title>";
-    let response = APIRequestContext.get (Server.url t.server "/blank") request in
+    let response = APIRequestContext.get request (Server.url t.server "/blank") in
     cancelled (fun () -> APIResponse.dispose response);
     eventually t "a response is disposed of" (fun () ->
         match APIResponse.body response with _ -> false | exception Playwright.Error _ -> true);
-    let session = BrowserContext.new_cdp_session (BrowserContext.new_page context) context in
+    let session = BrowserContext.new_cdp_session context (BrowserContext.new_page context) in
     let detached = ref false in
-    CDPSession.on_close (fun _ -> detached := true) session |> ignore;
+    CDPSession.on_close session (fun _ -> detached := true) |> ignore;
     cancelled (fun () -> CDPSession.detach session);
     eventually t "a session is detached" (fun () -> !detached);
     BrowserContext.close context;
@@ -66,21 +66,21 @@ let test_closing t () =
 
 (* A time limit of Eio around an operation ends as a time limit. *)
 let test_time_limits t page =
-    Page.set_content "<button>Press</button>" page;
-    let button = Page.locator "button" page in
+    Page.set_content page "<button>Press</button>";
+    let button = Page.locator page "button" in
     let limited what f =
         match Eio.Time.with_timeout (clock t) 0.1 (fun () -> Ok (f ())) with
         | Error `Timeout -> ()
         | Ok _ -> Alcotest.failf "%s: should have taken forever" what
     in
     limited "a script that does not return" (fun () -> ignore (Locator.evaluate "() => new Promise(() => {})" button));
-    limited "an element that does not appear" (fun () -> ignore (Locator.evaluate "element => element.id" (Page.locator "#never" page)));
-    limited "a function that stays false" (fun () -> ignore (Page.wait_for_function "() => false" page));
-    limited "a navigation that does not happen" (fun () -> Page.wait_for_url "**/never" page);
+    limited "an element that does not appear" (fun () -> ignore (Locator.evaluate "element => element.id" (Page.locator page "#never")));
+    limited "a function that stays false" (fun () -> ignore (Page.wait_for_function page "() => false"));
+    limited "a navigation that does not happen" (fun () -> Page.wait_for_url page "**/never");
     Server.route t.server "/stalled" (fun _ -> Server.respond ~complete:false "the beginning");
-    limited "a document that does not end" (fun () -> ignore (Page.goto (Server.url t.server "/stalled") page));
-    ignore (Page.goto (Server.url t.server "/blank") page);
-    Page.set_content "<button>Press</button>" page;
+    limited "a document that does not end" (fun () -> ignore (Page.goto page (Server.url t.server "/stalled")));
+    ignore (Page.goto page (Server.url t.server "/blank"));
+    Page.set_content page "<button>Press</button>";
     Alcotest.(check string) "the page is as usable as before" "Press" (Locator.inner_text button)
 
 (* What a cancelled command made in the browser before the cancellation got there is given
@@ -112,8 +112,8 @@ let test_failures t () =
     check_failure "stopping a trace of a closed context" ~kind:Target_closed (fun () -> Tracing.stop ~path:(scratch_file t "late.zip") tracing);
     let context = Browser.new_context t.browser in
     let page = BrowserContext.new_page context in
-    Page.set_content "<button>Press</button>" page;
-    let button = Page.locator "button" page in
+    Page.set_content page "<button>Press</button>";
+    let button = Page.locator page "button" in
     check_failure "a script that fails" ~message:"no way" (fun () -> ignore (Locator.evaluate "() => { throw new Error('no way') }" button));
     BrowserContext.close context;
     check_failure "an element of a closed page" ~kind:Target_closed (fun () -> ignore (Locator.evaluate "element => element.id" button))

@@ -92,9 +92,9 @@ started, with any client.
 
 ```ocaml skip
 let test_fills_the_form page =
-    Page.set_content {|<label>Name <input></label>|} page;
-    Page.get_by_label "Name" page |> Locator.fill "Ada";
-    Expect.to_have_value "Ada" (Page.get_by_label "Name" page)
+    Page.set_content page {|<label>Name <input></label>|};
+    Page.get_by_label page "Name" |> Locator.fill "Ada";
+    Expect.to_have_value "Ada" (Page.get_by_label page "Name")
 
 let tests t = [ page_case t "fills the form" test_fills_the_form ]
 ```

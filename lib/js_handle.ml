@@ -15,13 +15,13 @@ let create session (channel : Protocol.Js_handle.t) : t =
     Protocol.Js_handle.listen channel (handle_event handle);
     handle
 
-let evaluate ?(arg = Js.Undefined) expression (handle : t) =
+let evaluate ?(arg = Js.Undefined) (handle : t) expression =
     Protocol.Js_handle.evaluate_expression ~expression ~arg:(Js.to_argument arg) handle.h_channel |> Js.of_wire
 
-let evaluate_handle ?(arg = Js.Undefined) expression (handle : t) =
+let evaluate_handle ?(arg = Js.Undefined) (handle : t) expression =
     Protocol.Js_handle.evaluate_expression_handle ~expression ~arg:(Js.to_argument arg) handle.h_channel |> Types.js_handle
 
-let get_property name (handle : t) = Protocol.Js_handle.get_property ~name handle.h_channel |> Types.js_handle
+let get_property (handle : t) name = Protocol.Js_handle.get_property ~name handle.h_channel |> Types.js_handle
 
 let get_properties (handle : t) =
     Protocol.Js_handle.get_property_list handle.h_channel

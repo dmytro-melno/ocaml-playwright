@@ -34,7 +34,7 @@ module Download = struct
     (* Waits for the download to finish and returns where the browser stored it. *)
     let path (d : t) = Artifact.path_after_finished d.dl_artifact
 
-    let save_as path (d : t) = Artifact.save_as d.dl_artifact path
+    let save_as (d : t) path = Artifact.save_as d.dl_artifact path
     let failure (d : t) = Artifact.failure d.dl_artifact
     let cancel (d : t) = Artifact.cancel d.dl_artifact
     let delete (d : t) = Artifact.delete d.dl_artifact
@@ -62,8 +62,8 @@ module File_chooser = struct
         Protocol.Element_handle.set_input_files ~timeout:(Timeouts.action ?timeout c.fc_page.p_timeouts) ?payloads
             ?local_directory:converted.local_directory ?local_paths:converted.local_paths (element_channel c.fc_element)
 
-    let set_files ?timeout paths (c : t) = set ?timeout (Frame.Paths paths) c
-    let set_payloads ?timeout payloads (c : t) = set ?timeout (Frame.Payloads payloads) c
+    let set_files ?timeout (c : t) paths = set ?timeout (Frame.Paths paths) c
+    let set_payloads ?timeout (c : t) payloads = set ?timeout (Frame.Payloads payloads) c
 end
 
 module Web_error = struct
@@ -79,11 +79,11 @@ end
 
 module Selectors = struct
     (* Makes a custom selector engine available to every context, present and future. *)
-    let register ?content_script name source (session : session) =
+    let register ?content_script (session : session) name ~script =
         let selectors = session.selectors in
         if List.exists (fun (engine : Protocol.Selector_engine.t) -> engine.name = name) selectors.selector_engines then
             Error.raise_ "\"%s\" selector engine has been already registered" name;
-        let selector_engine : Protocol.Selector_engine.t = { name; source; content_script } in
+        let selector_engine : Protocol.Selector_engine.t = { name; source = script; content_script } in
         List.iter
             (fun (context : browser_context) ->
                 try Protocol.Browser_context.register_selector_engine ~selector_engine context.c_channel with Error.E { kind = Target_closed; _ } -> ())
@@ -91,7 +91,7 @@ module Selectors = struct
         selectors.selector_engines <- selectors.selector_engines @ [ selector_engine ]
 
     (* Changes the attribute that [get_by_test_id] looks at. *)
-    let set_test_id_attribute name (session : session) =
+    let set_test_id_attribute (session : session) name =
         session.selectors.test_id_attribute <- name;
         List.iter
             (fun (context : browser_context) ->

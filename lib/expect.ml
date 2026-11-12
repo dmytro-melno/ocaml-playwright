@@ -2,7 +2,7 @@
 
 open Types
 
-let set_default_timeout timeout (session : session) = session.assertions.assertion_timeout <- timeout
+let set_default_timeout (session : session) timeout = session.assertions.assertion_timeout <- timeout
 
 let text_values ?match_substring ?normalize_white_space ?ignore_case (items : Selector.text list) : Protocol.Expected_text_value.t list =
     List.map
@@ -223,18 +223,18 @@ struct
 
     (* {1 Pages} *)
 
-    let to_have_title ?timeout title p =
+    let to_have_title ?timeout p title =
         page ?timeout ~expected_text:(text_values ~normalize_white_space:true [ Text title ]) "to.have.title"
             ~condition:(Printf.sprintf "to have title %S" title) p
 
-    let to_have_title_regex ?timeout regex p =
+    let to_have_title_regex ?timeout p regex =
         page ?timeout ~expected_text:(text_values ~normalize_white_space:true [ Regex regex ]) "to.have.title" ~condition:("to have title " ^ regex) p
 
-    let to_have_url ?timeout ?ignore_case url (p : page) =
+    let to_have_url ?timeout ?ignore_case (p : page) url =
         let url = resolve_url ?base:p.context.base_url url in
         page ?timeout ~expected_text:(text_values ?ignore_case [ Text url ]) "to.have.url" ~condition:(Printf.sprintf "to have URL %S" url) p
 
-    let to_have_url_regex ?timeout regex p =
+    let to_have_url_regex ?timeout p regex =
         page ?timeout ~expected_text:(text_values [ Regex regex ]) "to.have.url" ~condition:("to have URL " ^ regex) p
 
     (* {1 API responses} *)
