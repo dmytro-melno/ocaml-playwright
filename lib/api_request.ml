@@ -17,13 +17,6 @@ module Context = struct
         { a_channel = channel; a_session = session; a_tracing = Types.tracing init.tracing; a_timeouts = Timeouts.create (); a_close_reason = None;
           a_close_state = Closing.create () }
 
-    let has_json_content_type headers =
-        List.exists
-            (fun (name, value) -> String.lowercase_ascii name = "content-type" && String.lowercase_ascii (String.trim value) = "application/json")
-            headers
-
-    let is_json text = match Yojson.Safe.from_string text with _ -> true | exception Yojson.Json_error _ -> false
-
     let fetch ?timeout ?method_ ?headers ?params ?data ?json ?form ?(multipart : (string * multipart_value) list option) ?fail_on_status_code ?ignore_https_errors ?max_redirects
         ?max_retries ?(request : request option) url (t : t) : api_response =
         if not (Closing.is_open t.a_close_state) then raise (Error.E (Error.target_closed ?message:t.a_close_reason ()));
@@ -33,9 +26,8 @@ module Context = struct
         (* The headers of an intercepted request must not be fetched here: it is paused. *)
         let headers = match headers, request with Some _, _ -> headers | None, Some request -> Some (Network.Request.headers request) | None, None -> None in
         let post_data, json_data =
+            (* [data] is bytes for the driver and stays what it is, whatever the headers call it. *)
             match data, json with
-            | Some data, _ when has_json_content_type (Option.value headers ~default:[]) ->
-                None, Some (if is_json data then data else Yojson.Safe.to_string (`String data))
             | Some data, _ -> Some data, None
             | None, Some json -> None, Some (Yojson.Safe.to_string json)
             | None, None -> None, None

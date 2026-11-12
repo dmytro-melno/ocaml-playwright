@@ -2077,7 +2077,8 @@ and APIRequestContext : sig
         ?max_redirects:int ->
         ?max_retries:int ->
         'a
-    (** [params] are added to the query string. The body is one of: [data] as it is, [json] serialised with the
+    (** [params] are added to the query string. The body is one of: [data] byte for byte (the headers
+        do not change how it is sent), [json] serialised with the
         content type [application/json], [form] encoded as [application/x-www-form-urlencoded], or [multipart]
         encoded as [multipart/form-data]. With [fail_on_status_code], a status outside of 200-399 is an error. *)
 

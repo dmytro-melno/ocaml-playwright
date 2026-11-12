@@ -243,6 +243,12 @@ let test_api_requests t page =
     Alcotest.check json "json content type" (`String "application/json") (member "headers" posted |> member "content-type");
     let form = APIRequestContext.post url ~form:[ "name", "Ada Lovelace"; "lang", "ml" ] request |> described in
     Alcotest.check json "form body" (`String "name=Ada+Lovelace&lang=ml") (member "body" form);
+    (* Data are bytes: what the headers call them does not change them. *)
+    List.iter
+        (fun content_type ->
+            let raw = APIRequestContext.post url ~headers:[ "content-type", content_type ] ~data:"not-json" request |> described in
+            Alcotest.check json ("data as it is, called " ^ content_type) (`String "not-json") (member "body" raw))
+        [ "application/json"; "application/json; charset=utf-8"; "text/plain" ];
     let multipart =
         APIRequestContext.post url request
             ~multipart:[ "field", `Text "value"; "upload", `File { name = "notes.txt"; mime_type = Some "text/plain"; buffer = "file content" } ]
