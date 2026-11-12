@@ -193,8 +193,8 @@ Closing is safe to do from anywhere:
   `Disposable.dispose`.
 - When the driver is closed, or dies, every call that is under way fails with a
   `Target_closed` error, every object is closed (`Page.is_closed` is true, the listeners for
-  `Page.Close` and the functions given to `Browser.on_disconnected` are called), and the
-  listeners and handlers that are still running are cancelled.
+  `Page.Close` and for `Browser.Disconnected` are called), and the listeners and handlers
+  that are still running are cancelled.
 
 A context holds on to every request and response of its pages for as long as it lives, a
 few kilobytes each. Beyond ten thousand the driver lets go of the oldest, and a call on one
@@ -549,7 +549,8 @@ message, `Page.Request_failed` a request.
 The events of a context cover all of its pages, those that are yet to be opened included.
 Besides the events that a page has too, there are `BrowserContext.Page` for a new page,
 `Page_load` and `Page_close` for what becomes of it, and `Frame_navigated` for every
-navigation in any frame. `Browser.on_context` tells of new contexts.
+navigation in any frame. A browser has two events: `Browser.Context` for a new context and
+`Browser.Disconnected` for its end.
 
 ```ocaml
 BrowserContext.on BrowserContext.Frame_navigated (fun frame -> print_endline ("now at " ^ Frame.url frame)) context |> ignore;

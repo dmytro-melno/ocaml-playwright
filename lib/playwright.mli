@@ -687,12 +687,19 @@ and Browser : sig
     val name : t -> string
     val is_connected : t -> bool
 
-    val on_disconnected : (t -> unit) -> t -> Disposable.t
-    (** Registers a function to call when the browser has been closed, has crashed or the connection to it was lost. *)
+    type _ event =
+        | Disconnected : t event  (** The browser has been closed, has crashed, or the connection to it was lost. *)
+        | Context : BrowserContext.t event
+            (** A context was created in the browser. A listener may be called before the function that created the
+                context has returned. *)
 
-    val on_context : (BrowserContext.t -> unit) -> t -> Disposable.t
-    (** Registers a function to call with each context that is created in the browser from now on. It may be called
-        before the function that created the context has returned. *)
+    val on : 'a event -> ('a -> unit) -> t -> Disposable.t
+    (** Registers a listener: see {!BrowserContext.on}. *)
+
+    val once : 'a event -> ('a -> unit) -> t -> Disposable.t
+
+    val expect_event : ?timeout:float -> ?predicate:('a -> bool) -> 'a event -> (unit -> unit) -> t -> 'a
+    (** See {!BrowserContext.expect_event}. The default [timeout] is 30 seconds. *)
 
     val new_browser_cdp_session : t -> CDPSession.t
     (** A Chrome DevTools Protocol session with the browser itself. Chromium only. *)

@@ -91,7 +91,6 @@ conventions do not tell:
 | `locator.filter({ hasText: /…/ })` | `Locator.filter ~has_text_regex:"/…/"`: a JavaScript literal in a string |
 | `locator.setInputFiles({ name, mimeType, buffer })` | `Locator.set_input_payloads` |
 | `locator.toString()` | `Locator.to_string`; the selector alone is `Locator.selector` |
-| `browser.on('disconnected')`, `browser.on('context')` | `Browser.on_disconnected`, `Browser.on_context` |
 | `cdpSession.on(event, f)` | `CDPSession.on_event (fun name params -> …)`, for all events of the session |
 | `context.newCDPSession(frame)` | `BrowserContext.new_cdp_session_for_frame` |
 | `request.postDataBuffer()`, `response.body()` | `Request.post_data`, `Response.body`: strings hold bytes |

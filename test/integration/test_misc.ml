@@ -204,11 +204,12 @@ let test_browser_closing t () =
     let browser = launch t in
     let disconnected = ref 0 in
     let listener _ = incr disconnected in
-    Browser.on_disconnected listener browser |> ignore;
+    Browser.on Browser.Disconnected listener browser |> ignore;
     let page = BrowserContext.new_page (Browser.new_context browser) in
     let pending = Fiber.fork_promise ~sw:t.sw (fun () -> Locator.wait_for (Page.locator "#never" page)) in
     Fiber.yield ();
-    Browser.close ~reason:"the test is over" browser;
+    let gone = Browser.expect_event Browser.Disconnected (fun () -> Browser.close ~reason:"the test is over" browser) browser in
+    Alcotest.(check bool) "the event carries the browser" true (Browser.equal gone browser);
     (match Promise.await pending with
     | Error (Playwright.Error error) ->
         Alcotest.check error_kind "interrupted" Error.Target_closed error.kind;
@@ -222,12 +223,10 @@ let test_browser_closing t () =
     Alcotest.(check int) "closing twice does nothing" 1 !disconnected;
     (* A browser that dies on its own is noticed as well. *)
     let browser = launch t in
-    let gone, announce = Promise.create () in
-    Browser.on_disconnected (fun _ -> Promise.resolve announce ()) browser |> ignore;
     let page = BrowserContext.new_page (Browser.new_context browser) in
     let session = Browser.new_browser_cdp_session browser in
-    (try ignore (CDPSession.send "Browser.crash" session) with Playwright.Error _ -> ());
-    Promise.await gone;
+    let crash () = try ignore (CDPSession.send "Browser.crash" session) with Playwright.Error _ -> () in
+    check_failure "a wait for a context ends with the browser" ~kind:Target_closed (fun () -> Browser.expect_event Browser.Context crash browser);
     Alcotest.(check bool) "crashed" true (not (Browser.is_connected browser));
     check_failure "its pages are gone" ~kind:Target_closed (fun () -> Page.title page)
 
@@ -288,7 +287,7 @@ let check_instance_end t what ~create ~obtain end_ =
     let note event _ = events := event :: !events in
     Page.on Page.Close (note "page") page |> ignore;
     BrowserContext.on BrowserContext.Close (note "context") context |> ignore;
-    Browser.on_disconnected (note "browser") browser |> ignore;
+    Browser.on Browser.Disconnected (note "browser") browser |> ignore;
     (* A handler that is at work. *)
     let handler = ref "idle" in
     let working, started = Promise.create () in

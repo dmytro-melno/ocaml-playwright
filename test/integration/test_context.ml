@@ -240,10 +240,16 @@ let test_browser t () =
     Alcotest.(check bool) "type" true (BrowserType.equal (Browser.browser_type t.browser) (chromium t.pw) && BrowserType.name (chromium t.pw) = "chromium");
     let before = List.length (Browser.contexts t.browser) in
     let created = ref [] in
-    let listening = Browser.on_context (fun context -> created := context :: !created) t.browser in
+    let listening = Browser.on Browser.Context (fun context -> created := context :: !created) t.browser in
     let context = Browser.new_context ~viewport:(300, 200) t.browser in
     eventually t "the context is announced" (fun () -> List.equal BrowserContext.equal !created [ context ]);
     Disposable.dispose listening;
+    let other = ref None in
+    let announced = Browser.expect_event Browser.Context (fun () -> other := Some (Browser.new_context t.browser)) t.browser in
+    Alcotest.(check bool) "a context can be waited for" true (Option.equal BrowserContext.equal !other (Some announced));
+    BrowserContext.close announced;
+    Alcotest.(check int) "the removed listener is not told" 1 (List.length !created);
+    check_failure "and the wait has a time limit" ~kind:Timeout (fun () -> Browser.expect_event ~timeout:50. Browser.Context ignore t.browser);
     Alcotest.(check int) "one context more" (before + 1) (List.length (Browser.contexts t.browser));
     let page = BrowserContext.new_page context in
     Alcotest.(check (option (pair int int))) "its options reach its pages" (Some (300, 200)) (Page.viewport_size page);

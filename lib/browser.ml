@@ -7,6 +7,17 @@ let equal (a : t) (b : t) = Channel.equal a.b_channel b.b_channel
 let compare (a : t) (b : t) = Channel.compare a.b_channel b.b_channel
 let hash (t : t) = Channel.hash t.b_channel
 
+type _ event =
+    | Disconnected : browser event
+    | Context : browser_context event
+
+let emitter : type a. t -> a event -> a Emitter.t =
+    fun browser -> function
+    | Disconnected -> browser.e_disconnected
+    | Context -> browser.e_context
+
+let event_name : type a. a event -> string = function Disconnected -> "disconnected" | Context -> "context"
+
 let default_test_id_attribute = "data-testid"
 
 (* The browser was launched by, or connected to through, this browser type. *)
@@ -49,8 +60,17 @@ let contexts (browser : t) = browser.contexts
 let version (browser : t) = browser.version
 let name (browser : t) = browser.b_name
 let is_connected (browser : t) = not (Closing.is_closed browser.b_close_state)
-let on_disconnected listener (browser : t) = Disposable.listener (Emitter.on browser.e_disconnected listener)
-let on_context listener (browser : t) = Disposable.listener (Emitter.on browser.e_context listener)
+let on event listener (browser : t) = Disposable.listener (Emitter.on (emitter browser event) listener)
+let once event listener (browser : t) = Disposable.listener (Emitter.once (emitter browser event) listener)
+
+let expect_event (type a) ?timeout ?predicate (event : a event) action (browser : t) : a =
+    let timeout = Timeouts.action ?timeout (Timeouts.create ()) in
+    let rejections waiter =
+        match event with
+        | Disconnected -> ()
+        | Context -> Waiter.reject_on waiter browser.e_disconnected (fun _ -> Some (Error.target_closed ?message:browser.b_close_reason ()))
+    in
+    Events.expect browser.b_session.conn ~timeout ~name:(event_name event) ?predicate ~rejections (emitter browser event) action
 
 let selector_options (session : session) =
     let engines = match session.selectors.selector_engines with [] -> None | engines -> Some engines in
