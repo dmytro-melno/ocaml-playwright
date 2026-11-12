@@ -325,6 +325,31 @@ let test_standalone_api_requests t () =
     Alcotest.check json "credentials nobody asked for" `Null (authorization None);
     Alcotest.check json "sent regardless" (`String "Basic YWRhOmxvdmVsYWNl") (authorization (Some `Always))
 
+(* Playwright lets the request context of a browser context be disposed of, and such a context is gone for good.
+   What needs it afterwards says so, rather than that a page has been closed, and the pages are as they were. *)
+let test_disposed_request_context t page =
+    Server.route t.server "/echo" echo;
+    let context = Page.context page in
+    let request = BrowserContext.request context in
+    let url = Server.url t.server "/echo" in
+    Alcotest.(check int) "before" 200 (APIRequestContext.get request url |> APIResponse.status);
+    APIRequestContext.dispose request;
+    let disposed what f = check_failure what ~kind:Target_closed ~message:"Request context disposed" f in
+    disposed "a request" (fun () -> APIRequestContext.get (BrowserContext.request context) url);
+    disposed "a request of the page" (fun () -> APIRequestContext.get (Page.request page) url);
+    disposed "its cookies" (fun () -> APIRequestContext.cookies request);
+    disposed "its state" (fun () -> APIRequestContext.storage_state request);
+    let fetching = Page.route page "**/echo" (fun route -> Route.fulfill route ~response:(Route.fetch route)) in
+    check_failure "a page whose route fetches" ~message:"net::ERR_FAILED" (fun () -> Page.goto page url);
+    (match take_reports t with
+    | [ (_, Playwright.Error { kind = Target_closed; message; _ }) ] -> check_contains "what the handler is told" ~sub:"Request context disposed" message
+    | reports -> Alcotest.failf "expected one report, of the handler, and got %d" (List.length reports));
+    Disposable.dispose fetching;
+    ignore (Page.goto page url);
+    check_contains "the page loads as before" ~sub:{|"method":"GET"|} (Locator.inner_text (Page.locator page "body"));
+    APIRequestContext.dispose request ~reason:"once more";
+    disposed "after another call" (fun () -> APIRequestContext.get request url)
+
 (* A server that asks for a certificate is shown the one for its origin. *)
 let test_client_certificates t () =
     let cert = scratch_file t "cert.pem" and key = scratch_file t "key.pem" in
@@ -412,4 +437,5 @@ let tests t =
       [ case t "context settings" (test_context_network_settings t);
         page_case t "API requests" (test_api_requests t);
         case t "standalone API requests" (test_standalone_api_requests t);
+        page_case t "a disposed request context" (test_disposed_request_context t);
         case t "client certificates" (test_client_certificates t) ] ]

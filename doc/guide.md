@@ -791,6 +791,10 @@ APIRequestContext.dispose standalone;
 (id, items)
 ```
 
+Only a context from `APIRequest.new_context` needs disposing of. The one of a browser context
+ends with it; disposing of it earlier would also end `Page.request` and `Route.fetch` for
+that browser context.
+
 ## Emulation and state
 
 The options of `Browser.new_context` set up what the pages of the

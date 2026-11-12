@@ -17,9 +17,15 @@ module Context = struct
         { a_channel = channel; a_session = session; a_tracing = Types.tracing init.tracing; a_timeouts = Timeouts.create (); a_close_reason = None;
           a_close_state = Closing.create () }
 
+    (* The channel of a context that has not been disposed of.  The driver forgets one that has, and would answer
+       that the page, context or browser has been closed.  That is misleading above all for the request context of a
+       browser context, which can be disposed of while its context and its pages live on. *)
+    let channel (t : t) =
+        if Closing.is_open t.a_close_state then t.a_channel else raise (Error.E (Error.target_closed ?message:t.a_close_reason ()))
+
     let fetch ?timeout ?method_ ?headers ?params ?data ?json ?form ?(multipart : (string * multipart_value) list option) ?fail_on_status_code ?ignore_https_errors ?max_redirects
         ?max_retries ?(request : request option) (t : t) url : api_response =
-        if not (Closing.is_open t.a_close_state) then raise (Error.E (Error.target_closed ?message:t.a_close_reason ()));
+        let channel = channel t in
         let bodies = List.length (List.filter Fun.id [ data <> None; json <> None; form <> None; multipart <> None ]) in
         if bodies > 1 then invalid_arg "Playwright: only one of ~data, ~json, ~form and ~multipart can be specified";
         let method_ = match method_, request with Some _, _ -> method_ | None, Some request -> Some (Network.Request.method_ request) | None, None -> None in
@@ -49,7 +55,7 @@ module Context = struct
         let response =
             Protocol.Api_request_context.fetch ~timeout:(Timeouts.action ?timeout t.a_timeouts) ~url ?params:(Option.map Network.name_values params)
                 ?method_ ?headers:(Option.map Network.name_values headers) ?post_data ?json_data ?form_data:(Option.map Network.name_values form)
-                ?multipart_data ?fail_on_status_code ?ignore_https_errors ?max_redirects ?max_retries t.a_channel
+                ?multipart_data ?fail_on_status_code ?ignore_https_errors ?max_redirects ?max_retries channel
         in
         { ar_context = t; ar_init = response }
 
@@ -66,17 +72,18 @@ module Context = struct
     let head = with_method "HEAD"
 
     let storage_state ?indexed_db ?opfs (t : t) : Yojson.Safe.t =
-        Protocol.Api_request_context.storage_state ?indexed_db ?opfs t.a_channel |> Protocol.Api_request_context.Storage_state_result.to_json
+        Protocol.Api_request_context.storage_state ?indexed_db ?opfs (channel t) |> Protocol.Api_request_context.Storage_state_result.to_json
 
-    let cookies ?(urls = []) (t : t) = Protocol.Api_request_context.cookies ~urls t.a_channel |> List.map Cookie.of_protocol
-    let add_cookies (t : t) cookies = Protocol.Api_request_context.add_cookies ~cookies t.a_channel
-    let clear_cookies ?name ?domain ?path (t : t) = Protocol.Api_request_context.clear_cookies ?name ?domain ?path t.a_channel
+    let cookies ?(urls = []) (t : t) = Protocol.Api_request_context.cookies ~urls (channel t) |> List.map Cookie.of_protocol
+    let add_cookies (t : t) cookies = Protocol.Api_request_context.add_cookies ~cookies (channel t)
+    let clear_cookies ?name ?domain ?path (t : t) = Protocol.Api_request_context.clear_cookies ?name ?domain ?path (channel t)
 
     let tracing (t : t) = t.a_tracing
 
-    (* Disposing is idempotent, and a context that is already gone counts as disposed of. *)
+    (* Disposing is idempotent, and a context that is already gone counts as disposed of.  Without a reason, later
+       calls fail with the words that the driver has for a request context in this state. *)
     let dispose ?reason (t : t) =
-        if Closing.is_open t.a_close_state then t.a_close_reason <- reason;
+        if Closing.is_open t.a_close_state then t.a_close_reason <- Some (Option.value reason ~default:"Request context disposed.");
         Closing.close t.a_session.conn t.a_close_state (fun () -> Protocol.Api_request_context.dispose ?reason t.a_channel)
 end
 

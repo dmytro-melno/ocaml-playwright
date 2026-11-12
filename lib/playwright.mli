@@ -1924,7 +1924,11 @@ and APIRequestContext : sig
     (** Records the requests of the context into a trace, as {!BrowserContext.tracing} does for a browser context. *)
 
     val dispose : ?reason:string -> t -> unit
-    (** Frees the context and all responses that it holds. Only for contexts made with {!APIRequest.new_context}. *)
+    (** Frees the context and all responses that it holds. Its functions fail from then on, with the reason if one is
+        given. This is for contexts made with {!APIRequest.new_context}. The request context of a browser context
+        ends with it and needs no disposing of. Playwright allows it all the same, and so does this function:
+        {!BrowserContext.request}, {!Page.request} and {!Route.fetch} of that browser context then fail as well,
+        while its pages go on working. *)
 
     include Identity with type t := t
 end
