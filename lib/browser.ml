@@ -21,9 +21,6 @@ let adopt (browser_type : browser_type) ?traces_dir (browser : t) =
     browser.b_traces_dir <- traces_dir;
     List.iter (setup_context browser) browser.contexts
 
-(* What ends the connection that the browser was reached over, if it has one of its own. *)
-let set_disconnect (browser : t) disconnect = browser.disconnect <- Some disconnect
-
 (* The browser is gone: it was closed, it crashed, or the connection to it ended. *)
 let did_close (browser : t) =
     if Closing.set_closed browser.b_close_state then begin
@@ -44,7 +41,7 @@ let create session (channel : Protocol.Browser.t) : t =
     let b_closed, b_closed_resolver = Promise.create () in
     let browser =
         { b_channel = channel; b_session = session; browser_type; b_name = init.name; version = init.version; contexts = []; b_close_state = Closing.create ();
-          b_close_reason = None; b_traces_dir = None; disconnect = None; b_closed; b_closed_resolver; e_disconnected = Emitter.create (); e_context = Emitter.create () }
+          b_close_reason = None; b_traces_dir = None; b_closed; b_closed_resolver; e_disconnected = Emitter.create (); e_context = Emitter.create () }
     in
     Protocol.Browser.listen channel (handle_event browser);
     Channel.on_lost channel (fun _ -> did_close browser);
@@ -110,19 +107,9 @@ let new_page ?proxy =
 
 let new_browser_cdp_session (browser : t) = Protocol.Browser.new_browser_cdp_session browser.b_channel |> Types.cdp_session
 
-(* Makes the browser available to other clients of Playwright, and returns where. *)
-let bind ?workspace_dir ?metadata ?host ?port title (browser : t) =
-    Protocol.Browser.start_server ~title ?workspace_dir ?metadata ?host ?port browser.b_channel
-
-let unbind (browser : t) = Protocol.Browser.stop_server browser.b_channel
-
-(* Closing is idempotent, and a browser that is already gone counts as closed.  A browser that
-   was connected to is disconnected from. *)
+(* Closing is idempotent, and a browser that is already gone counts as closed. *)
 let close ?reason (browser : t) =
     if Closing.is_open browser.b_close_state then browser.b_close_reason <- reason;
-    match browser.disconnect with
-    | Some disconnect -> disconnect ()
-    | None ->
-        Closing.close browser.b_session.conn browser.b_close_state (fun () ->
-            Protocol.Browser.close ?reason browser.b_channel;
-            Promise.await browser.b_closed)
+    Closing.close browser.b_session.conn browser.b_close_state (fun () ->
+        Protocol.Browser.close ?reason browser.b_channel;
+        Promise.await browser.b_closed)

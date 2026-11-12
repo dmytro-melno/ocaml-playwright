@@ -39,22 +39,12 @@ let save_chunk (t : t) ?path stacks_id =
     | None ->
         ignore (Protocol.Tracing.tracing_stop_chunk ~mode:`Discard t.t_channel);
         discard_stacks ()
-    | Some path when not t.t_session.is_remote ->
+    | Some path ->
         let path = Files.absolute path in
         Files.make_parent path;
         let result = Protocol.Tracing.tracing_stop_chunk ~mode:`Entries t.t_channel in
         Protocol.Local_utils.zip ~zip_file:path ~entries:(Option.value result.entries ~default:[]) ?stacks_id ~mode:`Write
             ~include_sources:t.include_sources (local_utils t)
-    | Some path ->
-        let path = Files.absolute path in
-        (* The artifact is missing when the browser closed while the trace was being stopped. *)
-        (match (Protocol.Tracing.tracing_stop_chunk ~mode:`Archive t.t_channel).artifact with
-        | None -> discard_stacks ()
-        | Some artifact ->
-            Connection.protect (Channel.conn t.t_channel) "deleting a trace"
-                ~finally:(fun () -> try Artifact.delete artifact with Error.E _ -> ())
-                (fun () -> Artifact.save_as t.t_session artifact path);
-            Protocol.Local_utils.zip ~zip_file:path ~entries:[] ?stacks_id ~mode:`Append ~include_sources:t.include_sources (local_utils t))
 
 let stop_chunk ?path (t : t) =
     let stacks_id = t.stacks_id in
@@ -87,30 +77,15 @@ let record_into_har ?page ?url_glob ?resources_dir ?(content = `Attach) ?(mode =
 let export_har (t : t) har_id =
     match Hashtbl.find_opt t.har_recorders har_id with
     | None -> ()
-    | Some (path, resources_dir) ->
+    | Some (path, _) ->
         Hashtbl.remove t.har_recorders har_id;
-        if not t.t_session.is_remote then begin
-            (* The driver has written an uncompressed HAR to its final place already. *)
-            let result = Protocol.Tracing.har_export ~har_id ~mode:`Entries t.t_channel in
-            if is_zip path then begin
-                Files.make_parent path;
-                Protocol.Local_utils.zip ~zip_file:path ~entries:(Option.value result.entries ~default:[]) ~mode:`Write ~include_sources:false
-                    (local_utils t)
-            end
+        (* The driver has written an uncompressed HAR to its final place already. *)
+        let result = Protocol.Tracing.har_export ~har_id ~mode:`Entries t.t_channel in
+        if is_zip path then begin
+            Files.make_parent path;
+            Protocol.Local_utils.zip ~zip_file:path ~entries:(Option.value result.entries ~default:[]) ~mode:`Write ~include_sources:false
+                (local_utils t)
         end
-        else
-            match (Protocol.Tracing.har_export ~har_id ~mode:`Archive t.t_channel).artifact with
-            | None -> ()
-            | Some artifact ->
-                Connection.protect (Channel.conn t.t_channel) "deleting a recording"
-                    ~finally:(fun () -> try Artifact.delete artifact with Error.E _ -> ())
-                    (fun () ->
-                        if is_zip path then Artifact.save_as t.t_session artifact path
-                        else begin
-                            let archive = path ^ ".tmp" in
-                            Artifact.save_as t.t_session artifact archive;
-                            Protocol.Local_utils.har_unzip ~zip_file:archive ~har_file:path ?resources_dir (local_utils t)
-                        end)
 
 let export_all_hars (t : t) = List.iter (export_har t) (List.of_seq (Hashtbl.to_seq_keys t.har_recorders))
 

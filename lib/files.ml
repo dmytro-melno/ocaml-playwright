@@ -5,7 +5,6 @@
    contents of files or walks directories is therefore done in a system thread, while the
    calling fiber waits ({!blocking}). *)
 
-let chunk_size = 1 lsl 20
 let absolute path = if Filename.is_relative path then Filename.concat (Sys.getcwd ()) path else path
 let is_directory path = try Sys.is_directory path with Sys_error _ -> false
 
@@ -32,61 +31,6 @@ let write path contents =
     blocking ~action:"write" (fun () ->
         mkdir_p (Filename.dirname (absolute path));
         Out_channel.with_open_bin path (fun oc -> output_string oc contents))
-
-(* [with_output path f] creates the file and calls [f] with the function that appends to it. *)
-let with_output path f =
-    let oc =
-        blocking ~action:"write" (fun () ->
-            mkdir_p (Filename.dirname (absolute path));
-            Out_channel.open_bin path)
-    in
-    (* A thread is not to be had by a fiber that has been cancelled, so the channel is closed in
-       place when things go wrong. *)
-    Fun.protect
-        ~finally:(fun () -> Out_channel.close_noerr oc)
-        (fun () ->
-            let result = f (fun chunk -> blocking ~action:"write" (fun () -> Out_channel.output_string oc chunk)) in
-            blocking ~action:"write" (fun () -> Out_channel.close oc);
-            result)
-
-(* [with_input path f] calls [f] with the function that returns the next part of the file, of
-   {!chunk_size} bytes at most, and [""] after the last one. *)
-let with_input path f =
-    let ic = blocking ~action:"read" (fun () -> In_channel.open_bin path) in
-    Fun.protect
-        ~finally:(fun () -> In_channel.close_noerr ic)
-        (fun () ->
-            let buffer = Bytes.create chunk_size in
-            (* A channel hands out no more than its own buffer holds at a time, which is less. *)
-            let rec fill filled =
-                if filled = chunk_size then filled
-                else
-                    match In_channel.input ic buffer filled (chunk_size - filled) with
-                    | 0 -> filled
-                    | n -> fill (filled + n)
-            in
-            f (fun () -> blocking ~action:"read" (fun () -> Bytes.sub_string buffer 0 (fill 0))))
-
-(* {1 Uploads} *)
-
-type upload = { name : string; path : string; modified_ms : float }
-
-(* The files below [directory], as paths relative to it. *)
-let rec below directory =
-    Sys.readdir directory |> Array.to_list |> List.sort String.compare
-    |> List.concat_map (fun name ->
-        let path = Filename.concat directory name in
-        if is_directory path then List.map (fun below -> name ^ "/" ^ below) (below path) else [ name ])
-
-(* The files to send for an upload: those below [directory], or else [files] themselves. *)
-let to_upload ?directory files =
-    blocking ~action:"read" (fun () ->
-        let named =
-            match directory with
-            | Some directory -> List.map (fun name -> name, Filename.concat directory name) (below directory)
-            | None -> List.map (fun path -> Filename.basename path, path) files
-        in
-        List.map (fun (name, path) -> { name; path; modified_ms = (Unix.stat path).st_mtime *. 1000. }) named)
 
 (* The directories among [paths], and the others. *)
 let partition_directories paths = blocking ~action:"read" (fun () -> List.partition is_directory paths)

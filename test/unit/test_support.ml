@@ -163,26 +163,6 @@ let test_files () =
     check_contains "says what was tried" ~sub:"Cannot read file" error.message;
     check_contains "and with which file" ~sub:missing error.message;
     check_contains "also for writing" ~sub:"Cannot write file" (failure "a directory in the way" (fun () -> Files.write dir "x")).message;
-    (* In parts, as files travel to and from a remote driver. *)
-    let large = String.init ((2 * Files.chunk_size) + 12_345) (fun i -> Char.chr (i mod 253)) in
-    let copy = Filename.concat dir "copy.bin" in
-    Files.write path large;
-    let parts = ref [] in
-    Files.with_input path (fun read ->
-        Files.with_output copy (fun write ->
-            let rec go () =
-                match read () with
-                | "" -> ()
-                | part ->
-                    parts := String.length part :: !parts;
-                    write part;
-                    go ()
-            in
-            go ()));
-    Alcotest.(check (list int)) "the parts" [ Files.chunk_size; Files.chunk_size; 12_345 ] (List.rev !parts);
-    Alcotest.(check bool) "the copy" true (String.equal large (Files.read copy));
-    let uploads = Files.to_upload ~directory:(Filename.concat dir "made") [] in
-    Alcotest.(check (list string)) "the files below a directory" [ "on/the/way/file.bin" ] (List.map (fun (file : Files.upload) -> file.name) uploads);
     Alcotest.(check (pair (list string) (list string))) "directories apart" ([ dir ], [ path ]) (Files.partition_directories [ dir; path ])
 
 (* A read that takes its time: of a pipe that nobody has written to yet.  Done in place, it

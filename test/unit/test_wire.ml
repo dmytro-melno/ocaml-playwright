@@ -466,25 +466,6 @@ let test_closing_from_a_handler () =
     Alcotest.(check string) "the handler is cancelled where it waits" "cancelled" !outcome;
     Alcotest.(check int) "nothing reported" 0 (List.length !(peer.reported))
 
-(* A connection that is relayed by another one lives in the scope of that one. *)
-let test_relayed_connection () =
-    with_peer @@ fun peer ->
-    let inbox = Eio.Stream.create max_int in
-    let relayed = Connection.create_relayed peer.conn { send = ignore; receive = (fun () -> Eio.Stream.take inbox) } in
-    Connection.fork peer.conn "relayed connection" (fun () -> Connection.run relayed);
-    let log = ref [] in
-    Connection.fork relayed "handler" (fun () ->
-        log := "starts" :: !log;
-        try Fiber.await_cancel () with ex -> log := "cancelled" :: !log; raise ex);
-    (* Its end is not the end of the scope. *)
-    Eio.Stream.add inbox None;
-    Promise.await (Connection.stopped relayed);
-    Alcotest.(check bool) "closed" true (Connection.is_closed relayed);
-    Alcotest.(check (list string)) "its handlers go on" [ "starts" ] !log;
-    Connection.close peer.conn (Error.target_closed ());
-    Promise.await (Connection.stopped peer.conn);
-    Alcotest.(check (list string)) "until the connection that relays it ends" [ "cancelled"; "starts" ] !log
-
 let test_with_timeout () =
     with_peer @@ fun peer ->
     Alcotest.(check int) "in time" 1 (Connection.with_timeout peer.conn ~timeout:1000. ~message:(fun () -> "late") (fun () -> 1));
@@ -512,5 +493,4 @@ let tests =
         Alcotest.test_case "objects are told of the end" `Quick test_objects_are_told;
         Alcotest.test_case "handler scope" `Quick test_handler_scope;
         Alcotest.test_case "closing from a handler" `Quick test_closing_from_a_handler;
-        Alcotest.test_case "relayed connection" `Quick test_relayed_connection;
         Alcotest.test_case "with_timeout" `Quick test_with_timeout ] ]

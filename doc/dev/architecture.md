@@ -51,8 +51,7 @@ nothing else to read and write messages.
 
 `Transport` frames messages: each is a 4-byte little-endian length followed by JSON. A
 transport is a pair of functions, `send` and `receive`, so that tests can substitute an
-in-memory one, and so that a WebSocket tunnelled through the driver (see *Remote browsers*)
-can be one too.
+in-memory one.
 
 ### The driver: `driver.ml`, `driver_process.ml`
 
@@ -166,7 +165,7 @@ object. Field names are unique across `types.ml`, hence the prefixes.
 The behaviour modules are not recursive. They form a chain, roughly `Js`, `Js_handle`,
 `Frame`, `Element_handle`, `Locator`, `Network`, `Tracing`, `Worker`, `Api_request`,
 `Expect`, `Route`, `Browser_context`, `Browser`, `Browser_type`, `Page`, `Objects`,
-`Instance`, `Remote`, and a module can call the functions of those before it only. That is
+`Instance`, and a module can call the functions of those before it only. That is
 less of a restriction than it looks, because a module can *read* the record of any object:
 a frame finds its page, the page's context and the context's timeouts without calling
 anybody. Where a module early in the chain depends on what a later one
@@ -202,8 +201,8 @@ Every module can read every field of every record. Writing is restricted, by con
   (`ce_page_close`, `ce_frame_navigated`, ...), by `Page` and `Frame`. `types.ml` says which
   emitters those are.
 
-State that belongs to no object is in the `session` record: the connection, whether it
-leads to a remote server, the local utilities, the selector settings and the default
+State that belongs to no object is in the `session` record: the connection, the local
+utilities of the driver, the selector settings and the default
 timeout of assertions (`session.assertions`). There are no global variables other than the
 counter in `serial.ml`.
 
@@ -227,7 +226,6 @@ The supporting modules:
 | `Context_options`, `Screenshot`, `Cookie` | Conversion of options into protocol records. |
 | `Route` | Routing of requests and WebSockets, HAR replay: see *Route handlers*. |
 | `Expect` | Assertions, on top of the `expect` command of frames. |
-| `Json_pipe`, `Remote` | Remote browsers, see below. |
 
 ### The facade: `playwright.ml`, `playwright.mli`
 
@@ -320,8 +318,7 @@ Code that reads and then writes client state outside the reader does so without 
 between.
 
 *The scope of the instance* is a switch that `Connection.run` opens for the connection to
-the driver and that lasts as long as that connection runs. Connections to remote servers
-that are made through the driver share it (`Connection.create_relayed`). Everything in it
+the driver and that lasts as long as that connection runs. Everything in it
 is a daemon fiber: nothing in it keeps the instance alive, and all of it is cancelled when
 the instance ends.
 
@@ -503,16 +500,6 @@ connection, with a word about where they come from. `Instance.reporter` builds i
 `on_error` of the application: it is called in a handler of the exception, so that the
 backtrace is available, it is not cancelled, and if it raises, both exceptions are printed
 to standard error.
-
-## Remote browsers
-
-`BrowserType.connect` asks the *local* driver to open a WebSocket to a Playwright server.
-The driver hands back a `JsonPipe` object, through which messages of the same protocol are
-sent to and received from the server. `Json_pipe` turns that into a `Transport`, and
-`Remote` runs a second `Connection` over it, in the scope of the local one, with a session
-marked `is_remote`. The client objects are the same; the few places that deal with files
-(uploads, downloads, traces, videos) check the flag and stream the content instead of
-passing paths. Selector settings and the local utilities are shared with the local session.
 
 ## Where things go
 

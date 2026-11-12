@@ -1079,22 +1079,6 @@ ignore (Page.goto "https://example.com" page);
 BrowserContext.close context
 ```
 
-**A Playwright server.** Browsers can run elsewhere, in a container for instance, behind a
-Playwright server of the same version. The server is started on that machine, which needs
-the browsers installed, with `ocaml-playwright run-server --port 3000 --host 0.0.0.0` or
-with `npx playwright@1.65.0 run-server --port 3000 --host 0.0.0.0`. It launches a browser
-for every client that connects:
-
-```ocaml
-let browser = BrowserType.connect "ws://build-host:3000/" (chromium pw) in
-Browser.new_page browser
-```
-
-Files to upload are sent over the connection, and `Download.save_as`, `Video.save_as` and
-`Tracing.stop ~path` fetch their files through it: the paths given to these functions are on
-the machine that the program runs on. `Download.path` and `Video.path` are not available
-then, as those files are on the other machine.
-
 **A running Chromium.** `BrowserType.connect_over_cdp` attaches to a Chromium-based browser
 that was started with `--remote-debugging-port`, including its open tabs:
 
@@ -1106,10 +1090,6 @@ List.iter (fun page -> print_endline (Page.url page)) pages
 
 With `~no_defaults:true` Playwright leaves the settings of that browser's own context alone,
 which is the polite way to attach to a browser that somebody is using.
-
-**A browser to share.** `Browser.bind` goes the other way: it makes a browser that this
-program launched available to other clients of Playwright, such as its command line tool and
-its MCP server, and returns the endpoint for them to connect to. `Browser.unbind` ends that.
 
 For Chromium there is also direct access to the
 [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/), for the rare
@@ -1143,7 +1123,7 @@ into the library.
 
 `ocaml-playwright` is the command line tool of that package. Besides `install` it offers,
 among others, `show-trace`, `codegen` (records interactions; the generated code is for the
-official languages, but its locators carry over), `run-server` and `--help`.
+official languages, but its locators carry over) and `--help`.
 A program can run the tool itself, through `Playwright.Driver.command` and
 `Playwright.Driver.run`:
 

@@ -216,11 +216,7 @@ end
 
 module Js = Js
 
-module BrowserType = struct
-    include Browser_type
-
-    let connect = Remote.connect
-end
+module BrowserType = Browser_type
 module Browser = Browser
 
 module BrowserContext = struct

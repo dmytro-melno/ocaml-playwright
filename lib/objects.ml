@@ -35,27 +35,18 @@ let create (session : session) (channel : Channel.any) : Connection.impl =
     | Tracing channel -> Tracing (Tracing.create session channel)
     | Api_request_context channel -> Api_request_context (Api_request.Context.create session channel)
     | Cdp_session channel -> Cdp_session (Cdp_session.create channel)
-    | Json_pipe channel -> Json_pipe.Json_pipe (Json_pipe.create channel)
     | Local_utils channel ->
-        (* Local files are worked on by the local driver, also on behalf of a remote session. *)
-        if session.local_utils = None then begin
-            session.local_utils <- Some channel;
-            session.devices <- devices channel
-        end;
+        session.local_utils <- Some channel;
+        session.devices <- devices channel;
         Connection.No_impl
     (* These carry no state on the client side and are used through their channels. *)
-    | Root _ | Playwright _ | Artifact _ | Stream _ | Writable_stream _ | Binding_call _ | Disposable _ | Debugger _ | Other _ -> Connection.No_impl
+    | Root _ | Playwright _ | Artifact _ | Stream _ | Writable_stream _ | Json_pipe _ | Binding_call _ | Disposable _ | Debugger _ | Other _ ->
+        Connection.No_impl
 
-(* [parent] is the session of the local driver, for the session of a connection to a Playwright
-   server that was made through it. *)
-let new_session ?parent conn : session =
+let new_session conn : session =
     let session =
-        match parent with
-        | Some (parent : session) -> { parent with conn; is_remote = true }
-        | None ->
-            { conn; is_remote = false; local_utils = None;
-              selectors = { test_id_attribute = Browser.default_test_id_attribute; selector_engines = []; all_contexts = [] };
-              devices = []; assertions = { assertion_timeout = 5_000. } }
+        { conn; local_utils = None; selectors = { test_id_attribute = Browser.default_test_id_attribute; selector_engines = []; all_contexts = [] };
+          devices = []; assertions = { assertion_timeout = 5_000. } }
     in
     conn.factory <- create session;
     session

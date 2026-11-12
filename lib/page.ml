@@ -535,10 +535,8 @@ module Video = struct
         | None -> Error.raise_ "Video recording has not been started."
 
     (* Where the browser writes the video.  The file is complete once the page is closed. *)
-    let path (page : t) =
-        if (session page).is_remote then Error.raise_ "Path is not available when connecting remotely. Use save_as to save a local copy.";
-        (Protocol.Artifact.initializer_ (artifact page)).absolute_path
+    let path (page : t) = (Protocol.Artifact.initializer_ (artifact page)).absolute_path
 
-    let save_as path (page : t) = Artifact.save_as (session page) (artifact page) path
+    let save_as path (page : t) = Artifact.save_as (artifact page) path
     let delete (page : t) = Option.iter Artifact.delete page.video_artifact
 end

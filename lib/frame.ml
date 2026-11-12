@@ -82,43 +82,16 @@ type input_files =
 let max_payload_size = 50 * 1024 * 1024
 
 (* How files are handed to the driver: it takes in-memory payloads inline and reads local paths
-   itself.  A driver on another machine cannot do the latter, so files are streamed to it. *)
+   itself. *)
 type converted_files = {
     payloads : Protocol.Frame.Set_input_files_payloads.t list option;
     local_paths : string list option;
     local_directory : string option;
-    streams : Protocol.Writable_stream.t list option;
-    directory_stream : Protocol.Writable_stream.t option;
 }
 
-let no_files = { payloads = None; local_paths = None; local_directory = None; streams = None; directory_stream = None }
+let no_files = { payloads = None; local_paths = None; local_directory = None }
 
-(* Sends local files to the driver of a remote browser, which cannot open them itself. *)
-let upload (context : browser_context) ?directory files =
-    let files = Files.to_upload ?directory files in
-    let items = List.map (fun (file : Files.upload) : Protocol.Browser_context.Create_temp_files_items.t -> { name = file.name; last_modified_ms = Some file.modified_ms }) files in
-    let result = Protocol.Browser_context.create_temp_files ?root_dir_name:(Option.map Filename.basename directory) ~items context.c_channel in
-    let abandon () = List.iter (fun stream -> try Protocol.Writable_stream.close stream with Error.E _ -> ()) result.writable_streams in
-    Connection.guard (Channel.conn context.c_channel) "closing the streams of an upload" ~undo:abandon @@ fun () ->
-    List.iter2
-        (fun (file : Files.upload) stream ->
-            Files.with_input file.path (fun read ->
-                let rec copy () =
-                    match read () with
-                    | "" -> ()
-                    | chunk ->
-                        Protocol.Writable_stream.write ~binary:chunk stream;
-                        copy ()
-                in
-                copy ());
-            Protocol.Writable_stream.close stream)
-        files result.writable_streams;
-    match directory with
-    | Some _ -> { no_files with directory_stream = result.root_dir }
-    | None -> { no_files with streams = Some result.writable_streams }
-
-(* [frame] is the frame that the files are for, when known. *)
-let convert_input_files (frame : t option) = function
+let convert_input_files = function
     | Payloads payloads ->
         let size = List.fold_left (fun size (payload : Protocol.Frame.Set_input_files_payloads.t) -> size + String.length payload.buffer) 0 payloads in
         if size > max_payload_size then
@@ -134,9 +107,7 @@ let convert_input_files (frame : t option) = function
             | _ :: _ :: _, [] -> Error.raise_ "Multiple directories are not supported"
             | _ -> Error.raise_ "File paths must be all files or a single directory"
         in
-        (match frame with
-        | Some { f_session = { is_remote = true; _ }; page = Some page; _ } -> upload page.context ?directory files
-        | _ -> { no_files with local_paths = (if directory = None then Some files else None); local_directory = directory })
+        { no_files with local_paths = (if directory = None then Some files else None); local_directory = directory }
 
 type select_option = [ `Value of string | `Label of string | `Index of int | `Value_or_label of string ]
 
@@ -400,18 +371,16 @@ struct
 
     let set_input ?timeout ?strict selector files t =
         let frame = T.frame t in
-        let converted = convert_input_files (Some frame) files in
+        let converted = convert_input_files files in
         Protocol.Frame.set_input_files ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?payloads:converted.payloads
-            ?local_directory:converted.local_directory ?directory_stream:converted.directory_stream ?local_paths:converted.local_paths
-            ?streams:converted.streams frame.f_channel
+            ?local_directory:converted.local_directory ?local_paths:converted.local_paths frame.f_channel
 
     (* Drops files, data or both onto the element, as a drag from outside the page would. *)
     let drop ?timeout ?strict ?position ?files ?(data = []) selector t =
         let frame = T.frame t in
-        let converted = Option.map (convert_input_files (Some frame)) files in
+        let converted = Option.map convert_input_files files in
         (match converted with
-        | Some { local_directory = Some _; _ } | Some { directory_stream = Some _; _ } ->
-            Error.raise_ "Dropping a directory is not supported, pass individual files."
+        | Some { local_directory = Some _; _ } -> Error.raise_ "Dropping a directory is not supported, pass individual files."
         | _ -> ());
         let payloads =
             Option.bind converted (fun converted -> converted.payloads)
@@ -422,7 +391,6 @@ struct
         let data = List.map (fun (mime_type, value) : Protocol.Frame.Drop_data.t -> { mime_type; value }) data in
         Protocol.Frame.drop ~timeout:(action_timeout ?timeout frame) ~selector ?strict ?position:(Option.map point position) ?payloads
             ?local_paths:(Option.bind converted (fun converted -> converted.local_paths))
-            ?streams:(Option.bind converted (fun converted -> converted.streams))
             ?data:(if data = [] then None else Some data)
             frame.f_channel
 

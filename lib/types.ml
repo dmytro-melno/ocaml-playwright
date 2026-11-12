@@ -23,19 +23,16 @@ type lifecycle_event = Protocol.Lifecycle_event.t
 (* State shared by everything created over one connection. *)
 type session = {
     conn : Connection.t;
-    is_remote : bool;  (* the browser runs behind a Playwright server: files must be streamed to and from it *)
-    mutable local_utils : Protocol.Local_utils.t option;  (* always the utilities of the local driver *)
+    mutable local_utils : Protocol.Local_utils.t option;
     selectors : selectors;
     mutable devices : device list;
     assertions : assertions;
 }
 
-(* Like the selector settings below, these are those of the driver and of all that is reached
-   through it. *)
+(* Like the selector settings below, these are those of the driver. *)
 and assertions = { mutable assertion_timeout : float  (* of the assertions that are not given one *) }
 
-(* Selector settings apply to every context, including those of remote sessions, so a remote
-   session shares this record with the local one. *)
+(* Selector settings apply to every context. *)
 and selectors = {
     mutable test_id_attribute : string;
     mutable selector_engines : Protocol.Selector_engine.t list;
@@ -96,8 +93,6 @@ and browser = {
     b_close_state : Closing.t;
     mutable b_close_reason : string option;
     mutable b_traces_dir : string option;
-    (* For a browser reached through its own connection: how to drop that connection. *)
-    mutable disconnect : (unit -> unit) option;
     b_closed : unit Promise.t;
     b_closed_resolver : unit Promise.u;
     e_disconnected : browser Emitter.t;

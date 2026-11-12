@@ -740,11 +740,6 @@ and BrowserType : sig
         returns its only context. An empty string stands for a temporary directory. Closing the context closes the
         browser. *)
 
-    val connect : ?timeout:float -> ?headers:(string * string) list -> ?slow_mo:float -> ?expose_network:string -> string -> t -> Browser.t
-    (** [connect ws_endpoint] attaches to a browser that is served by a Playwright server, as started with
-        [ocaml-playwright run-server] or [browserType.launchServer]. The server must run the same version of
-        Playwright. Closing the browser, or stopping this driver, disconnects from it. *)
-
     val connect_over_cdp :
         ?timeout:float -> ?headers:(string * string) list -> ?slow_mo:float -> ?is_local:bool -> ?no_defaults:bool -> ?artifacts_dir:string -> string ->
         t -> Browser.t
@@ -789,15 +784,6 @@ and Browser : sig
 
     val new_browser_cdp_session : t -> CDPSession.t
     (** A Chrome DevTools Protocol session with the browser itself. Chromium only. *)
-
-    val bind : ?workspace_dir:string -> ?metadata:Yojson.Safe.t -> ?host:string -> ?port:int -> string -> t -> string
-    (** [bind title] makes the browser available to other clients of Playwright, such as its command line tool and
-        its MCP server, under that title, and returns the endpoint that they connect to. This is a named pipe
-        unless [host] or [port] ask for a WebSocket server; a [port] of [0] lets the system choose one.
-        [workspace_dir] and [metadata], a JSON object, are passed on to those clients. *)
-
-    val unbind : t -> unit
-    (** Ends what {!bind} started. *)
 
     val close : ?reason:string -> t -> unit
     (** Closes the browser with all its contexts and pages; for a browser that was connected to, disconnects from it.

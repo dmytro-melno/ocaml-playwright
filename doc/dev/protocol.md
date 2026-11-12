@@ -118,8 +118,8 @@ in reviews. `dune runtest` fails if either file is not what the generator would 
    (`test/driver`) fails when `urlMatch.ts` has changed in a way that `lib/glob.ml` does not
    follow.
 
-6. **Update the texts**: the versions in `README.md`, in [parity.md](../parity.md) and in
-   the guide's example of `run-server`, an entry in `CHANGES.md`, and the version of the
+6. **Update the texts**: the versions in `README.md` and in [parity.md](../parity.md),
+   an entry in `CHANGES.md`, and the version of the
    library in `dune-project` (a new minor version of Playwright is at least a new minor
    version here, since behaviour changes with it).
 

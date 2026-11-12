@@ -134,26 +134,6 @@ let test_picking t page =
     | Error ex -> raise ex
     | Ok locator -> Alcotest.failf "picked %s after all" (Locator.to_string locator)
 
-(* A browser that is bound can be connected to by other clients; here by a second driver. *)
-let test_binding t () =
-    let browser = launch t in
-    let page = Browser.new_page browser in
-    Page.set_content "<title>Bound</title>" page;
-    let pipe = Browser.bind "ocaml-playwright-test" browser in
-    Alcotest.(check bool) "a pipe by default" true (pipe <> "" && not (String.starts_with ~prefix:"ws://" pipe));
-    Browser.unbind browser;
-    let endpoint = Browser.bind ~host:"127.0.0.1" ~port:0 ~metadata:(`Assoc [ "purpose", `String "test" ]) "ocaml-playwright-test" browser in
-    Alcotest.(check string) "a WebSocket server on request" "ws://127.0.0.1:" (String.sub endpoint 0 15);
-    Playwright.run ~env:t.env (fun other ->
-        let remote = BrowserType.connect endpoint (chromium other) in
-        let titles = List.concat_map BrowserContext.pages (Browser.contexts remote) |> List.map Page.title in
-        Alcotest.(check (list string)) "the other client sees the pages of the browser" [ "Bound" ] titles;
-        Browser.close remote);
-    Alcotest.(check bool) "which stays when the other client leaves" true (Browser.is_connected browser && Page.title page = "Bound");
-    Browser.unbind browser;
-    check_failure "unbound" (fun () -> Playwright.run ~env:t.env (fun other -> BrowserType.connect ~timeout:2000. endpoint (chromium other)));
-    Browser.close browser
-
 let test_selectors t () =
     let engine =
         {|({
@@ -361,81 +341,6 @@ let check_instance_end t what ~create ~obtain end_ =
     Alcotest.(check (list string)) (what ^ ": nothing goes to the error hook") []
         (List.map (fun (what, ex) -> Printf.sprintf "%s: %s" what (Printexc.to_string ex)) !reported)
 
-(* Runs a Playwright server for one browser and passes its endpoint to [f]. *)
-let with_server t f =
-    let config = scratch_file t "server.json" in
-    write_file config
-        (Yojson.Safe.to_string (`Assoc (("headless", `Bool true) :: (match t.executable_path with Some path -> [ "executablePath", `String path ] | None -> []))));
-    let read, write = Unix.pipe ~cloexec:true () in
-    let command = Driver.command [ "launch-server"; "--browser"; "chromium"; "--config"; config ] in
-    let pid = Unix.create_process (List.hd command) (Array.of_list command) Unix.stdin write Unix.stderr
-    in
-    Unix.close write;
-    let output = Unix.in_channel_of_descr read in
-    Fun.protect
-        ~finally:(fun () ->
-            (try Unix.kill pid Sys.sigterm with Unix.Unix_error _ -> ());
-            ignore (Eio_unix.run_in_systhread (fun () -> Unix.waitpid [] pid));
-            close_in_noerr output)
-        (fun () -> f (String.trim (Eio_unix.run_in_systhread (fun () -> input_line output))))
-
-let test_connect t () =
-    with_server t @@ fun endpoint ->
-    Alcotest.(check string) "endpoint" "ws://" (String.sub endpoint 0 5);
-    Server.page t.server "/remote" {|<title>Remote</title><input type="file"><a download="hello.txt" href="data:text/plain,hello">download</a>|};
-    let browser = BrowserType.connect endpoint (chromium t.pw) in
-    Alcotest.(check bool) "connected" true (Browser.is_connected browser && BrowserType.equal (Browser.browser_type browser) (chromium t.pw));
-    let context = Browser.new_context browser in
-    let page = BrowserContext.new_page context in
-    ignore (Page.goto (Server.url t.server "/remote") page);
-    Alcotest.(check string) "drives the remote browser" "Remote" (Page.title page);
-    Expect.to_have_title "Remote" page;
-    Page.route "**/mocked" (Route.fulfill ~body:"mocked remotely") page |> ignore;
-    Alcotest.(check string) "routes work through the server" "mocked remotely" (eval_string "fetch('/mocked').then(r => r.text())" page);
-    (* A response that the local driver fetched is not known to the server: its body is sent over. *)
-    Server.route t.server "/fetched-locally" (fun _ -> Server.respond ~headers:[ "x-origin", "local" ] "fetched by the local driver");
-    let request = APIRequest.new_context t.pw in
-    let response = APIRequestContext.get (Server.url t.server "/fetched-locally") request in
-    Page.route "**/replayed" (Route.fulfill ~response) page |> ignore;
-    Alcotest.(check string) "a response of another connection" "fetched by the local driver, local"
-        (eval_string "fetch('/replayed').then(async r => (await r.text()) + ', ' + r.headers.get('x-origin'))" page);
-    APIRequestContext.dispose request;
-    (* Files cross the connection as streams, in both directions. *)
-    let upload = scratch_file t "upload.txt" in
-    write_file upload (String.make 100_000 'u');
-    Page.locator "input" page |> Locator.set_input_files [ upload ];
-    Alcotest.(check int) "upload" 100_000 (eval_int "document.querySelector('input').files[0].size" page);
-    let download = Page.expect_download (fun () -> Page.click "a" page) page in
-    let saved = scratch_file t "hello.txt" in
-    Download.save_as saved download;
-    Alcotest.(check string) "download" "hello" (read_file saved);
-    check_failure "remote files have no local path" ~message:"save_as" (fun () -> Download.path download);
-    let trace = scratch_file t "remote-trace.zip" in
-    Tracing.start (BrowserContext.tracing context);
-    Page.set_content "<p>traced</p>" page;
-    Tracing.stop ~path:trace (BrowserContext.tracing context);
-    Alcotest.(check string) "trace" "PK" (String.sub (read_file trace) 0 2);
-    let disconnected = ref false in
-    Browser.on_disconnected (fun _ -> disconnected := true) browser |> ignore;
-    Browser.close browser;
-    Alcotest.(check bool) "disconnected" true (!disconnected && (not (Browser.is_connected browser)) && Page.is_closed page);
-    check_failure "use after disconnecting" ~kind:Target_closed (fun () -> Page.title page);
-    (* The server going away is noticed. *)
-    let browser = BrowserType.connect endpoint (chromium t.pw) in
-    let page = Browser.new_page browser in
-    let gone, announce = Promise.create () in
-    Browser.on_disconnected (fun _ -> Promise.resolve announce ()) browser |> ignore;
-    ignore (Fiber.fork_promise ~sw:t.sw (fun () -> ignore (Page.evaluate "new Promise(() => {})" page)));
-    Fiber.yield ();
-    (try Browser.close ~reason:"closing the remote browser" browser with Playwright.Error _ -> ());
-    Promise.await gone;
-    (* The end of the instance is the end of what it reached through a server, too. *)
-    check_instance_end t "closed while connected to a server"
-        ~create:(fun ~on_error -> Playwright.create ~sw:t.sw ~env:t.env ~on_error ())
-        ~obtain:(fun pw -> BrowserType.connect endpoint (chromium pw))
-        (fun pw _ -> Playwright.close pw);
-    check_failure "wrong endpoint" (fun () -> BrowserType.connect ~timeout:3000. (Printf.sprintf "ws://127.0.0.1:%d/nothing" (closed_port t)) (chromium t.pw))
-
 (* Starts an instance whose driver can be killed: returns the process identifier with it. *)
 let create_with_driver_pid t ~on_error =
     let node = List.hd (Driver.command []) in
@@ -536,6 +441,15 @@ let test_second_driver t () =
     let browser = BrowserType.launch ?executable_path:t.executable_path (chromium pw) in
     let page = Browser.new_page browser in
     Alcotest.(check bool) "the objects of two drivers are different ones" false (BrowserType.equal (chromium pw) (chromium t.pw));
+    (* A response that the other driver fetched is not known to this one: its body is sent over. *)
+    Server.route t.server "/fetched-elsewhere" (fun _ -> Server.respond ~headers:[ "x-origin", "elsewhere" ] "fetched by the other driver");
+    let request = APIRequest.new_context t.pw in
+    let response = APIRequestContext.get (Server.url t.server "/fetched-elsewhere") request in
+    ignore (Page.goto (Server.url t.server "/blank") page);
+    Page.route "**/replayed" (Route.fulfill ~response) page |> ignore;
+    Alcotest.(check string) "a response of another driver" "fetched by the other driver, elsewhere"
+        (eval_string "fetch('/replayed').then(async r => (await r.text()) + ', ' + r.headers.get('x-origin'))" page);
+    APIRequestContext.dispose request;
     (* A setting of one driver is not one of the other. *)
     Expect.set_default_timeout 150. pw;
     check_failure "the assertions of this driver" ~kind:Assertion_failed ~message:"150ms" (fun () -> Expect.to_be_visible (Page.locator "#never" page));
@@ -589,8 +503,7 @@ let test_identity t page =
 let tests t =
     [ "rendering", [ case t "screenshots" (test_screenshots t); page_case t "PDF and ARIA snapshots" (test_pdf_and_aria t) ];
       "input", [ page_case t "keyboard and mouse" (test_keyboard_and_mouse t); case t "touch" (test_touch t) ];
-      "tools", [ page_case t "CDP sessions" (test_cdp t); case t "selector engines and test ids" (test_selectors t); page_case t "picking a locator" (test_picking t);
-          case t "binding a browser" (test_binding t) ];
+      "tools", [ page_case t "CDP sessions" (test_cdp t); case t "selector engines and test ids" (test_selectors t); page_case t "picking a locator" (test_picking t) ];
       "objects", [ page_case t "identity" (test_identity t) ];
       "fibers", [ case t "concurrent pages" (test_concurrency t); page_case t "cancellation" (test_cancellation t) ];
       "lifecycle",
@@ -599,7 +512,6 @@ let tests t =
         case t "persistent context" (test_persistent_context t);
         case t "a directory for artifacts" (test_artifacts_dir t);
         case t "connect over CDP" (test_connect_over_cdp t);
-        case t "connect to a server" (test_connect t);
         case t "several drivers" (test_second_driver t);
         case t "a failing error hook" (test_error_hook t);
         case t "the end of an instance" (test_instance_end t) ] ]

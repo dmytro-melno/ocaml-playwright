@@ -35,9 +35,9 @@ module Download = struct
     let suggested_filename (d : t) = d.suggested_filename
 
     (* Waits for the download to finish and returns where the browser stored it. *)
-    let path (d : t) = Artifact.path_after_finished (session d) d.dl_artifact
+    let path (d : t) = Artifact.path_after_finished d.dl_artifact
 
-    let save_as path (d : t) = Artifact.save_as (session d) d.dl_artifact path
+    let save_as path (d : t) = Artifact.save_as d.dl_artifact path
     let failure (d : t) = Artifact.failure d.dl_artifact
     let cancel (d : t) = Artifact.cancel d.dl_artifact
     let delete (d : t) = Artifact.delete d.dl_artifact

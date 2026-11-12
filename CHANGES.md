@@ -41,8 +41,7 @@ adapted; [doc/migration.md](doc/migration.md) says how.
 ### What it covers
 
 - Browser types, browsers, contexts with the full set of options, device descriptors
-  (`Playwright.device`), persistent contexts, `BrowserType.connect` to a Playwright server
-  including file transfer, `BrowserType.connect_over_cdp`, `Browser.bind`.
+  (`Playwright.device`), persistent contexts, `BrowserType.connect_over_cdp`.
 - Pages and frames: navigation, content, evaluation, init scripts, exposed functions,
   emulation, screenshots, PDF, video, web storage, keyboard, mouse and touch.
 - Locators after Playwright's model: `get_by_role` with all its options, `get_by_text`,
@@ -70,7 +69,7 @@ adapted; [doc/migration.md](doc/migration.md) says how.
   `Dialog_closed`, the options `scroll`, `include_shadow`, `opfs`, `artifacts_dir` and
   `no_defaults`, `Expect.to_have_accessible_error_message`.
 - The command `ocaml-playwright`, which is Playwright's command line tool for the driver in
-  use (`install`, `show-trace`, `codegen`, `run-server`), and `Playwright.Driver` to run it
+  use (`install`, `show-trace`, `codegen`), and `Playwright.Driver` to run it
   from a program.
 
 ### Behaviour

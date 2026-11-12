@@ -1,5 +1,5 @@
-(* The utilities of the local driver: work on local files (archives, HAR files, traces) that the
-   client leaves to its own driver, also when the browser it drives is a remote one. *)
+(* The utilities of the driver: work on local files (archives, HAR files, traces) that the client
+   leaves to it. *)
 
 open Types
 

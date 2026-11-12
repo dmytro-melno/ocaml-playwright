@@ -71,7 +71,6 @@ of the module `Playwright`, built with `dune build @doc`.
 | `context.newCDPSession(frame)` | `BrowserContext.new_cdp_session_for_frame` |
 | `request.postDataBuffer()`, `response.body()` | `Request.post_data`, `Response.body`: strings hold bytes |
 | `apiRequestContext.get(url, { data })` with an object | `APIRequestContext.get ~json url request`; `~data` is a body as it is |
-| `browserType.launchServer()` | The command `ocaml-playwright run-server`, and `BrowserType.connect` |
 | `npx playwright install` | `ocaml-playwright install` |
 
 ## Where the behaviour differs
@@ -149,7 +148,7 @@ of the module `Playwright`, built with `dune build @doc`.
 | `context.debugger`, `page.webmcp` | Not covered. |
 | `browser.startTracing`, `browser.stopTracing` | Not covered. This is Chromium's own tracing; Playwright's traces are covered by `Tracing`. |
 | `download.createReadStream()` | Not there. Use `Download.path` or `Download.save_as`. |
-| `browserType.launchServer()`, `BrowserServer` | Not there as a function. `ocaml-playwright run-server` starts a server for `BrowserType.connect`. |
+| `browserType.connect()`, `browserType.launchServer()`, `BrowserServer`, `browser.bind()` | Not covered: browsers behind a Playwright server. `BrowserType.connect_over_cdp` reaches a remote Chromium. |
 | `connectOverCDP` with a transport object | Not covered. `BrowserType.connect_over_cdp` takes an endpoint. |
 | `context.backgroundPages()`, the event `backgroundpage` | Not there: deprecated in Playwright. |
 | `context.setHTTPCredentials()` | Not there: deprecated in Playwright. Credentials are given when the context is created. |

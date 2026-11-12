@@ -9,24 +9,24 @@ reaches the public interface is a matter of that module. `dune runtest` fails wh
 is not what the generator would write, so that an update of the protocol shows here what it
 added. See [protocol.md](protocol.md).
 
-The client sends 240 of the 283 commands of the 27 interfaces that it knows.
+The client sends 228 of the 283 commands of the 27 interfaces that it knows.
 
 ## Interfaces
 
 | Interface | Commands | Not sent | Events |
 | --- | ---: | ---: | --- |
 | `APIRequestContext` | 9 | 0 | none |
-| `Artifact` | 7 | 1 | none |
-| `Stream` | 2 | 0 | none |
-| `WritableStream` | 2 | 0 | none |
-| `Browser` | 11 | 6 | 2, handled |
-| `BrowserContext` | 38 | 9 | 15, handled |
+| `Artifact` | 7 | 2 | none |
+| `Stream` | 2 | 2 | none |
+| `WritableStream` | 2 | 2 | none |
+| `Browser` | 11 | 8 | 2, handled |
+| `BrowserContext` | 38 | 10 | 15, handled |
 | `BrowserType` | 4 | 1 | none |
 | `Disposable` | 1 | 0 | none |
 | `Frame` | 52 | 2 | 2, handled |
 | `JSHandle` | 6 | 0 | 1, handled |
 | `ElementHandle` (extends `JSHandle`) | 36 | 0 | none |
-| `LocalUtils` | 11 | 3 | none |
+| `LocalUtils` | 11 | 5 | none |
 | `Request` | 2 | 0 | none |
 | `Route` | 4 | 0 | none |
 | `WebSocketRoute` | 6 | 0 | 4, handled |
@@ -35,7 +35,7 @@ The client sends 240 of the 283 commands of the 27 interfaces that it knows.
 | `Page` | 59 | 15 | 14, handled |
 | `Root` | 1 | 0 | none |
 | `Playwright` | 1 | 0 | none |
-| `JsonPipe` | 2 | 0 | 2, handled |
+| `JsonPipe` | 2 | 2 | 2, **not listened to** |
 | `CDPSession` | 2 | 0 | 2, handled |
 | `BindingCall` | 2 | 0 | none |
 | `Debugger` | 5 | 5 | 2, **not listened to** |
@@ -49,18 +49,22 @@ reads `| Event _ -> ()` there.
 
 ## Commands that the client does not send
 
-- `Artifact`: `stream`
-- `Browser`: `killForTests`, `defaultUserAgentForTest`, `newContextForReuse`, `disconnectFromReusedContext`, `startTracing`, `stopTracing`
-- `BrowserContext`: `setHTTPCredentials`, `showRecorder`, `startRecording`, `stopRecording`, `exposeConsoleApi`, `credentialsInstall`, `credentialsCreate`, `credentialsGet`, `credentialsDelete`
+- `Artifact`: `saveAsStream`, `stream`
+- `Stream`: `read`, `close`
+- `WritableStream`: `write`, `close`
+- `Browser`: `startServer`, `stopServer`, `killForTests`, `defaultUserAgentForTest`, `newContextForReuse`, `disconnectFromReusedContext`, `startTracing`, `stopTracing`
+- `BrowserContext`: `setHTTPCredentials`, `showRecorder`, `startRecording`, `stopRecording`, `exposeConsoleApi`, `createTempFiles`, `credentialsInstall`, `credentialsCreate`, `credentialsGet`, `credentialsDelete`
 - `BrowserType`: `connectToWorker`
 - `Frame`: `webmcpTools`, `webmcpCallTool`
-- `LocalUtils`: `addStackToTracingNoReply`, `globToRegex`, `asLocatorDescription`
+- `LocalUtils`: `harUnzip`, `connect`, `addStackToTracingNoReply`, `globToRegex`, `asLocatorDescription`
 - `Page`: `expectScreenshot`, `startJSCoverage`, `stopJSCoverage`, `startCSSCoverage`, `stopCSSCoverage`, `screencastShowOverlay`, `screencastRemoveOverlay`, `screencastChapter`, `screencastSetOverlayVisible`, `screencastShowActions`, `screencastHideActions`, `screencastStart`, `screencastFrameAck`, `screencastStop`, `setDockTile`
+- `JsonPipe`: `send`, `close`
 - `Debugger`: `requestPause`, `resume`, `next`, `runTo`, `enable`
 - `Worker`: `disconnect`
 
 ## Events of interfaces that the client does not listen to
 
+- `JsonPipe`: `message`, `closed`
 - `Debugger`: `pausedStateChanged`, `apiCallsUpdated`
 
 ## Interfaces without generated code

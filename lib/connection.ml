@@ -20,8 +20,7 @@ open Eio.Std
 
 (* Where the fibers that serve a Playwright instance run: the readers of its connections, the
    handlers of its events and the work that follows from them.  It exists for as long as the
-   connection to the driver runs, and is shared with the connections made through that one to
-   Playwright servers, so that a handler lives as long as the instance and no longer. *)
+   connection to the driver runs, so that a handler lives as long as the instance and no longer. *)
 type scope = {
     mutable switch : Switch.t option;
     (* What the events of the instance may cost at any moment: see {!handle}. *)
@@ -38,7 +37,6 @@ let default_handler_backlog = 65536
 type t = {
     transport : Transport.t;
     scope : scope;
-    owns_scope : bool;
     clock : float Eio.Time.clock_ty r;
     objects : (string, channel) Hashtbl.t;
     pending : (string, (Json.t, Error.t) result -> unit) Hashtbl.t;  (* what to do with the reply to each command in flight *)
@@ -91,11 +89,11 @@ let random_prefix () =
     let state = Random.State.make_self_init () in
     String.init 4 (fun _ -> Char.chr (Char.code 'a' + Random.State.int state 26))
 
-let make ~scope ~owns_scope ~clock ~report ~trace ~render_value transport =
+let make ~scope ~clock ~report ~trace ~render_value transport =
     let closed_promise, closed_resolver = Promise.create () in
     let stopped_promise, stopped_resolver = Promise.create () in
     let conn =
-        { transport; scope; owns_scope; clock; objects = Hashtbl.create 256; pending = Hashtbl.create 64; outbox = Eio.Stream.create max_int;
+        { transport; scope; clock; objects = Hashtbl.create 256; pending = Hashtbl.create 64; outbox = Eio.Stream.create max_int;
           id_prefix = random_prefix (); last_id = 0; closed = None; closed_promise; closed_resolver; stopped_promise;
           stopped_resolver; factory = (fun _ -> No_impl); report; trace; render_value }
     in
@@ -108,12 +106,7 @@ let create ~clock ~report ?trace ?(handler_concurrency = default_handler_concurr
     if handler_concurrency < 1 then invalid_arg "Playwright: handler_concurrency must be positive";
     if handler_backlog < 0 then invalid_arg "Playwright: handler_backlog must not be negative";
     let scope = { switch = None; handler_concurrency; handler_backlog; running = 0; waiting = Queue.create (); admitting = false } in
-    make ~scope ~owns_scope:true ~clock:(clock :> float Eio.Time.clock_ty r) ~report ~trace ~render_value transport
-
-(* A connection that is relayed by [parent], which lends it its scope and settings. *)
-let create_relayed (parent : t) transport =
-    make ~scope:parent.scope ~owns_scope:false ~clock:parent.clock ~report:parent.report ~trace:parent.trace ~render_value:parent.render_value
-        transport
+    make ~scope ~clock:(clock :> float Eio.Time.clock_ty r) ~report ~trace ~render_value transport
 
 let root conn =
     match Hashtbl.find_opt conn.objects "" with
@@ -434,11 +427,9 @@ let describe_failure = function
     | ex -> Printexc.to_string ex
 
 (* Reads and dispatches messages until the transport ends or the connection is closed, and
-   returns once nothing of the connection runs any more: for the connection to a driver, that
-   includes the handlers of its instance, which are cancelled.
-
-   [end_message] describes the end of the transport to the calls that it interrupts. *)
-let run ?(end_message = fun () -> "The Playwright driver closed the connection") conn =
+   returns once nothing of the connection runs any more.  That includes the handlers of its
+   instance, which are cancelled. *)
+let run conn =
     let write () =
         while true do
             conn.transport.send (Eio.Stream.take conn.outbox)
@@ -447,7 +438,7 @@ let run ?(end_message = fun () -> "The Playwright driver closed the connection")
     let read () =
         while conn.closed = None do
             match conn.transport.receive () with
-            | None -> close conn (Error.target_closed ~message:(end_message ()) ())
+            | None -> close conn (Error.target_closed ~message:"The Playwright driver closed the connection" ())
             | Some message ->
                 Option.iter (fun trace -> trace ("<RECV " ^ Json.to_string message)) conn.trace;
                 (try dispatch conn message
@@ -466,15 +457,13 @@ let run ?(end_message = fun () -> "The Playwright driver closed the connection")
     Fun.protect
         ~finally:(fun () -> Promise.resolve conn.stopped_resolver ())
         (fun () ->
-            if conn.owns_scope then
-                Switch.run (fun sw ->
-                    conn.scope.switch <- Some sw;
-                    Fun.protect
-                        ~finally:(fun () ->
-                            conn.scope.switch <- None;
-                            Queue.clear conn.scope.waiting)
-                        serve)
-            else serve ())
+            Switch.run (fun sw ->
+                conn.scope.switch <- Some sw;
+                Fun.protect
+                    ~finally:(fun () ->
+                        conn.scope.switch <- None;
+                        Queue.clear conn.scope.waiting)
+                    serve))
 
 (* Fails with a {!Error.Timeout} error unless [f] finishes within [timeout] milliseconds;
    [0.] waits forever. *)
