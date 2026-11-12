@@ -5,7 +5,7 @@ There are four sets of checks, all run by `dune runtest`:
 | Directory | What | Needs |
 | --- | --- | --- |
 | `test/unit` | the internals, without a driver | nothing |
-| `test/driver` | what was ported from the Playwright client, against the original in the driver | Node.js, the driver |
+| `test/driver` | what the library leaves to the driver itself: the reading of URL globs | Node.js, the driver |
 | `test/integration` | the public API against Chromium | Node.js, the driver, a Chromium |
 | `test/docs` | the OCaml code in `README.md`, `doc/*.md` and the comments of `lib/playwright.mli` compiles | nothing |
 
@@ -35,12 +35,13 @@ dune build ./test/unit/main.exe && ./_build/default/test/unit/main.exe
 
 ## Driver tests
 
-`test/driver` starts the driver, but no browser. The driver matches the URLs of requests
-against the globs of routes, and the client does so again to find the handler, with code
-ported from Playwright (`lib/glob.ml`). The test asks the driver for the regular expression
-that it makes of some hundred globs and bases, and compares it with the client's. Run it
-after every upgrade of Playwright; a difference means that `urlMatch.ts` has changed and
-`lib/glob.ml` must follow. It is skipped, like the browser tests, where there is no driver.
+`test/driver` starts the driver, but no browser. It covers what the library leaves to the
+driver without a browser being involved, which is the reading of URL globs: the driver makes
+a regular expression of a glob and `Re` runs it (`lib/url_match.ml`). The examples of
+Playwright's own tests are matched in this way; globs of every shape are sent to see that
+`Re` can read what comes back; and a glob that a backtracking matcher does not survive is
+matched. Run it after every upgrade of Playwright. It is skipped, like the browser tests,
+where there is no driver.
 
 ```sh
 dune build ./test/driver/main.exe && ./_build/default/test/driver/main.exe

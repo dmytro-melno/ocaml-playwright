@@ -117,8 +117,8 @@ rules of translation:
 - **Objects have identity.** A page, a frame, a request is the same thing however it was
   obtained, and every such module has `equal`, `compare` and `hash` to say so. See
   [Identity](#identity).
-- **Misuse raises `Invalid_argument`.** Options that exclude each other, a malformed glob
-  pattern, a number out of range: what is wrong with a call whatever the browser does is
+- **Misuse raises `Invalid_argument`.** Options that exclude each other, a number out of
+  range: what is wrong with a call whatever the browser does is
   reported this way, and at once.
 
 ## Browsers, contexts and pages
@@ -748,8 +748,8 @@ suits the end of a test.
 Note that a pattern has to match the whole URL, query string included: `"**/api/items"` does
 not match `/api/items?page=2`, while `"**/api/items*"` and `"**/api/items?*"` do. A pattern
 that does not start with `*` is resolved against the `~base_url` of the context, so
-`"/api/items"` works there. A pattern whose braces are nested or not closed is rejected with
-`Invalid_argument` when the route is registered.
+`"/api/items"` works there. A pattern whose braces are nested or not closed is rejected, with
+`Playwright.Error`, when the route is registered.
 
 ### WebSockets
 

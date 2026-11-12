@@ -94,8 +94,8 @@ adapted; [doc/migration.md](doc/migration.md) says how.
 - The time limit of `expect_*` and `wait_for_*` is on the arrival of the event and counts
   from before the action; the predicate is called as events arrive and may itself call the
   library.
-- URL globs are matched as Playwright matches them, base URL and all; a malformed glob
-  raises `Invalid_argument`.
+- URL globs are read by the driver, as in every Playwright client, base URL and all; a
+  malformed glob is an error where the route is registered or the wait begins.
 - Local files (scripts, uploads, downloads, screenshots, traces) are read and written in
   system threads, so that other fibers go on meanwhile.
 
@@ -116,7 +116,7 @@ adapted; [doc/migration.md](doc/migration.md) says how.
 - Windows needs no C stubs any more: the driver's pipes are served by two threads. The
   build for Windows is cross-compiled and was tried under Wine only; see
   [doc/dev/windows.md](doc/dev/windows.md).
-- The dependencies are `eio`, `cstruct`, `yojson` and `base64`.
+- The dependencies are `eio`, `cstruct`, `yojson`, `base64` and `re`.
 
 ### Inside
 

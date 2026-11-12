@@ -31,6 +31,48 @@ let unindent text =
     let lines = drop_blank lines |> List.rev |> drop_blank |> List.rev in
     String.concat "\n" (List.map (fun line -> if blank line then "" else String.sub line common (String.length line - common)) lines)
 
+(* The URL that [url] refers to, seen from [base]: the reference resolution of RFC 3986, section
+   5.2, which is also what Python's [urljoin] does.  Nothing else is normalised, with one
+   exception: an empty path after a host is the root, since every browser reports it so. *)
+let resolve_url ?base url =
+    let parts = Re.compile (Re.Perl.re ~opts:[ `Dotall ] {|^(?:([^:/?#]+):)?(?://([^/?#]*))?([^?#]*)(?:\?([^#]*))?(?:#(.*))?$|}) in
+    let split url =
+        let groups = Re.exec parts url in
+        Re.Group.(get_opt groups 1, get_opt groups 2, get groups 3, get_opt groups 4, get_opt groups 5)
+    in
+    let remove_dot_segments path =
+        let up = function _ :: (_ :: _ as above) -> above | root -> root in
+        let rec go seen = function
+            | [] -> seen
+            | [ "." ] -> "" :: seen
+            | [ ".." ] -> "" :: up seen
+            | "." :: rest -> go seen rest
+            | ".." :: rest -> go (up seen) rest
+            | segment :: rest -> go (segment :: seen) rest
+        in
+        if String.starts_with ~prefix:"/" path then String.concat "/" (List.rev (go [] (String.split_on_char '/' path))) else path
+    in
+    let compose scheme authority path query fragment =
+        let part before = Option.fold ~none:"" ~some:(fun value -> before ^ value) in
+        let path = if authority <> None && path = "" then "/" else remove_dot_segments path in
+        Option.fold ~none:"" ~some:(fun scheme -> scheme ^ ":") scheme ^ part "//" authority ^ path ^ part "?" query ^ part "#" fragment
+    in
+    let scheme, authority, path, query, fragment = split url in
+    match scheme, Option.map split base with
+    | Some _, _ | None, None -> compose scheme authority path query fragment
+    | None, Some (scheme, base_authority, base_path, base_query, _) ->
+        if authority <> None then compose scheme authority path query fragment
+        else if path = "" then compose scheme base_authority base_path (if query = None then base_query else query) fragment
+        else if String.starts_with ~prefix:"/" path then compose scheme base_authority path query fragment
+        else begin
+            let directory =
+                match String.rindex_opt base_path '/' with
+                | Some slash -> String.sub base_path 0 (slash + 1)
+                | None -> if base_authority <> None then "/" else ""
+            in
+            compose scheme base_authority (directory ^ path) query fragment
+        end
+
 (* Raises unless the outcome is the one wanted. *)
 let verdict ~is_not ~subject ~condition (outcome : Frame.expectation) =
     if outcome.matches = is_not then begin
@@ -189,8 +231,7 @@ struct
         page ?timeout ~expected_text:(text_values ~normalize_white_space:true [ Regex regex ]) "to.have.title" ~condition:("to have title " ^ regex) p
 
     let to_have_url ?timeout ?ignore_case url (p : page) =
-        (* The page reports its URL in normal form, so that is what is expected of it. *)
-        let url = Url.resolve ?base:p.context.base_url url in
+        let url = resolve_url ?base:p.context.base_url url in
         page ?timeout ~expected_text:(text_values ?ignore_case [ Text url ]) "to.have.url" ~condition:(Printf.sprintf "to have URL %S" url) p
 
     let to_have_url_regex ?timeout regex p =

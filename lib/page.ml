@@ -393,7 +393,7 @@ let remove_routes ?(behavior = `Default) removed (page : t) =
     update_interception page
 
 let add_route ?times matcher handler (page : t) =
-    let handler = Route.Handler.make ?base_url:page.context.base_url ?times matcher handler in
+    let handler = Route.Handler.make (session page) ?base_url:page.context.base_url ?times matcher handler in
     let remove () = remove_routes (fun h -> h == handler) page in
     page.p_routes <- handler :: page.p_routes;
     (* A handler that the driver could not be told about is taken back: nothing else could do that. *)
@@ -407,7 +407,7 @@ let unroute glob page = remove_routes (fun (handler : route_handler) -> Route.Ha
 let unroute_all ?behavior page = remove_routes ?behavior (fun _ -> true) page
 
 let add_web_socket_route matcher handler (page : t) =
-    let handler = Route.Web_socket.make_handler ?base_url:page.context.base_url matcher handler in
+    let handler = Route.Web_socket.make_handler (session page) ?base_url:page.context.base_url matcher handler in
     let remove () =
         page.p_ws_routes <- List.filter (fun h -> h != handler) page.p_ws_routes;
         update_web_socket_interception page

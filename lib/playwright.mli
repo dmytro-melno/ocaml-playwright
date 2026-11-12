@@ -35,8 +35,8 @@
     - URL patterns are {{:https://playwright.dev/docs/network#glob-url-patterns} glob patterns}: [*] stands for
       any characters but [/], [**] for any characters, [{a,b}] for either, and a backslash makes the next character
       literal. A pattern that does not start with [*] is resolved against the base URL of the context. Braces that
-      are nested or not balanced raise [Invalid_argument]. Functions named [..._matching] take an OCaml predicate
-      on the URL instead.
+      are nested or not balanced are an {!exception-Error} where the pattern is given. Functions named
+      [..._matching] take an OCaml predicate on the URL instead.
 
     {2 Calls, failures and cancellation}
 
@@ -2198,8 +2198,10 @@ module Expect : sig
         val to_have_title_regex : ?timeout:float -> string -> Page.t -> unit
 
         val to_have_url : ?timeout:float -> ?ignore_case:bool -> string -> Page.t -> unit
-        (** The URL of the page is the given one. A relative URL is resolved against the [base_url] of the context.
-            This is a comparison of strings, not of patterns; for those there is {!to_have_url_regex}. *)
+        (** The URL of the page is the given one. This is a comparison of strings, so the URL has to be written as
+            the browser reports it: the host in lower case, no default port, special characters percent-encoded. Two
+            things are done for it: a relative URL is resolved against the [base_url] of the context, and a URL that
+            ends with the host gets the path [/]. For patterns there is {!to_have_url_regex}. *)
 
         val to_have_url_regex : ?timeout:float -> string -> Page.t -> unit
 

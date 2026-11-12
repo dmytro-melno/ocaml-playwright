@@ -73,7 +73,7 @@ let page_close_error (page : page) =
     Error.target_closed ?message:reason ()
 
 let base_url (frame : t) = Option.bind frame.page (fun page -> page.context.base_url)
-let url_matcher (frame : t) glob = Glob.matcher ?base_url:(base_url frame) glob
+let url_matcher (frame : t) glob = Url_match.of_glob frame.f_session ?base_url:(base_url frame) glob
 
 type input_files =
     | Paths of string list

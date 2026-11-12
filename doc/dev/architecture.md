@@ -217,8 +217,7 @@ The supporting modules:
 | `Timeouts` | Default timeouts, inherited from context to page. |
 | `Js` | Encoding and decoding of JavaScript values. |
 | `Selector` | Builds the selectors behind `get_by_role` and the other locator functions. |
-| `Url` | The URL Standard's parser: what `new URL(reference, base)` gives. Predicts the address that a page reports, for `Expect.to_have_url` and for globs. |
-| `Glob`, `Url_regex`, `Url_match` | URL globs, ported from Playwright's `urlMatch.ts`: `Glob` resolves a glob against the base URL and turns it into the regular expression that Playwright makes of it; `Url_regex` runs the subset of regular expressions that this produces; `Url_match` is the choice between a glob and a predicate. `test/driver` compares the result with the driver's. |
+| `Url_match` | Which URLs are meant: a glob or a predicate. The driver makes a regular expression of a glob (`LocalUtils.globToRegex`), resolving it against the base URL as it does for itself, and `Re` runs it. Nothing of Playwright's `urlMatch.ts` is repeated here. |
 | `Local_utils` | The utilities of the driver (archives of traces). |
 | `Files` | Reading and writing local files: scripts, bodies, screenshots, uploads, downloads. All of it happens in system threads (`Files.blocking`), so that a large file or a slow disk does not hold up the other fibers. |
 | `Fibers` | `first` for operations that can fail; `in_systhread` for blocking work that must end when its fiber is cancelled; `is_cancellation`. |
@@ -398,8 +397,9 @@ handler is tried. `Route.Handler` holds the rest of the policy:
   silence.
 
 The driver is told which URLs to intercept (`Url_match.interception_patterns`); whether a
-handler matches is then decided on the client, by `Glob`, since a predicate can only run
-here.
+handler matches is then decided on the client, since a predicate can only run here: for a
+glob, with the regular expression that the driver made of it when the handler was
+registered. The driver is not asked while an event is handled.
 
 ## Lifetimes
 

@@ -87,7 +87,6 @@ in reviews. `dune runtest` fails if either file is not what the generator would 
 
      | Upstream | Here |
      | --- | --- |
-     | `packages/isomorphic/urlMatch.ts` | `lib/glob.ml`, `lib/url_match.ml`; `test/driver` compares the two |
      | `packages/isomorphic/locatorUtils.ts` | `lib/selector.ml` |
      | `packages/protocol/src/serializers.ts`, `client/jsHandle.ts` | `lib/js.ml` |
      | `client/waiter.ts`, `client/timeoutSettings.ts` | `lib/waiter.ml`, `lib/timeouts.ml` (the behaviour, not the code) |
@@ -114,8 +113,8 @@ in reviews. `dune runtest` fails if either file is not what the generator would 
 5. **Run the tests** against the new driver: `dune runtest`. The first run downloads the
    driver. Browsers have to match it; if the tests use Playwright's own browsers, install
    them anew with `dune exec ocaml-playwright -- install chromium`. The driver test
-   (`test/driver`) fails when `urlMatch.ts` has changed in a way that `lib/glob.ml` does not
-   follow.
+   (`test/driver`) fails when the driver has begun to make regular expressions of URL globs
+   that `Re` cannot run, or reads a glob differently than before.
 
 6. **Update the texts**: the versions in `README.md` and in [parity.md](../parity.md),
    an entry in `CHANGES.md`, and the version of the

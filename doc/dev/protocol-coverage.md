@@ -9,7 +9,7 @@ reaches the public interface is a matter of that module. `dune runtest` fails wh
 is not what the generator would write, so that an update of the protocol shows here what it
 added. See [protocol.md](protocol.md).
 
-The client sends 220 of the 283 commands of the 27 interfaces that it knows.
+The client sends 221 of the 283 commands of the 27 interfaces that it knows.
 
 ## Interfaces
 
@@ -26,7 +26,7 @@ The client sends 220 of the 283 commands of the 27 interfaces that it knows.
 | `Frame` | 52 | 2 | 2, handled |
 | `JSHandle` | 6 | 0 | 1, handled |
 | `ElementHandle` (extends `JSHandle`) | 36 | 0 | none |
-| `LocalUtils` | 11 | 10 | none |
+| `LocalUtils` | 11 | 9 | none |
 | `Request` | 2 | 0 | none |
 | `Route` | 4 | 1 | none |
 | `WebSocketRoute` | 6 | 0 | 4, handled |
@@ -56,7 +56,7 @@ reads `| Event _ -> ()` there.
 - `BrowserContext`: `setHTTPCredentials`, `showRecorder`, `startRecording`, `stopRecording`, `exposeConsoleApi`, `createTempFiles`, `credentialsInstall`, `credentialsCreate`, `credentialsGet`, `credentialsDelete`
 - `BrowserType`: `connectToWorker`
 - `Frame`: `webmcpTools`, `webmcpCallTool`
-- `LocalUtils`: `harOpen`, `harLookup`, `harClose`, `harUnzip`, `connect`, `tracingStarted`, `addStackToTracingNoReply`, `traceDiscarded`, `globToRegex`, `asLocatorDescription`
+- `LocalUtils`: `harOpen`, `harLookup`, `harClose`, `harUnzip`, `connect`, `tracingStarted`, `addStackToTracingNoReply`, `traceDiscarded`, `asLocatorDescription`
 - `Route`: `redirectNavigationRequest`
 - `Page`: `expectScreenshot`, `startJSCoverage`, `stopJSCoverage`, `startCSSCoverage`, `stopCSSCoverage`, `screencastShowOverlay`, `screencastRemoveOverlay`, `screencastChapter`, `screencastSetOverlayVisible`, `screencastShowActions`, `screencastHideActions`, `screencastStart`, `screencastFrameAck`, `screencastStop`, `setDockTile`
 - `JsonPipe`: `send`, `close`

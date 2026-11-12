@@ -12,7 +12,7 @@
  (name playwright_internal)
  (package playwright)
  (modules :standard \ playwright)
- (libraries eio eio.unix cstruct yojson base64 unix threads.posix))
+ (libraries eio eio.unix cstruct yojson base64 re unix threads.posix))
 
 ; [protocol.ml] is generated from protocol/ but checked in, so that building the library needs
 ; neither the generator nor its dependencies.  [dune build @gen --auto-promote] refreshes it and

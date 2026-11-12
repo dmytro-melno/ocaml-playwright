@@ -104,6 +104,10 @@ let test_handler_order t page =
     Disposable.dispose by_glob;
     Disposable.dispose by_glob;
     Alcotest.(check bool) "none" true (contains ~sub:{|"method":"GET"|} (body (fetch "/echo" page)));
+    (* A glob that cannot be read is refused where it is given, and registers nothing. *)
+    check_failure "a malformed glob" ~message:"Invalid glob pattern" (fun () -> Page.route "**/{echo" (Route.fulfill ~body:"never") page);
+    check_failure "a malformed glob for a wait" ~message:"Invalid glob pattern" (fun () -> Page.wait_for_url ~timeout:100. "{a,{b}}" page);
+    Alcotest.(check bool) "still none" true (contains ~sub:{|"method":"GET"|} (body (fetch "/echo" page)));
     Page.unroute_all page;
     BrowserContext.unroute_all context;
     Alcotest.(check int) "nothing intercepts any more" 404 (fetch "/chain" page |> field "status" |> Js.to_int)

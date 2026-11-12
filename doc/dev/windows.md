@@ -72,7 +72,7 @@ with it.
 ## Cross-compiling
 
 The build needs a Windows cross compiler that findlib knows as the toolchain `windows`, and
-the dependencies built for it: `eio`, `yojson`, `base64` and what they depend on. A program
+the dependencies built for it: `eio`, `yojson`, `base64`, `re` and what they depend on. A program
 also needs `eio_main` and `eio_windows`. The
 [opam-cross-windows](https://github.com/ocaml-cross/opam-cross-windows) repository provides
 the compiler and the conventions for such packages.

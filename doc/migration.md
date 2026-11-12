@@ -156,9 +156,9 @@ let () =
 - **Cancellation** of a fiber cancels the call it is blocked in and leaves nothing behind:
   a page or a browser that was being created is closed again.
 - **Dialogs** are dismissed automatically when nothing listens for them, as in Playwright.
-- **URL patterns** are matched by the library with Playwright's glob syntax; a malformed
-  pattern raises `Invalid_argument`.
-- **Dependencies.** The library needs `eio`, `yojson`, `cstruct` and `base64` only. The
+- **URL patterns** are globs in Playwright's syntax, and the driver reads them; a malformed
+  pattern is an error where it is given.
+- **Dependencies.** The library needs `eio`, `yojson`, `cstruct`, `base64` and `re` only. The
   HTTP, TLS and tar libraries, the ppx and the C stubs for Windows are gone.
 - **Build.** There is one `dune-workspace.windows` for cross-compiling; the default build
   needs no workspace file.

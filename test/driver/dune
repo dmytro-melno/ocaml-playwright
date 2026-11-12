@@ -1,6 +1,6 @@
-; Tests against the driver alone.  What this library has ported from the Playwright client is
-; compared here with the original, which the driver holds.  They need Node.js and the driver,
-; but no browser, and are skipped, successfully, where those are missing; see doc/dev/testing.md.
+; Tests against the driver alone: of what the library leaves to the driver without a browser
+; being involved.  They need Node.js and the driver, and are skipped, successfully, where those
+; are missing; see doc/dev/testing.md.
 
 (test
  (name main)
