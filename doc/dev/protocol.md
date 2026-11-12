@@ -114,6 +114,9 @@ in reviews. `dune runtest` fails if either file is not what the generator would 
   keywords get an underscore appended.
 - Inline objects and enumerations get modules named after their path, such as
   `Protocol.Page.Initializer_viewport_size`.
+- An enumeration is encoded by a match on its values, not looked up in a table. A parameter
+  therefore accepts the values that the protocol has and no others, and a value that a new
+  version removes or renames is a type error wherever the client sends it.
 - Every interface gets a type in `Protocol.Kind`, a row of tags: its own and those of the
   interfaces that it extends (`type element_handle = [ js_handle | `Element_handle ]`), and
   a value of the same name that tells its objects from the others. Channels are typed with

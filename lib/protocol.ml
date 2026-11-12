@@ -291,7 +291,7 @@ module Set_network_cookie = struct
                 Json.opt "expires" Json.float v.expires;
                 Json.opt "httpOnly" Json.bool v.http_only;
                 Json.opt "secure" Json.bool v.secure;
-                Json.opt "sameSite" (Json.enum [ (`Strict, "Strict"); (`Lax, "Lax"); (`None, "None") ]) v.same_site;
+                Json.opt "sameSite" (function `Strict -> `String "Strict" | `Lax -> `String "Lax" | `None -> `String "None") v.same_site;
                 Json.opt "partitionKey" Json.string v.partition_key;
                 Json.opt "_crHasCrossSiteAncestor" Json.bool v.cr_has_cross_site_ancestor;
             ]
@@ -336,7 +336,7 @@ module Network_cookie = struct
                 Json.req "expires" Json.float v.expires;
                 Json.req "httpOnly" Json.bool v.http_only;
                 Json.req "secure" Json.bool v.secure;
-                Json.req "sameSite" (Json.enum [ (`Strict, "Strict"); (`Lax, "Lax"); (`None, "None") ]) v.same_site;
+                Json.req "sameSite" (function `Strict -> `String "Strict" | `Lax -> `String "Lax" | `None -> `String "None") v.same_site;
                 Json.opt "partitionKey" Json.string v.partition_key;
                 Json.opt "_crHasCrossSiteAncestor" Json.bool v.cr_has_cross_site_ancestor;
             ]
@@ -477,7 +477,7 @@ module Opfs_entry = struct
         Json.obj
             [
                 Json.req "path" Json.string v.path;
-                Json.req "type" (Json.enum [ (`File, "file"); (`Directory, "directory") ]) v.type_;
+                Json.req "type" (function `File -> `String "file" | `Directory -> `String "directory") v.type_;
                 Json.opt "base64" Json.string v.base64;
             ]
 
@@ -621,7 +621,7 @@ module Http_credentials = struct
                 Json.req "username" Json.string v.username;
                 Json.req "password" Json.string v.password;
                 Json.opt "origin" Json.string v.origin;
-                Json.opt "send" (Json.enum [ (`Always, "always"); (`Unauthorized, "unauthorized") ]) v.send;
+                Json.opt "send" (function `Always -> `String "always" | `Unauthorized -> `String "unauthorized") v.send;
             ]
 
     let of_json (c : Channel.conn) (j : Json.t) : t =
@@ -689,9 +689,9 @@ module Context_options_record_video_show_actions = struct
         Json.obj
             [
                 Json.opt "duration" Json.float v.duration;
-                Json.opt "position" (Json.enum [ (`Top_left, "top-left"); (`Top, "top"); (`Top_right, "top-right"); (`Bottom_left, "bottom-left"); (`Bottom, "bottom"); (`Bottom_right, "bottom-right") ]) v.position;
+                Json.opt "position" (function `Top_left -> `String "top-left" | `Top -> `String "top" | `Top_right -> `String "top-right" | `Bottom_left -> `String "bottom-left" | `Bottom -> `String "bottom" | `Bottom_right -> `String "bottom-right") v.position;
                 Json.opt "fontSize" Json.int v.font_size;
-                Json.opt "cursor" (Json.enum [ (`None, "none"); (`Pointer, "pointer") ]) v.cursor;
+                Json.opt "cursor" (function `None -> `String "none" | `Pointer -> `String "pointer") v.cursor;
                 Json.opt "style" Show_actions_options_style.to_json v.style;
             ]
 
@@ -980,7 +980,7 @@ end
 module Lifecycle_event = struct
     type t = [ `Load | `Domcontentloaded | `Networkidle | `Commit ]
 
-    let to_json : t -> Json.t = (Json.enum [ (`Load, "load"); (`Domcontentloaded, "domcontentloaded"); (`Networkidle, "networkidle"); (`Commit, "commit") ])
+    let to_json : t -> Json.t = (function `Load -> `String "load" | `Domcontentloaded -> `String "domcontentloaded" | `Networkidle -> `String "networkidle" | `Commit -> `String "commit")
     let of_json (_ : Channel.conn) : Json.t -> t = (D.enum [ ("load", `Load); ("domcontentloaded", `Domcontentloaded); ("networkidle", `Networkidle); ("commit", `Commit) ])
 end
 
@@ -1027,7 +1027,7 @@ end
 module Sdk_language = struct
     type t = [ `Javascript | `Python | `Java | `Csharp ]
 
-    let to_json : t -> Json.t = (Json.enum [ (`Javascript, "javascript"); (`Python, "python"); (`Java, "java"); (`Csharp, "csharp") ])
+    let to_json : t -> Json.t = (function `Javascript -> `String "javascript" | `Python -> `String "python" | `Java -> `String "java" | `Csharp -> `String "csharp")
     let of_json (_ : Channel.conn) : Json.t -> t = (D.enum [ ("javascript", `Javascript); ("python", `Python); ("java", `Java); ("csharp", `Csharp) ])
 end
 
@@ -1184,7 +1184,7 @@ end
 module Console_messages_filter = struct
     type t = [ `All | `Since_navigation ]
 
-    let to_json : t -> Json.t = (Json.enum [ (`All, "all"); (`Since_navigation, "since-navigation") ])
+    let to_json : t -> Json.t = (function `All -> `String "all" | `Since_navigation -> `String "since-navigation")
     let of_json (_ : Channel.conn) : Json.t -> t = (D.enum [ ("all", `All); ("since-navigation", `Since_navigation) ])
 end
 
@@ -1202,8 +1202,8 @@ module Record_har_options = struct
     let to_json (v : t) : Json.t =
         Json.obj
             [
-                Json.opt "content" (Json.enum [ (`Embed, "embed"); (`Attach, "attach"); (`Omit, "omit") ]) v.content;
-                Json.opt "mode" (Json.enum [ (`Full, "full"); (`Minimal, "minimal") ]) v.mode;
+                Json.opt "content" (function `Embed -> `String "embed" | `Attach -> `String "attach" | `Omit -> `String "omit") v.content;
+                Json.opt "mode" (function `Full -> `String "full" | `Minimal -> `String "minimal") v.mode;
                 Json.opt "urlGlob" Json.string v.url_glob;
                 Json.opt "urlRegexSource" Json.string v.url_regex_source;
                 Json.opt "urlRegexFlags" Json.string v.url_regex_flags;
@@ -1508,7 +1508,7 @@ module Browser = struct
                 [
                     Json.req "version" Json.string v.version;
                     Json.req "name" Json.string v.name;
-                    Json.req "browserName" (Json.enum [ (`Chromium, "chromium"); (`Firefox, "firefox"); (`Webkit, "webkit") ]) v.browser_name;
+                    Json.req "browserName" (function `Chromium -> `String "chromium" | `Firefox -> `String "firefox" | `Webkit -> `String "webkit") v.browser_name;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
@@ -1694,15 +1694,15 @@ module Browser = struct
                     Json.opt "deviceScaleFactor" Json.float device_scale_factor;
                     Json.opt "isMobile" Json.bool is_mobile;
                     Json.opt "hasTouch" Json.bool has_touch;
-                    Json.opt "colorScheme" (Json.enum [ (`Dark, "dark"); (`Light, "light"); (`No_preference, "no-preference"); (`No_override, "no-override") ]) color_scheme;
-                    Json.opt "reducedMotion" (Json.enum [ (`Reduce, "reduce"); (`No_preference, "no-preference"); (`No_override, "no-override") ]) reduced_motion;
-                    Json.opt "forcedColors" (Json.enum [ (`Active, "active"); (`None, "none"); (`No_override, "no-override") ]) forced_colors;
-                    Json.opt "acceptDownloads" (Json.enum [ (`Accept, "accept"); (`Deny, "deny"); (`Internal_browser_default, "internal-browser-default") ]) accept_downloads;
-                    Json.opt "contrast" (Json.enum [ (`No_preference, "no-preference"); (`More, "more"); (`No_override, "no-override") ]) contrast;
+                    Json.opt "colorScheme" (function `Dark -> `String "dark" | `Light -> `String "light" | `No_preference -> `String "no-preference" | `No_override -> `String "no-override") color_scheme;
+                    Json.opt "reducedMotion" (function `Reduce -> `String "reduce" | `No_preference -> `String "no-preference" | `No_override -> `String "no-override") reduced_motion;
+                    Json.opt "forcedColors" (function `Active -> `String "active" | `None -> `String "none" | `No_override -> `String "no-override") forced_colors;
+                    Json.opt "acceptDownloads" (function `Accept -> `String "accept" | `Deny -> `String "deny" | `Internal_browser_default -> `String "internal-browser-default") accept_downloads;
+                    Json.opt "contrast" (function `No_preference -> `String "no-preference" | `More -> `String "more" | `No_override -> `String "no-override") contrast;
                     Json.opt "baseURL" Json.string base_url;
                     Json.opt "recordVideo" Context_options_record_video.to_json record_video;
                     Json.opt "strictSelectors" Json.bool strict_selectors;
-                    Json.opt "serviceWorkers" (Json.enum [ (`Allow, "allow"); (`Block, "block") ]) service_workers;
+                    Json.opt "serviceWorkers" (function `Allow -> `String "allow" | `Block -> `String "block") service_workers;
                     Json.opt "selectorEngines" (Json.list Selector_engine.to_json) selector_engines;
                     Json.opt "testIdAttributeName" Json.string test_id_attribute_name;
                     Json.opt "proxy" New_context_proxy.to_json proxy;
@@ -1737,15 +1737,15 @@ module Browser = struct
                     Json.opt "deviceScaleFactor" Json.float device_scale_factor;
                     Json.opt "isMobile" Json.bool is_mobile;
                     Json.opt "hasTouch" Json.bool has_touch;
-                    Json.opt "colorScheme" (Json.enum [ (`Dark, "dark"); (`Light, "light"); (`No_preference, "no-preference"); (`No_override, "no-override") ]) color_scheme;
-                    Json.opt "reducedMotion" (Json.enum [ (`Reduce, "reduce"); (`No_preference, "no-preference"); (`No_override, "no-override") ]) reduced_motion;
-                    Json.opt "forcedColors" (Json.enum [ (`Active, "active"); (`None, "none"); (`No_override, "no-override") ]) forced_colors;
-                    Json.opt "acceptDownloads" (Json.enum [ (`Accept, "accept"); (`Deny, "deny"); (`Internal_browser_default, "internal-browser-default") ]) accept_downloads;
-                    Json.opt "contrast" (Json.enum [ (`No_preference, "no-preference"); (`More, "more"); (`No_override, "no-override") ]) contrast;
+                    Json.opt "colorScheme" (function `Dark -> `String "dark" | `Light -> `String "light" | `No_preference -> `String "no-preference" | `No_override -> `String "no-override") color_scheme;
+                    Json.opt "reducedMotion" (function `Reduce -> `String "reduce" | `No_preference -> `String "no-preference" | `No_override -> `String "no-override") reduced_motion;
+                    Json.opt "forcedColors" (function `Active -> `String "active" | `None -> `String "none" | `No_override -> `String "no-override") forced_colors;
+                    Json.opt "acceptDownloads" (function `Accept -> `String "accept" | `Deny -> `String "deny" | `Internal_browser_default -> `String "internal-browser-default") accept_downloads;
+                    Json.opt "contrast" (function `No_preference -> `String "no-preference" | `More -> `String "more" | `No_override -> `String "no-override") contrast;
                     Json.opt "baseURL" Json.string base_url;
                     Json.opt "recordVideo" Context_options_record_video.to_json record_video;
                     Json.opt "strictSelectors" Json.bool strict_selectors;
-                    Json.opt "serviceWorkers" (Json.enum [ (`Allow, "allow"); (`Block, "block") ]) service_workers;
+                    Json.opt "serviceWorkers" (function `Allow -> `String "allow" | `Block -> `String "block") service_workers;
                     Json.opt "selectorEngines" (Json.list Selector_engine.to_json) selector_engines;
                     Json.opt "testIdAttributeName" Json.string test_id_attribute_name;
                     Json.opt "proxy" New_context_for_reuse_proxy.to_json proxy;
@@ -1853,15 +1853,15 @@ module Browser_context = struct
                     Json.opt "deviceScaleFactor" Json.float v.device_scale_factor;
                     Json.opt "isMobile" Json.bool v.is_mobile;
                     Json.opt "hasTouch" Json.bool v.has_touch;
-                    Json.opt "colorScheme" (Json.enum [ (`Dark, "dark"); (`Light, "light"); (`No_preference, "no-preference"); (`No_override, "no-override") ]) v.color_scheme;
-                    Json.opt "reducedMotion" (Json.enum [ (`Reduce, "reduce"); (`No_preference, "no-preference"); (`No_override, "no-override") ]) v.reduced_motion;
-                    Json.opt "forcedColors" (Json.enum [ (`Active, "active"); (`None, "none"); (`No_override, "no-override") ]) v.forced_colors;
-                    Json.opt "acceptDownloads" (Json.enum [ (`Accept, "accept"); (`Deny, "deny"); (`Internal_browser_default, "internal-browser-default") ]) v.accept_downloads;
-                    Json.opt "contrast" (Json.enum [ (`No_preference, "no-preference"); (`More, "more"); (`No_override, "no-override") ]) v.contrast;
+                    Json.opt "colorScheme" (function `Dark -> `String "dark" | `Light -> `String "light" | `No_preference -> `String "no-preference" | `No_override -> `String "no-override") v.color_scheme;
+                    Json.opt "reducedMotion" (function `Reduce -> `String "reduce" | `No_preference -> `String "no-preference" | `No_override -> `String "no-override") v.reduced_motion;
+                    Json.opt "forcedColors" (function `Active -> `String "active" | `None -> `String "none" | `No_override -> `String "no-override") v.forced_colors;
+                    Json.opt "acceptDownloads" (function `Accept -> `String "accept" | `Deny -> `String "deny" | `Internal_browser_default -> `String "internal-browser-default") v.accept_downloads;
+                    Json.opt "contrast" (function `No_preference -> `String "no-preference" | `More -> `String "more" | `No_override -> `String "no-override") v.contrast;
                     Json.opt "baseURL" Json.string v.base_url;
                     Json.opt "recordVideo" Context_options_record_video.to_json v.record_video;
                     Json.opt "strictSelectors" Json.bool v.strict_selectors;
-                    Json.opt "serviceWorkers" (Json.enum [ (`Allow, "allow"); (`Block, "block") ]) v.service_workers;
+                    Json.opt "serviceWorkers" (function `Allow -> `String "allow" | `Block -> `String "block") v.service_workers;
                     Json.opt "selectorEngines" (Json.list Selector_engine.to_json) v.selector_engines;
                     Json.opt "testIdAttributeName" Json.string v.test_id_attribute_name;
                 ]
@@ -2437,7 +2437,7 @@ module Browser_context = struct
             Json.obj
                 [
                     Json.opt "language" Json.string language;
-                    Json.opt "mode" (Json.enum [ (`Inspecting, "inspecting"); (`Recording, "recording") ]) mode;
+                    Json.opt "mode" (function `Inspecting -> `String "inspecting" | `Recording -> `String "recording") mode;
                     Json.opt "pauseOnNextStatement" Json.bool pause_on_next_statement;
                     Json.opt "testIdAttributeName" Json.string test_id_attribute_name;
                     Json.opt "launchOptions" Json.any launch_options;
@@ -2500,7 +2500,7 @@ module Browser_context = struct
         let params =
             Json.obj
                 [
-                    Json.req "event" (Json.enum [ (`Console, "console"); (`Dialog, "dialog"); (`Dialog_closed, "dialogClosed"); (`Request, "request"); (`Response, "response"); (`Request_finished, "requestFinished"); (`Request_failed, "requestFailed") ]) event;
+                    Json.req "event" (function `Console -> `String "console" | `Dialog -> `String "dialog" | `Dialog_closed -> `String "dialogClosed" | `Request -> `String "request" | `Response -> `String "response" | `Request_finished -> `String "requestFinished" | `Request_failed -> `String "requestFailed") event;
                     Json.req "enabled" Json.bool enabled;
                 ]
         in
@@ -2748,15 +2748,15 @@ module Browser_type = struct
                     Json.opt "deviceScaleFactor" Json.float device_scale_factor;
                     Json.opt "isMobile" Json.bool is_mobile;
                     Json.opt "hasTouch" Json.bool has_touch;
-                    Json.opt "colorScheme" (Json.enum [ (`Dark, "dark"); (`Light, "light"); (`No_preference, "no-preference"); (`No_override, "no-override") ]) color_scheme;
-                    Json.opt "reducedMotion" (Json.enum [ (`Reduce, "reduce"); (`No_preference, "no-preference"); (`No_override, "no-override") ]) reduced_motion;
-                    Json.opt "forcedColors" (Json.enum [ (`Active, "active"); (`None, "none"); (`No_override, "no-override") ]) forced_colors;
-                    Json.opt "acceptDownloads" (Json.enum [ (`Accept, "accept"); (`Deny, "deny"); (`Internal_browser_default, "internal-browser-default") ]) accept_downloads;
-                    Json.opt "contrast" (Json.enum [ (`No_preference, "no-preference"); (`More, "more"); (`No_override, "no-override") ]) contrast;
+                    Json.opt "colorScheme" (function `Dark -> `String "dark" | `Light -> `String "light" | `No_preference -> `String "no-preference" | `No_override -> `String "no-override") color_scheme;
+                    Json.opt "reducedMotion" (function `Reduce -> `String "reduce" | `No_preference -> `String "no-preference" | `No_override -> `String "no-override") reduced_motion;
+                    Json.opt "forcedColors" (function `Active -> `String "active" | `None -> `String "none" | `No_override -> `String "no-override") forced_colors;
+                    Json.opt "acceptDownloads" (function `Accept -> `String "accept" | `Deny -> `String "deny" | `Internal_browser_default -> `String "internal-browser-default") accept_downloads;
+                    Json.opt "contrast" (function `No_preference -> `String "no-preference" | `More -> `String "more" | `No_override -> `String "no-override") contrast;
                     Json.opt "baseURL" Json.string base_url;
                     Json.opt "recordVideo" Context_options_record_video.to_json record_video;
                     Json.opt "strictSelectors" Json.bool strict_selectors;
-                    Json.opt "serviceWorkers" (Json.enum [ (`Allow, "allow"); (`Block, "block") ]) service_workers;
+                    Json.opt "serviceWorkers" (function `Allow -> `String "allow" | `Block -> `String "block") service_workers;
                     Json.opt "selectorEngines" (Json.list Selector_engine.to_json) selector_engines;
                     Json.opt "testIdAttributeName" Json.string test_id_attribute_name;
                     Json.req "userDataDir" Json.string user_data_dir;
@@ -3154,7 +3154,7 @@ module Frame = struct
         let params =
             Json.obj
                 [
-                    Json.opt "mode" (Json.enum [ (`Ai, "ai"); (`Default, "default") ]) mode;
+                    Json.opt "mode" (function `Ai -> `String "ai" | `Default -> `String "default") mode;
                     Json.opt "selector" Json.string selector;
                     Json.opt "depth" Json.int depth;
                     Json.opt "boxes" Json.bool boxes;
@@ -3166,7 +3166,7 @@ module Frame = struct
         let params =
             Json.obj
                 [
-                    Json.opt "mode" (Json.enum [ (`Ai, "ai"); (`Default, "default") ]) mode;
+                    Json.opt "mode" (function `Ai -> `String "ai" | `Default -> `String "default") mode;
                     Json.opt "selector" Json.string selector;
                     Json.opt "depth" Json.int depth;
                     Json.opt "boxes" Json.bool boxes;
@@ -3191,7 +3191,7 @@ module Frame = struct
                     Json.req "selector" Json.string selector;
                     Json.opt "strict" Json.bool strict;
                     Json.opt "force" Json.bool force;
-                    Json.opt "scroll" (Json.enum [ (`Auto, "auto"); (`None, "none") ]) scroll;
+                    Json.opt "scroll" (function `Auto -> `String "auto" | `None -> `String "none") scroll;
                     Json.opt "position" Point.to_json position;
                     Json.opt "trial" Json.bool trial;
                 ]
@@ -3205,12 +3205,12 @@ module Frame = struct
                     Json.req "selector" Json.string selector;
                     Json.opt "strict" Json.bool strict;
                     Json.opt "force" Json.bool force;
-                    Json.opt "scroll" (Json.enum [ (`Auto, "auto"); (`None, "none") ]) scroll;
+                    Json.opt "scroll" (function `Auto -> `String "auto" | `None -> `String "none") scroll;
                     Json.opt "noWaitAfter" Json.bool no_wait_after;
-                    Json.opt "modifiers" (Json.list (Json.enum [ (`Alt, "Alt"); (`Control, "Control"); (`Control_or_meta, "ControlOrMeta"); (`Meta, "Meta"); (`Shift, "Shift") ])) modifiers;
+                    Json.opt "modifiers" (Json.list (function `Alt -> `String "Alt" | `Control -> `String "Control" | `Control_or_meta -> `String "ControlOrMeta" | `Meta -> `String "Meta" | `Shift -> `String "Shift")) modifiers;
                     Json.opt "position" Point.to_json position;
                     Json.opt "delay" Json.float delay;
-                    Json.opt "button" (Json.enum [ (`Left, "left"); (`Right, "right"); (`Middle, "middle") ]) button;
+                    Json.opt "button" (function `Left -> `String "left" | `Right -> `String "right" | `Middle -> `String "middle") button;
                     Json.opt "clickCount" Json.int click_count;
                     Json.opt "trial" Json.bool trial;
                     Json.opt "steps" Json.int steps;
@@ -3234,7 +3234,7 @@ module Frame = struct
                     Json.req "source" Json.string source;
                     Json.req "target" Json.string target;
                     Json.opt "force" Json.bool force;
-                    Json.opt "scroll" (Json.enum [ (`Auto, "auto"); (`None, "none") ]) scroll;
+                    Json.opt "scroll" (function `Auto -> `String "auto" | `None -> `String "none") scroll;
                     Json.opt "trial" Json.bool trial;
                     Json.opt "sourcePosition" Point.to_json source_position;
                     Json.opt "targetPosition" Point.to_json target_position;
@@ -3266,11 +3266,11 @@ module Frame = struct
                     Json.req "selector" Json.string selector;
                     Json.opt "strict" Json.bool strict;
                     Json.opt "force" Json.bool force;
-                    Json.opt "scroll" (Json.enum [ (`Auto, "auto"); (`None, "none") ]) scroll;
-                    Json.opt "modifiers" (Json.list (Json.enum [ (`Alt, "Alt"); (`Control, "Control"); (`Control_or_meta, "ControlOrMeta"); (`Meta, "Meta"); (`Shift, "Shift") ])) modifiers;
+                    Json.opt "scroll" (function `Auto -> `String "auto" | `None -> `String "none") scroll;
+                    Json.opt "modifiers" (Json.list (function `Alt -> `String "Alt" | `Control -> `String "Control" | `Control_or_meta -> `String "ControlOrMeta" | `Meta -> `String "Meta" | `Shift -> `String "Shift")) modifiers;
                     Json.opt "position" Point.to_json position;
                     Json.opt "delay" Json.float delay;
-                    Json.opt "button" (Json.enum [ (`Left, "left"); (`Right, "right"); (`Middle, "middle") ]) button;
+                    Json.opt "button" (function `Left -> `String "left" | `Right -> `String "right" | `Middle -> `String "middle") button;
                     Json.opt "trial" Json.bool trial;
                     Json.opt "steps" Json.int steps;
                 ]
@@ -3405,8 +3405,8 @@ module Frame = struct
                     Json.req "selector" Json.string selector;
                     Json.opt "strict" Json.bool strict;
                     Json.opt "force" Json.bool force;
-                    Json.opt "scroll" (Json.enum [ (`Auto, "auto"); (`None, "none") ]) scroll;
-                    Json.opt "modifiers" (Json.list (Json.enum [ (`Alt, "Alt"); (`Control, "Control"); (`Control_or_meta, "ControlOrMeta"); (`Meta, "Meta"); (`Shift, "Shift") ])) modifiers;
+                    Json.opt "scroll" (function `Auto -> `String "auto" | `None -> `String "none") scroll;
+                    Json.opt "modifiers" (Json.list (function `Alt -> `String "Alt" | `Control -> `String "Control" | `Control_or_meta -> `String "ControlOrMeta" | `Meta -> `String "Meta" | `Shift -> `String "Shift")) modifiers;
                     Json.opt "position" Point.to_json position;
                     Json.opt "trial" Json.bool trial;
                 ]
@@ -3597,8 +3597,8 @@ module Frame = struct
                     Json.req "selector" Json.string selector;
                     Json.opt "strict" Json.bool strict;
                     Json.opt "force" Json.bool force;
-                    Json.opt "scroll" (Json.enum [ (`Auto, "auto"); (`None, "none") ]) scroll;
-                    Json.opt "modifiers" (Json.list (Json.enum [ (`Alt, "Alt"); (`Control, "Control"); (`Control_or_meta, "ControlOrMeta"); (`Meta, "Meta"); (`Shift, "Shift") ])) modifiers;
+                    Json.opt "scroll" (function `Auto -> `String "auto" | `None -> `String "none") scroll;
+                    Json.opt "modifiers" (Json.list (function `Alt -> `String "Alt" | `Control -> `String "Control" | `Control_or_meta -> `String "ControlOrMeta" | `Meta -> `String "Meta" | `Shift -> `String "Shift")) modifiers;
                     Json.opt "position" Point.to_json position;
                     Json.opt "trial" Json.bool trial;
                 ]
@@ -3638,7 +3638,7 @@ module Frame = struct
                     Json.req "selector" Json.string selector;
                     Json.opt "strict" Json.bool strict;
                     Json.opt "force" Json.bool force;
-                    Json.opt "scroll" (Json.enum [ (`Auto, "auto"); (`None, "none") ]) scroll;
+                    Json.opt "scroll" (function `Auto -> `String "auto" | `None -> `String "none") scroll;
                     Json.opt "position" Point.to_json position;
                     Json.opt "trial" Json.bool trial;
                 ]
@@ -3678,7 +3678,7 @@ module Frame = struct
                 [
                     Json.req "selector" Json.string selector;
                     Json.opt "strict" Json.bool strict;
-                    Json.opt "state" (Json.enum [ (`Attached, "attached"); (`Detached, "detached"); (`Visible, "visible"); (`Hidden, "hidden") ]) state;
+                    Json.opt "state" (function `Attached -> `String "attached" | `Detached -> `String "detached" | `Visible -> `String "visible" | `Hidden -> `String "hidden") state;
                     Json.opt "omitReturnValue" Json.bool omit_return_value;
                 ]
         in
@@ -3695,7 +3695,7 @@ module Frame = struct
                     Json.opt "selector" Json.string selector;
                     Json.req "expression" Json.string expression;
                     Json.opt "expressionArg" Json.any expression_arg;
-                    Json.opt "pseudo" (Json.enum [ (`Before, "before"); (`After, "after") ]) pseudo;
+                    Json.opt "pseudo" (function `Before -> `String "before" | `After -> `String "after") pseudo;
                     Json.opt "expectedText" (Json.list Expected_text_value.to_json) expected_text;
                     Json.opt "expectedNumber" Json.float expected_number;
                     Json.opt "expectedValue" Serialized_argument.to_json expected_value;
@@ -3931,7 +3931,7 @@ module Element_handle = struct
             Json.obj
                 [
                     Json.opt "force" Json.bool force;
-                    Json.opt "scroll" (Json.enum [ (`Auto, "auto"); (`None, "none") ]) scroll;
+                    Json.opt "scroll" (function `Auto -> `String "auto" | `None -> `String "none") scroll;
                     Json.opt "position" Point.to_json position;
                     Json.opt "trial" Json.bool trial;
                 ]
@@ -3943,12 +3943,12 @@ module Element_handle = struct
             Json.obj
                 [
                     Json.opt "force" Json.bool force;
-                    Json.opt "scroll" (Json.enum [ (`Auto, "auto"); (`None, "none") ]) scroll;
+                    Json.opt "scroll" (function `Auto -> `String "auto" | `None -> `String "none") scroll;
                     Json.opt "noWaitAfter" Json.bool no_wait_after;
-                    Json.opt "modifiers" (Json.list (Json.enum [ (`Alt, "Alt"); (`Control, "Control"); (`Control_or_meta, "ControlOrMeta"); (`Meta, "Meta"); (`Shift, "Shift") ])) modifiers;
+                    Json.opt "modifiers" (Json.list (function `Alt -> `String "Alt" | `Control -> `String "Control" | `Control_or_meta -> `String "ControlOrMeta" | `Meta -> `String "Meta" | `Shift -> `String "Shift")) modifiers;
                     Json.opt "position" Point.to_json position;
                     Json.opt "delay" Json.float delay;
-                    Json.opt "button" (Json.enum [ (`Left, "left"); (`Right, "right"); (`Middle, "middle") ]) button;
+                    Json.opt "button" (function `Left -> `String "left" | `Right -> `String "right" | `Middle -> `String "middle") button;
                     Json.opt "clickCount" Json.int click_count;
                     Json.opt "trial" Json.bool trial;
                     Json.opt "steps" Json.int steps;
@@ -3966,11 +3966,11 @@ module Element_handle = struct
             Json.obj
                 [
                     Json.opt "force" Json.bool force;
-                    Json.opt "scroll" (Json.enum [ (`Auto, "auto"); (`None, "none") ]) scroll;
-                    Json.opt "modifiers" (Json.list (Json.enum [ (`Alt, "Alt"); (`Control, "Control"); (`Control_or_meta, "ControlOrMeta"); (`Meta, "Meta"); (`Shift, "Shift") ])) modifiers;
+                    Json.opt "scroll" (function `Auto -> `String "auto" | `None -> `String "none") scroll;
+                    Json.opt "modifiers" (Json.list (function `Alt -> `String "Alt" | `Control -> `String "Control" | `Control_or_meta -> `String "ControlOrMeta" | `Meta -> `String "Meta" | `Shift -> `String "Shift")) modifiers;
                     Json.opt "position" Point.to_json position;
                     Json.opt "delay" Json.float delay;
-                    Json.opt "button" (Json.enum [ (`Left, "left"); (`Right, "right"); (`Middle, "middle") ]) button;
+                    Json.opt "button" (function `Left -> `String "left" | `Right -> `String "right" | `Middle -> `String "middle") button;
                     Json.opt "trial" Json.bool trial;
                     Json.opt "steps" Json.int steps;
                 ]
@@ -4015,8 +4015,8 @@ module Element_handle = struct
             Json.obj
                 [
                     Json.opt "force" Json.bool force;
-                    Json.opt "scroll" (Json.enum [ (`Auto, "auto"); (`None, "none") ]) scroll;
-                    Json.opt "modifiers" (Json.list (Json.enum [ (`Alt, "Alt"); (`Control, "Control"); (`Control_or_meta, "ControlOrMeta"); (`Meta, "Meta"); (`Shift, "Shift") ])) modifiers;
+                    Json.opt "scroll" (function `Auto -> `String "auto" | `None -> `String "none") scroll;
+                    Json.opt "modifiers" (Json.list (function `Alt -> `String "Alt" | `Control -> `String "Control" | `Control_or_meta -> `String "ControlOrMeta" | `Meta -> `String "Meta" | `Shift -> `String "Shift")) modifiers;
                     Json.opt "position" Point.to_json position;
                     Json.opt "trial" Json.bool trial;
                 ]
@@ -4106,12 +4106,12 @@ module Element_handle = struct
         let params =
             Json.obj
                 [
-                    Json.opt "type" (Json.enum [ (`Png, "png"); (`Jpeg, "jpeg"); (`Webp, "webp") ]) type_;
+                    Json.opt "type" (function `Png -> `String "png" | `Jpeg -> `String "jpeg" | `Webp -> `String "webp") type_;
                     Json.opt "quality" Json.int quality;
                     Json.opt "omitBackground" Json.bool omit_background;
-                    Json.opt "caret" (Json.enum [ (`Hide, "hide"); (`Initial, "initial") ]) caret;
-                    Json.opt "animations" (Json.enum [ (`Disabled, "disabled"); (`Allow, "allow") ]) animations;
-                    Json.opt "scale" (Json.enum [ (`Css, "css"); (`Device, "device") ]) scale;
+                    Json.opt "caret" (function `Hide -> `String "hide" | `Initial -> `String "initial") caret;
+                    Json.opt "animations" (function `Disabled -> `String "disabled" | `Allow -> `String "allow") animations;
+                    Json.opt "scale" (function `Css -> `String "css" | `Device -> `String "device") scale;
                     Json.opt "mask" (Json.list Common_screenshot_options_mask.to_json) mask;
                     Json.opt "maskColor" Json.string mask_color;
                     Json.opt "style" Json.string style;
@@ -4161,8 +4161,8 @@ module Element_handle = struct
             Json.obj
                 [
                     Json.opt "force" Json.bool force;
-                    Json.opt "scroll" (Json.enum [ (`Auto, "auto"); (`None, "none") ]) scroll;
-                    Json.opt "modifiers" (Json.list (Json.enum [ (`Alt, "Alt"); (`Control, "Control"); (`Control_or_meta, "ControlOrMeta"); (`Meta, "Meta"); (`Shift, "Shift") ])) modifiers;
+                    Json.opt "scroll" (function `Auto -> `String "auto" | `None -> `String "none") scroll;
+                    Json.opt "modifiers" (Json.list (function `Alt -> `String "Alt" | `Control -> `String "Control" | `Control_or_meta -> `String "ControlOrMeta" | `Meta -> `String "Meta" | `Shift -> `String "Shift")) modifiers;
                     Json.opt "position" Point.to_json position;
                     Json.opt "trial" Json.bool trial;
                 ]
@@ -4188,7 +4188,7 @@ module Element_handle = struct
             Json.obj
                 [
                     Json.opt "force" Json.bool force;
-                    Json.opt "scroll" (Json.enum [ (`Auto, "auto"); (`None, "none") ]) scroll;
+                    Json.opt "scroll" (function `Auto -> `String "auto" | `None -> `String "none") scroll;
                     Json.opt "position" Point.to_json position;
                     Json.opt "trial" Json.bool trial;
                 ]
@@ -4199,7 +4199,7 @@ module Element_handle = struct
         let params =
             Json.obj
                 [
-                    Json.req "state" (Json.enum [ (`Visible, "visible"); (`Hidden, "hidden"); (`Stable, "stable"); (`Enabled, "enabled"); (`Disabled, "disabled"); (`Editable, "editable") ]) state;
+                    Json.req "state" (function `Visible -> `String "visible" | `Hidden -> `String "hidden" | `Stable -> `String "stable" | `Enabled -> `String "enabled" | `Disabled -> `String "disabled" | `Editable -> `String "editable") state;
                 ]
         in
         Channel.call ?timeout ch "waitForElementState" params ignore
@@ -4210,7 +4210,7 @@ module Element_handle = struct
                 [
                     Json.req "selector" Json.string selector;
                     Json.opt "strict" Json.bool strict;
-                    Json.opt "state" (Json.enum [ (`Attached, "attached"); (`Detached, "detached"); (`Visible, "visible"); (`Hidden, "hidden") ]) state;
+                    Json.opt "state" (function `Attached -> `String "attached" | `Detached -> `String "detached" | `Visible -> `String "visible" | `Hidden -> `String "hidden") state;
                 ]
         in
         let c = Channel.conn ch in
@@ -4287,7 +4287,7 @@ module Local_utils = struct
                     Json.req "deviceScaleFactor" Json.float v.device_scale_factor;
                     Json.req "isMobile" Json.bool v.is_mobile;
                     Json.req "hasTouch" Json.bool v.has_touch;
-                    Json.req "defaultBrowserType" (Json.enum [ (`Chromium, "chromium"); (`Firefox, "firefox"); (`Webkit, "webkit") ]) v.default_browser_type;
+                    Json.req "defaultBrowserType" (function `Chromium -> `String "chromium" | `Firefox -> `String "firefox" | `Webkit -> `String "webkit") v.default_browser_type;
                 ]
 
         let of_json (c : Channel.conn) (j : Json.t) : t =
@@ -4372,7 +4372,7 @@ module Local_utils = struct
         let to_json (v : t) : Json.t =
             Json.obj
                 [
-                    Json.req "action" (Json.enum [ (`Error, "error"); (`Redirect, "redirect"); (`Fulfill, "fulfill"); (`Noentry, "noentry") ]) v.action;
+                    Json.req "action" (function `Error -> `String "error" | `Redirect -> `String "redirect" | `Fulfill -> `String "fulfill" | `Noentry -> `String "noentry") v.action;
                     Json.opt "message" Json.string v.message;
                     Json.opt "redirectURL" Json.string v.redirect_url;
                     Json.opt "status" Json.int v.status;
@@ -4420,7 +4420,7 @@ module Local_utils = struct
                     Json.req "zipFile" Json.string zip_file;
                     Json.req "entries" (Json.list Name_value.to_json) entries;
                     Json.opt "stacksId" Json.string stacks_id;
-                    Json.req "mode" (Json.enum [ (`Write, "write"); (`Append, "append") ]) mode;
+                    Json.req "mode" (function `Write -> `String "write" | `Append -> `String "append") mode;
                     Json.req "includeSources" Json.bool include_sources;
                     Json.opt "additionalSources" (Json.list Json.string) additional_sources;
                 ]
@@ -5477,11 +5477,11 @@ module Page = struct
         let params =
             Json.obj
                 [
-                    Json.opt "media" (Json.enum [ (`Screen, "screen"); (`Print, "print"); (`No_override, "no-override") ]) media;
-                    Json.opt "colorScheme" (Json.enum [ (`Dark, "dark"); (`Light, "light"); (`No_preference, "no-preference"); (`No_override, "no-override") ]) color_scheme;
-                    Json.opt "reducedMotion" (Json.enum [ (`Reduce, "reduce"); (`No_preference, "no-preference"); (`No_override, "no-override") ]) reduced_motion;
-                    Json.opt "forcedColors" (Json.enum [ (`Active, "active"); (`None, "none"); (`No_override, "no-override") ]) forced_colors;
-                    Json.opt "contrast" (Json.enum [ (`No_preference, "no-preference"); (`More, "more"); (`No_override, "no-override") ]) contrast;
+                    Json.opt "media" (function `Screen -> `String "screen" | `Print -> `String "print" | `No_override -> `String "no-override") media;
+                    Json.opt "colorScheme" (function `Dark -> `String "dark" | `Light -> `String "light" | `No_preference -> `String "no-preference" | `No_override -> `String "no-override") color_scheme;
+                    Json.opt "reducedMotion" (function `Reduce -> `String "reduce" | `No_preference -> `String "no-preference" | `No_override -> `String "no-override") reduced_motion;
+                    Json.opt "forcedColors" (function `Active -> `String "active" | `None -> `String "none" | `No_override -> `String "no-override") forced_colors;
+                    Json.opt "contrast" (function `No_preference -> `String "no-preference" | `More -> `String "more" | `No_override -> `String "no-override") contrast;
                 ]
         in
         Channel.call ?timeout ch "emulateMedia" params ignore
@@ -5576,11 +5576,11 @@ module Page = struct
                     Json.opt "threshold" Json.float threshold;
                     Json.opt "fullPage" Json.bool full_page;
                     Json.opt "clip" Rect.to_json clip;
-                    Json.opt "type" (Json.enum [ (`Png, "png"); (`Webp, "webp") ]) type_;
+                    Json.opt "type" (function `Png -> `String "png" | `Webp -> `String "webp") type_;
                     Json.opt "omitBackground" Json.bool omit_background;
-                    Json.opt "caret" (Json.enum [ (`Hide, "hide"); (`Initial, "initial") ]) caret;
-                    Json.opt "animations" (Json.enum [ (`Disabled, "disabled"); (`Allow, "allow") ]) animations;
-                    Json.opt "scale" (Json.enum [ (`Css, "css"); (`Device, "device") ]) scale;
+                    Json.opt "caret" (function `Hide -> `String "hide" | `Initial -> `String "initial") caret;
+                    Json.opt "animations" (function `Disabled -> `String "disabled" | `Allow -> `String "allow") animations;
+                    Json.opt "scale" (function `Css -> `String "css" | `Device -> `String "device") scale;
                     Json.opt "mask" (Json.list Common_screenshot_options_mask.to_json) mask;
                     Json.opt "maskColor" Json.string mask_color;
                     Json.opt "style" Json.string style;
@@ -5592,14 +5592,14 @@ module Page = struct
         let params =
             Json.obj
                 [
-                    Json.opt "type" (Json.enum [ (`Png, "png"); (`Jpeg, "jpeg"); (`Webp, "webp") ]) type_;
+                    Json.opt "type" (function `Png -> `String "png" | `Jpeg -> `String "jpeg" | `Webp -> `String "webp") type_;
                     Json.opt "quality" Json.int quality;
                     Json.opt "fullPage" Json.bool full_page;
                     Json.opt "clip" Rect.to_json clip;
                     Json.opt "omitBackground" Json.bool omit_background;
-                    Json.opt "caret" (Json.enum [ (`Hide, "hide"); (`Initial, "initial") ]) caret;
-                    Json.opt "animations" (Json.enum [ (`Disabled, "disabled"); (`Allow, "allow") ]) animations;
-                    Json.opt "scale" (Json.enum [ (`Css, "css"); (`Device, "device") ]) scale;
+                    Json.opt "caret" (function `Hide -> `String "hide" | `Initial -> `String "initial") caret;
+                    Json.opt "animations" (function `Disabled -> `String "disabled" | `Allow -> `String "allow") animations;
+                    Json.opt "scale" (function `Css -> `String "css" | `Device -> `String "device") scale;
                     Json.opt "mask" (Json.list Common_screenshot_options_mask.to_json) mask;
                     Json.opt "maskColor" Json.string mask_color;
                     Json.opt "style" Json.string style;
@@ -5705,7 +5705,7 @@ module Page = struct
         let params =
             Json.obj
                 [
-                    Json.opt "button" (Json.enum [ (`Left, "left"); (`Right, "right"); (`Middle, "middle") ]) button;
+                    Json.opt "button" (function `Left -> `String "left" | `Right -> `String "right" | `Middle -> `String "middle") button;
                     Json.opt "clickCount" Json.int click_count;
                 ]
         in
@@ -5715,7 +5715,7 @@ module Page = struct
         let params =
             Json.obj
                 [
-                    Json.opt "button" (Json.enum [ (`Left, "left"); (`Right, "right"); (`Middle, "middle") ]) button;
+                    Json.opt "button" (function `Left -> `String "left" | `Right -> `String "right" | `Middle -> `String "middle") button;
                     Json.opt "clickCount" Json.int click_count;
                 ]
         in
@@ -5728,7 +5728,7 @@ module Page = struct
                     Json.req "x" Json.float x;
                     Json.req "y" Json.float y;
                     Json.opt "delay" Json.float delay;
-                    Json.opt "button" (Json.enum [ (`Left, "left"); (`Right, "right"); (`Middle, "middle") ]) button;
+                    Json.opt "button" (function `Left -> `String "left" | `Right -> `String "right" | `Middle -> `String "middle") button;
                     Json.opt "clickCount" Json.int click_count;
                 ]
         in
@@ -5884,9 +5884,9 @@ module Page = struct
             Json.obj
                 [
                     Json.opt "duration" Json.float duration;
-                    Json.opt "position" (Json.enum [ (`Top_left, "top-left"); (`Top, "top"); (`Top_right, "top-right"); (`Bottom_left, "bottom-left"); (`Bottom, "bottom"); (`Bottom_right, "bottom-right") ]) position;
+                    Json.opt "position" (function `Top_left -> `String "top-left" | `Top -> `String "top" | `Top_right -> `String "top-right" | `Bottom_left -> `String "bottom-left" | `Bottom -> `String "bottom" | `Bottom_right -> `String "bottom-right") position;
                     Json.opt "fontSize" Json.int font_size;
-                    Json.opt "cursor" (Json.enum [ (`None, "none"); (`Pointer, "pointer") ]) cursor;
+                    Json.opt "cursor" (function `None -> `String "none" | `Pointer -> `String "pointer") cursor;
                     Json.opt "style" Show_actions_options_style.to_json style;
                 ]
         in
@@ -5927,7 +5927,7 @@ module Page = struct
         let params =
             Json.obj
                 [
-                    Json.req "event" (Json.enum [ (`Console, "console"); (`Dialog, "dialog"); (`Dialog_closed, "dialogClosed"); (`File_chooser, "fileChooser"); (`Request, "request"); (`Response, "response"); (`Request_finished, "requestFinished"); (`Request_failed, "requestFailed") ]) event;
+                    Json.req "event" (function `Console -> `String "console" | `Dialog -> `String "dialog" | `Dialog_closed -> `String "dialogClosed" | `File_chooser -> `String "fileChooser" | `Request -> `String "request" | `Response -> `String "response" | `Request_finished -> `String "requestFinished" | `Request_failed -> `String "requestFailed") event;
                     Json.req "enabled" Json.bool enabled;
                 ]
         in
@@ -5946,7 +5946,7 @@ module Page = struct
         let params =
             Json.obj
                 [
-                    Json.req "kind" (Json.enum [ (`Local, "local"); (`Session, "session") ]) kind;
+                    Json.req "kind" (function `Local -> `String "local" | `Session -> `String "session") kind;
                 ]
         in
         let c = Channel.conn ch in
@@ -5956,7 +5956,7 @@ module Page = struct
         let params =
             Json.obj
                 [
-                    Json.req "kind" (Json.enum [ (`Local, "local"); (`Session, "session") ]) kind;
+                    Json.req "kind" (function `Local -> `String "local" | `Session -> `String "session") kind;
                     Json.req "name" Json.string name;
                 ]
         in
@@ -5966,7 +5966,7 @@ module Page = struct
         let params =
             Json.obj
                 [
-                    Json.req "kind" (Json.enum [ (`Local, "local"); (`Session, "session") ]) kind;
+                    Json.req "kind" (function `Local -> `String "local" | `Session -> `String "session") kind;
                     Json.req "name" Json.string name;
                     Json.req "value" Json.string value;
                 ]
@@ -5977,7 +5977,7 @@ module Page = struct
         let params =
             Json.obj
                 [
-                    Json.req "kind" (Json.enum [ (`Local, "local"); (`Session, "session") ]) kind;
+                    Json.req "kind" (function `Local -> `String "local" | `Session -> `String "session") kind;
                     Json.req "name" Json.string name;
                 ]
         in
@@ -5987,7 +5987,7 @@ module Page = struct
         let params =
             Json.obj
                 [
-                    Json.req "kind" (Json.enum [ (`Local, "local"); (`Session, "session") ]) kind;
+                    Json.req "kind" (function `Local -> `String "local" | `Session -> `String "session") kind;
                 ]
         in
         Channel.call ?timeout ch "webStorageClear" params ignore
@@ -6417,7 +6417,7 @@ module Debugger = struct
                     Json.opt "location" Api_calls_updated_event_api_calls_location.to_json v.location;
                     Json.req "newLogEntries" (Json.list Json.string) v.new_log_entries;
                     Json.opt "actionPoint" Point.to_json v.action_point;
-                    Json.req "status" (Json.enum [ (`Running, "running"); (`Success, "success"); (`Error, "error") ]) v.status;
+                    Json.req "status" (function `Running -> `String "running" | `Success -> `String "success" | `Error -> `String "error") v.status;
                     Json.opt "error" Json.string v.error;
                 ]
 
@@ -6645,7 +6645,7 @@ module Tracing = struct
         let params =
             Json.obj
                 [
-                    Json.req "mode" (Json.enum [ (`Archive, "archive"); (`Discard, "discard"); (`Entries, "entries") ]) mode;
+                    Json.req "mode" (function `Archive -> `String "archive" | `Discard -> `String "discard" | `Entries -> `String "entries") mode;
                 ]
         in
         let c = Channel.conn ch in
@@ -6673,7 +6673,7 @@ module Tracing = struct
             Json.obj
                 [
                     Json.opt "harId" Json.string har_id;
-                    Json.req "mode" (Json.enum [ (`Archive, "archive"); (`Entries, "entries") ]) mode;
+                    Json.req "mode" (function `Archive -> `String "archive" | `Entries -> `String "entries") mode;
                 ]
         in
         let c = Channel.conn ch in
@@ -6771,7 +6771,7 @@ module Worker = struct
         let params =
             Json.obj
                 [
-                    Json.req "event" (Json.enum [ (`Console, "console") ]) event;
+                    Json.req "event" (function `Console -> `String "console") event;
                     Json.req "enabled" Json.bool enabled;
                 ]
         in

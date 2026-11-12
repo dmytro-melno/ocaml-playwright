@@ -336,8 +336,9 @@ let rec encoder = function
     | Def m -> m ^ ".to_json"
     | Array t -> Printf.sprintf "(Json.list %s)" (encoder t)
     | Enum lits ->
-        Printf.sprintf "(Json.enum [ %s ])"
-            (String.concat "; " (List.map (fun l -> Printf.sprintf "(`%s, %S)" (variant_name l) l) lits))
+        (* A match rather than a table: a parameter then accepts the values of the protocol and no others. *)
+        Printf.sprintf "(function %s)"
+            (String.concat " | " (List.map (fun l -> Printf.sprintf "`%s -> `String %S" (variant_name l) l) lits))
 
 let rec decoder = function
     | Prim String -> "D.string"

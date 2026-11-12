@@ -28,11 +28,6 @@ let list encode values : t = `List (List.map encode values)
 let float f : t =
     if Float.is_finite f then `Float f else invalid_arg (Printf.sprintf "Playwright: %h is not a finite number" f)
 
-let enum table value : t =
-    match List.assoc_opt value table with
-    | Some literal -> `String literal
-    | None -> invalid_arg "Playwright: enum value outside of its declared type"
-
 (* {1 Decoding} *)
 
 module Decode = struct

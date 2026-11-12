@@ -9,8 +9,7 @@ let test_json_encoding () =
     Alcotest.check json "optional members are omitted"
         (`Assoc [ "a", `Int 1; "c", `List [ `String "x" ] ])
         (Json.obj [ Json.req "a" Json.int 1; Json.opt "b" Json.string None; Json.opt "c" (Json.list Json.string) (Some [ "x" ]) ]);
-    Alcotest.check json "binary is base64" (`String "AAH/") (Json.binary "\000\001\255");
-    Alcotest.check json "enum" (`String "left") (Json.enum [ `Left, "left"; `Right, "right" ] `Left)
+    Alcotest.check json "binary is base64" (`String "AAH/") (Json.binary "\000\001\255")
 
 let test_json_decoding () =
     let module D = Json.Decode in
