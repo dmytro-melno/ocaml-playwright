@@ -98,7 +98,7 @@ let () =
 | 0.1 | 0.2 |
 | --- | --- |
 | `Playwright.create ~env ~sw ()` | unchanged; also `Playwright.run ~env f` |
-| `Playwright.create ~download_timeout ~init_timeout ~shutdown_timeout` | removed. `Playwright.create` can be cancelled at any time, also while the driver is being downloaded, so `Eio.Time.with_timeout` around it limits all of it. |
+| `Playwright.create ~download_timeout ~init_timeout ~shutdown_timeout` | removed. `Playwright.create` no longer downloads anything, and can be cancelled at any time, so `Eio.Time.with_timeout` around it limits all of it. |
 | `Playwright.create ~max_event_tasks` | removed, see below |
 | `Playwright.create ~on_event_error` | `~on_error:(fun what exn -> ...)` |
 | `Playwright.destroy pw` | `Playwright.close pw` |
@@ -135,11 +135,13 @@ let () =
 
 ## Behaviour that changed
 
-- **The driver** is still downloaded on first use, but by Node.js itself. The cache moved
-  from `playwright-ocaml-driver` to `ocaml-playwright` in the user's cache directory; the
-  old directory can be deleted. `PLAYWRIGHT_OCAML_CACHE_DIR` still overrides the location.
-  A download is given up after five minutes, which
-  `PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT` changes.
+- **The driver** is no longer downloaded on first use. It is installed in a step of its
+  own: by `ocaml-playwright install chromium`, which downloads the driver and then that
+  browser, or by `Playwright.Driver.install ()` from a program. Without it,
+  `Playwright.create` fails with an error that names the command. The cache moved from
+  `playwright-ocaml-driver` to `ocaml-playwright` in the user's cache directory; the old
+  directory can be deleted. `PLAYWRIGHT_OCAML_CACHE_DIR` is gone: the location follows
+  `XDG_CACHE_HOME`, and `PLAYWRIGHT_OCAML_DRIVER` names a driver that is somewhere else.
 - **Timeouts.** A timeout is reported as `Playwright.Error` with the kind `Timeout`. The
   defaults are Playwright's: 30 seconds for actions and navigation, 5 seconds for assertions.
 - **Listeners** still run in fibers of their own. `~max_event_tasks`, 1024 by default, was

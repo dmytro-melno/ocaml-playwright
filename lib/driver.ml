@@ -1,9 +1,11 @@
 (* Locating and installing the Playwright driver.
 
    The driver is the [playwright-core] npm package, run by Node.js.  The exact version this
-   library speaks to is pinned in [protocol/manifest.json]; it is downloaded once into a per-user
-   cache and verified against the pinned SHA-512 digest.  Node.js does the download and the
-   extraction, so the library needs no HTTP, TLS or archive code of its own. *)
+   library speaks to is pinned in [protocol/manifest.json].  Installing it is a step of its own,
+   which the [ocaml-playwright] program and [Playwright.Driver] make: the package is downloaded
+   into a per-user cache and verified against the pinned SHA-512 digest.  Node.js does the
+   download and the extraction, so the library needs no HTTP, TLS or archive code of its own.
+   Starting Playwright only looks for the driver. *)
 
 type t = {
     node : string;  (* absolute path of the Node.js executable *)
@@ -32,23 +34,21 @@ let rec rm_rf path =
         (try Unix.rmdir path with Unix.Unix_error _ -> ())
     | _ -> (try Unix.unlink path with Unix.Unix_error _ -> ())
 
-let cache_dir () =
-    match getenv "PLAYWRIGHT_OCAML_CACHE_DIR" with
-    | Some dir -> dir
-    | None ->
-        let base =
-            if Sys.win32 then
-                match getenv "LOCALAPPDATA", getenv "USERPROFILE" with
-                | Some dir, _ -> dir
-                | None, Some home -> home / "AppData" / "Local"
-                | None, None -> Filename.get_temp_dir_name ()
-            else
-                match getenv "XDG_CACHE_HOME", getenv "HOME" with
-                | Some dir, _ -> dir
-                | None, Some home -> home / ".cache"
-                | None, None -> Filename.get_temp_dir_name ()
-        in
-        base / "ocaml-playwright"
+(* Where the driver is installed: in the user's cache, one directory per version. *)
+let installed_dir () =
+    let base =
+        if Sys.win32 then
+            match getenv "LOCALAPPDATA", getenv "USERPROFILE" with
+            | Some dir, _ -> dir
+            | None, Some home -> home / "AppData" / "Local"
+            | None, None -> Filename.get_temp_dir_name ()
+        else
+            match getenv "XDG_CACHE_HOME", getenv "HOME" with
+            | Some dir, _ -> dir
+            | None, Some home -> home / ".cache"
+            | None, None -> Filename.get_temp_dir_name ()
+    in
+    base / "ocaml-playwright" / ("driver-" ^ version)
 
 (* Looks [name] up in PATH.  The current directory is never searched implicitly, also on Windows
    where the system would do so: a driver must not be picked up from an untrusted directory. *)
@@ -138,61 +138,25 @@ function untar(archive) {
 
 let read_file path = try In_channel.with_open_bin path In_channel.input_all with Sys_error _ -> ""
 
-let exit_code = function Unix.WEXITED code -> code | WSIGNALED signal | WSTOPPED signal -> 128 + abs signal
+let with_file path flags f =
+    let fd = Unix.openfile path (Unix.O_CLOEXEC :: flags) 0o644 in
+    Fun.protect ~finally:(fun () -> Unix.close fd) (fun () -> f fd)
 
 let rec wait_for pid =
     match Unix.waitpid [] pid with
-    | _, status -> exit_code status
+    | _, Unix.WEXITED code -> code
+    | _, (WSIGNALED signal | WSTOPPED signal) -> 128 + abs signal
     | exception Unix.Unix_error (Unix.EINTR, _, _) -> wait_for pid
 
-let poll_interval = 0.05
-
-(* Runs a command with its output going to the file [log], and returns its exit code.  The
-   command is given up, which means killed and waited for, when it takes longer than [timeout]
-   milliseconds or when [cancelled] says so; it is asked every few milliseconds. *)
-let run_process ~log ~timeout ~cancelled executable args =
-    let out = Unix.openfile log [ O_WRONLY; O_CREAT; O_TRUNC; O_CLOEXEC ] 0o644 in
-    let null = Unix.openfile (if Sys.win32 then "NUL" else "/dev/null") [ O_RDONLY; O_CLOEXEC ] 0 in
-    let env = Array.append (Unix.environment ()) [| "NODE_USE_ENV_PROXY=1" |] in
-    let pid =
-        Fun.protect
-            ~finally:(fun () -> Unix.close out; Unix.close null)
-            (fun () -> Unix.create_process_env executable (Array.of_list (executable :: args)) env null out out)
-    in
-    let give_up reason =
-        (try Unix.kill pid Sys.sigkill with Unix.Unix_error _ -> ());
-        ignore (wait_for pid);
-        reason
-    in
-    (* The time is counted in the pauses made, which no change of the system's clock can upset. *)
-    let rec poll waited =
-        match Unix.waitpid [ WNOHANG ] pid with
-        | 0, _ ->
-            if cancelled () then give_up `Cancelled
-            else if timeout > 0. && waited *. 1000. >= timeout then give_up `Timed_out
-            else begin
-                Unix.sleepf poll_interval;
-                poll (waited +. poll_interval)
-            end
-        | _, status -> `Exited (exit_code status)
-        | exception Unix.Unix_error (Unix.EINTR, _, _) -> poll waited
-    in
-    poll 0.
-
-let default_install_timeout = 300_000.
-
-(* How long an installation may take, in milliseconds; zero for as long as it takes. *)
-let install_timeout () =
-    match getenv "PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT" with
-    | None -> default_install_timeout
-    | Some text -> (
-        match float_of_string_opt text with
-        | Some timeout when timeout >= 0. -> timeout
-        | _ -> Error.raise_ "PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT is %S, which is not a number of milliseconds" text)
+(* Runs a program to its end and returns its exit code.  Nothing else runs meanwhile. *)
+let run_process ?(env = Unix.environment ()) ?(stdin = Unix.stdin) ?(stdout = Unix.stdout) ?(stderr = Unix.stderr) program args =
+    match Unix.create_process_env program (Array.of_list (program :: args)) env stdin stdout stderr with
+    | pid -> wait_for pid
+    | exception Unix.Unix_error (code, _, _) -> Error.raise_ "Could not run %s: %s" program (Unix.error_message code)
 
 (* Downloads the pinned driver into [target].  The package is unpacked into a scratch directory
    and renamed into place, so concurrent installations and interrupted ones are both harmless. *)
-let install ~node ~timeout ~cancelled target =
+let download ~node target =
     let scratch = Printf.sprintf "%s.tmp-%d-%06x" target (Unix.getpid ()) (Random.State.bits (Random.State.make_self_init ()) land 0xFFFFFF) in
     mkdir_p scratch;
     Fun.protect
@@ -202,58 +166,55 @@ let install ~node ~timeout ~cancelled target =
             let log = scratch / "install.log" in
             let unpacked = scratch / "unpacked" in
             Out_channel.with_open_bin script (fun oc -> output_string oc install_script);
-            let url = Option.value (getenv "PLAYWRIGHT_OCAML_DRIVER_URL") ~default:Protocol.driver_tarball in
-            let failed reason =
+            let code =
+                with_file (if Sys.win32 then "NUL" else "/dev/null") [ O_RDONLY ] @@ fun null ->
+                with_file log [ O_WRONLY; O_CREAT; O_TRUNC ] @@ fun out ->
+                let env = Array.append (Unix.environment ()) [| "NODE_USE_ENV_PROXY=1" |] in
+                run_process ~env ~stdin:null ~stdout:out ~stderr:out node [ script; Protocol.driver_tarball; Protocol.driver_integrity; unpacked ]
+            in
+            if code <> 0 || cli_in unpacked = None then
                 Error.raise_
                     "Could not install the Playwright %s driver: %s\n\
                      Check the network connection, or unpack the playwright-core %s npm package yourself and point \
                      PLAYWRIGHT_OCAML_DRIVER to it."
-                    version reason version
-            in
-            (match run_process ~log ~timeout ~cancelled node [ script; url; Protocol.driver_integrity; unpacked ] with
-            | `Exited 0 when cli_in unpacked <> None -> ()
-            | `Exited _ -> failed (String.trim (read_file log))
-            | `Timed_out ->
-                failed (Printf.sprintf "%s: not finished after %g seconds (the limit, which PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT sets in milliseconds)" url (timeout /. 1000.))
-            | `Cancelled -> Error.raise_ "The installation of the Playwright %s driver was cancelled" version);
-            (try Unix.rename unpacked target
-             with Unix.Unix_error _ when cli_in target <> None -> () (* another process installed it meanwhile *)))
+                    version (String.trim (read_file log)) version;
+            try Unix.rename unpacked target
+            with Unix.Unix_error _ when cli_in target <> None -> () (* another process installed it meanwhile *))
 
-let installed_dir () = cache_dir () / ("driver-" ^ version)
+(* The driver's command line tool, if the driver is there. *)
+let find_cli () =
+    match getenv "PLAYWRIGHT_OCAML_DRIVER" with
+    | None -> cli_in (installed_dir ())
+    | Some dir ->
+        (match cli_in dir with
+        | None -> Error.raise_ "PLAYWRIGHT_OCAML_DRIVER points to %S, which does not contain the playwright-core package" dir
+        | found -> found)
 
-(* Finds the driver, installing it first when [install_if_missing] allows.  That blocks until
-   the download is complete, has taken more than [install_timeout] milliseconds, or [cancelled]
-   says that the caller has lost interest; see {!run_process}. *)
-let locate ?(install_if_missing = true) ?install_timeout:timeout ?(cancelled = fun () -> false) () =
+(* Finds the driver, which has to be installed. *)
+let locate () =
     let node = find_node () in
-    let cli =
-        match getenv "PLAYWRIGHT_OCAML_DRIVER" with
-        | Some dir ->
-            (match cli_in dir with
-            | Some cli -> cli
-            | None -> Error.raise_ "PLAYWRIGHT_OCAML_DRIVER points to %S, which does not contain the playwright-core package" dir)
-        | None ->
-            let target = installed_dir () in
-            (match cli_in target with
-            | Some cli -> cli
-            | None when install_if_missing ->
-                mkdir_p (Filename.dirname target);
-                install ~node ~timeout:(match timeout with Some timeout -> timeout | None -> install_timeout ()) ~cancelled target;
-                (match cli_in target with Some cli -> cli | None -> Error.raise_ "The Playwright driver vanished from %S" target)
-            | None -> Error.raise_ "The Playwright %s driver is not installed in %S" version target)
-    in
-    { node; cli }
+    match find_cli () with
+    | Some cli -> { node; cli }
+    | None ->
+        Error.raise_
+            "The Playwright %s driver is not installed in %S. Run `ocaml-playwright install chromium`, which downloads the \
+             driver and that browser, or call `Playwright.Driver.install ()` for the driver alone."
+            version (installed_dir ())
+
+(* Installs the driver unless it is there already, which blocks until it has been downloaded. *)
+let install () =
+    let node = find_node () in
+    if find_cli () = None then download ~node (installed_dir ())
 
 (* The command that runs the driver's own command line tool with [args]. *)
 let command args =
     let driver = locate () in
     driver.node :: driver.cli :: args
 
-(* Runs that tool to its end, on the standard streams of this process, and returns its exit code. *)
+(* Runs that tool to its end, on the standard streams of this process, and returns its exit code.
+   The driver is installed first where it is missing. *)
 let run_command args =
+    install ();
     match command args with
+    | node :: args -> run_process node args
     | [] -> assert false
-    | node :: _ as argv ->
-        (match Unix.create_process node (Array.of_list argv) Unix.stdin Unix.stdout Unix.stderr with
-        | pid -> wait_for pid
-        | exception Unix.Unix_error (code, _, _) -> Error.raise_ "Could not run %s: %s" node (Unix.error_message code))

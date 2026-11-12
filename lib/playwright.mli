@@ -347,13 +347,14 @@ val create : ?on_error:(string -> exn -> unit) -> sw:Eio.Switch.t -> env:Eio_uni
 (** Starts the Playwright driver. It is stopped, and all its browsers are closed, by {!close} or when [sw] finishes.
 
     The driver is the [playwright-core] package for Node.js in the version this library was built for, {!version}.
-    It is downloaded from the npm registry on first use and cached in the user's cache directory; [node] has to be
-    installed. Both can be overridden with environment variables, see the user guide. Browsers are installed with
-    [ocaml-playwright install], or an installed one is used through [executable_path] or [channel].
+    It has to be installed, and so has [node]: [ocaml-playwright install chromium] downloads the driver and then that
+    browser, and a program does the same through {!Driver}. Starting never downloads anything; it fails with an
+    error that names the command when the driver is missing. Environment variables say where else the driver and
+    [node] are, see the user guide. Instead of installing a browser, one that the system has is used through
+    [executable_path] or [channel].
 
-    Other fibers run while the driver is downloaded and started. The call can be cancelled at any time, which
-    also ends a download; [Eio.Time.with_timeout] thus limits how long starting may take. A download is given up
-    after five minutes, or what [PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT] says.
+    Other fibers run while the driver starts. The call can be cancelled at any time; [Eio.Time.with_timeout] thus
+    limits how long starting may take.
 
     [on_error what exn] is called for exceptions that have no caller to be raised in, namely those escaping from
     event listeners and route handlers; [what] says where [exn] comes from. The default prints them to standard
@@ -391,20 +392,28 @@ val device : string -> t -> Device.t option
 val version : string
 (** The version of Playwright that this library drives, e.g. ["1.65.0"]. *)
 
-(** Playwright's command line tool, which installs browsers, shows traces and more. The [ocaml-playwright]
-    program that comes with this library gives access to it from a shell. *)
+(** Setting up: the installation of the driver, and Playwright's command line tool, which installs browsers, shows
+    traces and more. The [ocaml-playwright] program that comes with this library does the same from a shell.
+
+    This is what a program does before it starts Playwright, or when it is installed itself. {!Driver.install} and
+    {!Driver.run} return when their work is done and nothing else runs meanwhile; a program that has other fibers to
+    run calls them through [Eio_unix.run_in_systhread]. *)
 module Driver : sig
+    val install : unit -> unit
+    (** Downloads the driver from the npm registry into the user's cache directory, unless it is there already.
+        The package is the one this library was built for, and is verified against its checksum. Fails with
+        {!exception-Error} when it cannot be downloaded, and when [node] is missing. *)
+
     val command : string list -> string list
     (** [command args] is the command line that runs Playwright's own command line tool with [args]: the path of
         a program followed by its arguments. [command ["install"; "chromium"]] is the one that installs a
-        browser, for example, and [command ["show-trace"; "trace.zip"]] the one that opens a trace.
-
-        The driver is installed first if it is not there yet, which blocks until it has been downloaded. *)
+        browser, for example, and [command ["show-trace"; "trace.zip"]] the one that opens a trace. Fails when
+        the driver is not installed. *)
 
     val run : string list -> int
-    (** Runs {!command} to its end, with the standard input and output of this process, and returns its exit
-        status. Nothing else runs meanwhile; a program that has other fibers to run calls it through
-        [Eio_unix.run_in_systhread]. *)
+    (** [run args] installs the driver if it is missing, as {!install} does, then runs {!command} to its end with
+        the standard input and output of this process, and returns its exit status. [run ["install"; "chromium"]]
+        is thus all that a program needs to have a driver and a browser. *)
 end
 
 (** {1 Shared signatures} *)

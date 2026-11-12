@@ -18,8 +18,8 @@ doc/dev/protocol-coverage.md    generated from the same and from the sources in 
 
 - the version and the commit of the Playwright release;
 - the tarball of the npm package `playwright-core` of that version and its SHA-512, as the
-  npm registry states them. This is the driver that the library downloads at run time, and
-  the checksum is what the download is verified against;
+  npm registry states them. This is the driver that `Driver.install` downloads, and the
+  checksum is what the download is verified against;
 - the SHA-256 of every file in `spec/`, so that an edited or half-updated specification is
   noticed.
 
@@ -110,9 +110,9 @@ in reviews. `dune runtest` fails if either file is not what the generator would 
    member of the official interface that is neither in `playwright.mli` nor in those tables
    is an oversight.
 
-5. **Run the tests** against the new driver: `dune runtest`. The first run downloads the
-   driver. Browsers have to match it; if the tests use Playwright's own browsers, install
-   them anew with `dune exec ocaml-playwright -- install chromium`. The driver test
+5. **Run the tests** against the new driver: install it with
+   `dune exec ocaml-playwright -- install chromium`, which also installs the browser that
+   matches it, for the tests that use Playwright's own; then `dune runtest`. The driver test
    (`test/driver`) fails when the driver has begun to make regular expressions of URL globs
    that `Re` cannot run, or reads a glob differently than before.
 

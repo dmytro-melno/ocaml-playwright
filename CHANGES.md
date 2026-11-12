@@ -68,8 +68,8 @@ adapted; [doc/migration.md](doc/migration.md) says how.
   `Dialog_closed`, the options `scroll`, `include_shadow`, `opfs`, `artifacts_dir` and
   `no_defaults`, `Expect.to_have_accessible_error_message`.
 - The command `ocaml-playwright`, which is Playwright's command line tool for the driver in
-  use (`install`, `show-trace`, `codegen`), and `Playwright.Driver` to run it
-  from a program.
+  use (`install`, `show-trace`, `codegen`), and `Playwright.Driver` to install the driver
+  and run the tool from a program.
 
 ### Behaviour
 
@@ -88,8 +88,7 @@ adapted; [doc/migration.md](doc/migration.md) says how.
   the like are carried out even if their caller is cancelled, so they can be used in
   `Fun.protect` and `Switch.on_release`. Closing something twice, or from two fibers at
   once, is fine.
-- `Eio.Time.with_timeout` works around any call, including `Playwright.create` while it
-  downloads the driver.
+- `Eio.Time.with_timeout` works around any call, including `Playwright.create`.
 - The time limit of `expect_*` and `wait_for_*` is on the arrival of the event and counts
   from before the action; the predicate is called as events arrive and may itself call the
   library.
@@ -105,11 +104,12 @@ adapted; [doc/migration.md](doc/migration.md) says how.
   driver are pinned in `protocol/`; `dune build @gen --auto-promote` regenerates the
   protocol layer and an inventory of what the client uses of it, and the tests fail when
   either is stale.
-- The driver is downloaded and unpacked by Node.js, which it needs anyway, and verified
-  against a pinned SHA-512 checksum. It is cached in `ocaml-playwright/` under the user's
-  cache directory. The download is given up after five minutes
-  (`PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT`), or when the fiber that started Playwright is
-  cancelled.
+- Installing the driver is a step of its own: `ocaml-playwright install chromium` downloads
+  the driver and that browser, and `Playwright.Driver.install` the driver alone.
+  `Playwright.create` only looks for the driver, and fails with an error that names the
+  command when it is missing. The driver is downloaded and unpacked by Node.js, which it
+  needs anyway, and verified against a pinned SHA-512 checksum. It is kept in
+  `ocaml-playwright/` under the user's cache directory.
 - The driver never outlives the program's use of it: it is stopped when the instance is
   closed or its switch finishes, and killed if it does not comply. Its standard error is
   relayed, so that it cannot make the program's own standard error non-blocking.

@@ -40,14 +40,13 @@ let touch ?(executable = false) path =
     Out_channel.with_open_bin path (fun oc -> output_string oc "");
     if executable then Unix.chmod path 0o755
 
-let test_driver_cache_dir () =
-    with_env [ "PLAYWRIGHT_OCAML_CACHE_DIR", "/custom/cache"; "XDG_CACHE_HOME", "/xdg" ] (fun () ->
-        Alcotest.(check string) "explicit directory" "/custom/cache" (Driver.cache_dir ()));
-    if not Sys.win32 then
-        with_env [ "PLAYWRIGHT_OCAML_CACHE_DIR", ""; "XDG_CACHE_HOME", "/xdg" ] (fun () ->
-            Alcotest.(check string) "XDG cache" "/xdg/ocaml-playwright" (Driver.cache_dir ());
-            Alcotest.(check string) "one directory per driver version" ("/xdg/ocaml-playwright/driver-" ^ Protocol.playwright_version)
-                (Driver.installed_dir ()))
+let test_driver_directory () =
+    if Sys.win32 then Alcotest.skip ();
+    let installed = Filename.concat "ocaml-playwright" ("driver-" ^ Protocol.playwright_version) in
+    with_env [ "XDG_CACHE_HOME", "/xdg"; "HOME", "/home/user" ] (fun () ->
+        Alcotest.(check string) "in the cache, one directory per driver version" (Filename.concat "/xdg" installed) (Driver.installed_dir ()));
+    with_env [ "XDG_CACHE_HOME", ""; "HOME", "/home/user" ] (fun () ->
+        Alcotest.(check string) "which is in the home directory by default" (Filename.concat "/home/user/.cache" installed) (Driver.installed_dir ()))
 
 let test_driver_path_lookup () =
     with_temp_dir @@ fun dir ->
@@ -73,18 +72,15 @@ let test_driver_locate () =
     let package = Filename.concat dir "driver" in
     touch (Filename.concat (Filename.concat package "package") "cli.js");
     with_env [ "PLAYWRIGHT_NODEJS_PATH", node; "PLAYWRIGHT_OCAML_DRIVER", package ] (fun () ->
-        let driver = Driver.locate ~install_if_missing:false () in
+        let driver = Driver.locate () in
         Alcotest.(check string) "node" node driver.node;
-        Alcotest.(check string) "cli" (Filename.concat (Filename.concat package "package") "cli.js") driver.cli);
+        Alcotest.(check string) "cli" (Filename.concat (Filename.concat package "package") "cli.js") driver.cli;
+        Alcotest.(check (list string)) "the command line of the tool" [ node; driver.cli; "install"; "chromium" ] (Driver.command [ "install"; "chromium" ]));
     with_env [ "PLAYWRIGHT_NODEJS_PATH", node; "PLAYWRIGHT_OCAML_DRIVER", Filename.concat dir "nowhere" ] (fun () ->
-        check_contains "a wrong driver directory is explained" ~sub:"PLAYWRIGHT_OCAML_DRIVER"
-            (failure "wrong driver" (fun () -> Driver.locate ~install_if_missing:false ())).message);
+        check_contains "a wrong driver directory is explained" ~sub:"PLAYWRIGHT_OCAML_DRIVER" (failure "wrong driver" Driver.locate).message;
+        check_contains "also to who installs" ~sub:"PLAYWRIGHT_OCAML_DRIVER" (failure "wrong driver" Driver.install).message);
     with_env [ "PLAYWRIGHT_NODEJS_PATH", Filename.concat dir "no-node"; "PLAYWRIGHT_OCAML_DRIVER", package ] (fun () ->
-        check_contains "a wrong node path is explained" ~sub:"PLAYWRIGHT_NODEJS_PATH"
-            (failure "wrong node" (fun () -> Driver.locate ~install_if_missing:false ())).message);
-    with_env [ "PLAYWRIGHT_NODEJS_PATH", node; "PLAYWRIGHT_OCAML_DRIVER", ""; "PLAYWRIGHT_OCAML_CACHE_DIR", Filename.concat dir "empty-cache" ] (fun () ->
-        check_contains "a missing driver is not installed behind the caller's back" ~sub:"not installed"
-            (failure "not installed" (fun () -> Driver.locate ~install_if_missing:false ())).message)
+        check_contains "a wrong node path is explained" ~sub:"PLAYWRIGHT_NODEJS_PATH" (failure "wrong node" Driver.locate).message)
 
 (* A stand-in for Node.js: a shell script, which is given what the installer is given, that is
    the installing script, the URL, the checksum and the directory to unpack into. *)
@@ -94,60 +90,33 @@ let fake_node dir body =
     Unix.chmod path 0o755;
     path
 
-let installing ~dir body f =
-    let variables =
-        [ "PLAYWRIGHT_NODEJS_PATH", fake_node dir body; "PLAYWRIGHT_OCAML_DRIVER", ""; "PLAYWRIGHT_OCAML_CACHE_DIR", Filename.concat dir "cache";
-          "PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT", "" ]
-    in
-    with_env variables f
-
-(* What an installation that did not succeed must leave behind: no process and no files. *)
-let check_cleaned_up ~dir =
-    let pid = int_of_string (String.trim (In_channel.with_open_bin (Filename.concat dir "pid") In_channel.input_all)) in
-    (match Unix.kill pid 0 with
-    | () -> Alcotest.fail "the installer is still running"
-    | exception Unix.Unix_error (Unix.ESRCH, _, _) -> ());
-    Alcotest.(check (list string)) "nothing is left in the cache" [] (Array.to_list (Sys.readdir (Filename.concat dir "cache")))
-
-let elapsed f =
-    let start = Unix.gettimeofday () in
-    let result = f () in
-    result, Unix.gettimeofday () -. start
-
-let slow_installer ~dir = Printf.sprintf "echo $$ > %s; exec sleep 30" (Filename.quote (Filename.concat dir "pid"))
-
 let test_driver_install () =
     if Sys.win32 then Alcotest.skip ();
     with_temp_dir @@ fun dir ->
-    installing ~dir {|echo "no route to host" >&2; exit 1|} (fun () ->
-        check_contains "the installer's complaint is passed on" ~sub:"no route to host" (failure "failed installation" (fun () -> Driver.locate ())).message);
-    installing ~dir (slow_installer ~dir) (fun () ->
-        let error, seconds = elapsed (fun () -> failure "slow installation" (fun () -> Driver.locate ~install_timeout:200. ())) in
-        check_contains "the limit is named" ~sub:"0.2 seconds" error.message;
-        Alcotest.(check bool) "and kept" true (seconds < 5.);
-        check_cleaned_up ~dir;
-        with_env [ "PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT", "100" ] (fun () ->
-            check_contains "the limit can be set" ~sub:"0.1 seconds" (failure "slow installation" (fun () -> Driver.locate ())).message);
-        with_env [ "PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT", "soon" ] (fun () ->
-            check_contains "to a number only" ~sub:"not a number" (failure "wrong limit" (fun () -> Driver.locate ())).message));
-    installing ~dir {|mkdir -p "$4/package" && echo > "$4/package/cli.js"|} (fun () ->
-        let driver = Driver.locate () in
-        Alcotest.(check string) "installed into the cache" (List.fold_left Filename.concat (Driver.installed_dir ()) [ "package"; "cli.js" ]) driver.cli;
-        Alcotest.(check (list string)) "and nothing else" [ "driver-" ^ Protocol.playwright_version ] (Array.to_list (Sys.readdir (Filename.concat dir "cache"))));
-    installing ~dir "exit 1" (fun () -> Alcotest.(check bool) "what is installed is not installed again" true (Sys.file_exists (Driver.locate ()).cli))
-
-(* Starting Playwright can be given up while the driver is being installed. *)
-let test_driver_install_cancelled () =
-    if Sys.win32 then Alcotest.skip ();
-    with_temp_dir @@ fun dir ->
-    installing ~dir (slow_installer ~dir) (fun () ->
-        Eio_main.run @@ fun env ->
-        let outcome, seconds =
-            elapsed (fun () -> Eio.Time.with_timeout (Eio.Stdenv.clock env) 0.3 (fun () -> Eio.Switch.run (fun sw -> Ok (ignore (Instance.create ~sw ~env ())))))
-        in
-        Alcotest.(check bool) "cancelled" true (outcome = Error `Timeout);
-        Alcotest.(check bool) "at once" true (seconds < 5.);
-        check_cleaned_up ~dir)
+    let cache = Filename.concat (Filename.concat dir "cache") "ocaml-playwright" in
+    let installing body f = with_env [ "PLAYWRIGHT_NODEJS_PATH", fake_node dir body; "PLAYWRIGHT_OCAML_DRIVER", ""; "XDG_CACHE_HOME", Filename.concat dir "cache" ] f in
+    let unpack = {|mkdir -p "$4/package" && echo > "$4/package/cli.js"|} in
+    installing unpack (fun () ->
+        check_contains "a missing driver is reported with the command that installs it" ~sub:"ocaml-playwright install" (failure "not installed" Driver.locate).message;
+        check_contains "also to who asks for the tool" ~sub:"not installed" (failure "not installed" (fun () -> Driver.command [])).message;
+        Alcotest.(check bool) "and not installed behind the caller's back" false (Sys.file_exists cache));
+    installing {|echo "no route to host" >&2; exit 1|} (fun () ->
+        check_contains "the installer's complaint is passed on" ~sub:"no route to host" (failure "failed installation" Driver.install).message;
+        Alcotest.(check (list string)) "and nothing is left in the cache" [] (Array.to_list (Sys.readdir cache)));
+    installing "exit 0" (fun () -> check_contains "an installer that unpacks nothing has failed" ~sub:"Could not install" (failure "nothing unpacked" Driver.install).message);
+    installing unpack (fun () ->
+        Driver.install ();
+        Alcotest.(check string) "installed into the cache" (List.fold_left Filename.concat (Driver.installed_dir ()) [ "package"; "cli.js" ]) (Driver.locate ()).cli;
+        Alcotest.(check (list string)) "and nothing else" [ "driver-" ^ Protocol.playwright_version ] (Array.to_list (Sys.readdir cache)));
+    installing "exit 1" (fun () ->
+        Driver.install ();
+        Alcotest.(check bool) "what is installed is not installed again" true (Sys.file_exists (Driver.locate ()).cli));
+    (* The tool is run by the stand-in as well, which is given the tool and its arguments. *)
+    installing {|test "$2" = show-trace || exit 3; exit 7|} (fun () -> Alcotest.(check int) "the tool's exit code" 7 (Driver.run_command [ "show-trace" ]));
+    Driver.rm_rf cache;
+    installing (Printf.sprintf {|if test "$2" = install; then exit 5; fi; %s|} unpack) (fun () ->
+        Alcotest.(check int) "running the tool installs the driver first" 5 (Driver.run_command [ "install"; "chromium" ]);
+        Alcotest.(check bool) "which is there afterwards" true (Sys.file_exists (Driver.locate ()).cli))
 
 (* {1 Files} *)
 
@@ -161,22 +130,6 @@ let test_files () =
     Alcotest.(check string) "an absolute path is kept" file (Files.absolute file);
     Alcotest.(check string) "a relative one is seen from the working directory" (Filename.concat (Sys.getcwd ()) "file.txt") (Files.absolute "file.txt")
 
-(* {1 Blocking work} *)
-
-let test_in_systhread () =
-    Eio_main.run @@ fun env ->
-    Alcotest.(check int) "the result" 42 (Fibers.in_systhread (fun ~cancelled:_ -> 42));
-    (match Fibers.in_systhread (fun ~cancelled:_ -> failwith "from the thread") with
-    | () -> Alcotest.fail "the exception must be raised in the fiber"
-    | exception Failure message -> Alcotest.(check string) "the exception" "from the thread" message);
-    let told = ref false in
-    let work ~cancelled =
-        while not (cancelled ()) do Unix.sleepf 0.005 done;
-        told := true
-    in
-    Eio.Fiber.first (fun () -> Fibers.in_systhread work) (fun () -> Eio.Time.sleep (Eio.Stdenv.clock env) 0.05);
-    Alcotest.(check bool) "the thread is told of the cancellation, and waited for" true !told
-
 let test_error_rendering () =
     let error = Error.make ~kind:Timeout ~name:"TimeoutError" "Timeout 5ms exceeded." in
     Alcotest.(check string) "named errors show their name" "TimeoutError: Timeout 5ms exceeded." (Error.to_string error);
@@ -187,11 +140,9 @@ let test_error_rendering () =
 let tests =
     [ "timeouts", [ Alcotest.test_case "precedence" `Quick test_timeouts ];
       "driver",
-      [ Alcotest.test_case "cache directory" `Quick test_driver_cache_dir;
+      [ Alcotest.test_case "where it is installed" `Quick test_driver_directory;
         Alcotest.test_case "PATH lookup" `Quick test_driver_path_lookup;
         Alcotest.test_case "locate" `Quick test_driver_locate;
-        Alcotest.test_case "installation" `Quick test_driver_install;
-        Alcotest.test_case "cancelled installation" `Quick test_driver_install_cancelled ];
+        Alcotest.test_case "installation" `Quick test_driver_install ];
       "files", [ Alcotest.test_case "paths" `Quick test_files ];
-      "blocking work", [ Alcotest.test_case "in a thread" `Quick test_in_systhread ];
       "error", [ Alcotest.test_case "rendering" `Quick test_error_rendering ] ]

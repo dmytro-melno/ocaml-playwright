@@ -28,11 +28,9 @@ This is version 0.2.0, which works with **Playwright 1.65**.
 ## Requirements
 
 - OCaml 5.2 or later and dune 3.10 or later.
-- **Node.js 20 or later**, as `node` on the `PATH`. Playwright's driver is a Node.js program;
-  the library downloads it on first use, checks it against a pinned checksum and keeps it
-  in the user's cache directory.
-- A browser: either one that Playwright installs (see below) or one that is on the machine
-  already.
+- **Node.js 20 or later**, as `node` on the `PATH`. Playwright's driver is a Node.js program,
+  which is installed in a step of its own (see below).
+- A browser: either one that Playwright installs or one that is on the machine already.
 - Linux is where the library is developed and tested. Nothing in it is specific to Linux, so
   macOS is expected to work. Windows is supported as a cross-compilation target and has been
   exercised under Wine only; see [doc/dev/windows.md](doc/dev/windows.md).
@@ -54,15 +52,22 @@ and use it from dune:
 ```
 
 The package installs a command, `ocaml-playwright`, which is Playwright's own command line
-tool in the version that the library needs. Use it to install browsers:
+tool in the version that the library needs. Use it to install the driver and a browser:
 
 ```sh
 ocaml-playwright install chromium     # also: firefox, webkit
 ocaml-playwright install --with-deps chromium   # on Linux, with the system packages it needs
 ```
 
+The command downloads the driver first if it is missing, checks it against a pinned checksum
+and keeps it in the user's cache directory. The library itself never downloads anything:
+`Playwright.create` fails with an error that names this command when the driver is not there.
+A program that sets itself up calls `Playwright.Driver.install ()`, or
+`Playwright.Driver.run [ "install"; "chromium" ]`, instead.
+
 To use a browser that is installed already, pass `~channel:"chrome"` (or `"msedge"`), or
-`~executable_path:"/usr/bin/chromium"`, to `BrowserType.launch`.
+`~executable_path:"/usr/bin/chromium"`, to `BrowserType.launch`; `ocaml-playwright --version`
+is then enough to get the driver.
 
 ## A short tour
 

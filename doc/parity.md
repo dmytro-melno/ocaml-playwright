@@ -128,10 +128,11 @@ of the module `Playwright`, built with `dune build @doc`.
   in error messages and call logs comes from: `get_by_role("button", name="Save")`.
 - Traces show the calls of the library, but not the places in the OCaml source that made
   them. `Tracing.group ~location:__POS__` attaches one to a group.
-- The driver is not bundled. On first use the library downloads the package
-  `playwright-core` from the npm registry into the cache directory of the user and runs it
-  with the `node` it finds; see [Configuration](guide.md#configuration) for how to provide
-  both in advance.
+- The driver is not bundled, and not downloaded behind the program's back.
+  `ocaml-playwright install` and `Playwright.Driver.install` download the package
+  `playwright-core` from the npm registry into the cache directory of the user, and the
+  library runs it with the `node` it finds; see [Configuration](guide.md#configuration)
+  for how to provide both differently.
 
 ## What is not covered
 

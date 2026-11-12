@@ -309,6 +309,7 @@ module APIRequest = struct
 end
 
 module Driver = struct
+    let install = Driver.install
     let command = Driver.command
     let run = Driver.run_command
 end

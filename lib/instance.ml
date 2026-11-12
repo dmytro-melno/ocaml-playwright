@@ -48,10 +48,7 @@ let wire_trace () =
 let initialize_timeout = 60_000.
 
 let create ?on_error ~sw ~(env : Eio_unix.Stdenv.base) () : t =
-    (* Installing the driver can take a while, during which other fibers go on, and which ends
-       when this one is cancelled. *)
-    let driver = Fibers.in_systhread ~label:"playwright-driver" (fun ~cancelled -> Driver.locate ~cancelled ()) in
-    let process = Driver_process.spawn ~sw ~env driver in
+    let process = Driver_process.spawn ~sw ~env (Driver.locate ()) in
     let conn =
         Connection.create ~clock:(Eio.Stdenv.clock env)
             ~report:(reporter on_error)

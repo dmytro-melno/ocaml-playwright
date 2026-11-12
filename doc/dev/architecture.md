@@ -55,15 +55,16 @@ in-memory one.
 
 ### The driver: `driver.ml`, `driver_process.ml`
 
-`Driver` finds Node.js and the driver's package, and installs the package if it is missing:
-a small Node.js script downloads the tarball from the npm registry, checks its SHA-512
-against the digest compiled into the library, and unpacks it into a scratch directory, which
-is then renamed into place, so that concurrent and interrupted installations do no harm.
-Node.js is required anyway, and using it here is what keeps HTTP, TLS and tar libraries out
-of the dependencies. The installation is a child process that is polled, not waited for: it
-is killed when it takes longer than its time limit, or when the fiber that asked for it is
-cancelled. `Driver.locate` blocks, so `Instance` calls it in a system thread
-(`Fibers.in_systhread`), which is what lets it be cancelled.
+`Driver` finds Node.js and the driver's package (`locate`), which is all that starting
+Playwright does about them: a missing driver is an error that names the command to run.
+Installing is a step of its own (`install`), made by `Playwright.Driver` and the
+`ocaml-playwright` program: a small Node.js script downloads the tarball from the npm
+registry, checks its SHA-512 against the digest compiled into the library, and unpacks it
+into a scratch directory, which is then renamed into place, so that concurrent and
+interrupted installations do no harm. Node.js is required anyway, and using it here is what
+keeps HTTP, TLS and tar libraries out of the dependencies. The installation is a child
+process that is waited for; it is setting up, not something to do while a program serves, so
+there is no time limit and no cancellation to it.
 
 `Driver_process` runs the driver and exposes its pipes as a `Transport`. It has two
 implementations behind one record of functions. *Native* uses `Eio.Process`. *Threads* uses
@@ -220,7 +221,7 @@ The supporting modules:
 | `Url_match` | Which URLs are meant: a glob or a predicate. The driver makes a regular expression of a glob (`LocalUtils.globToRegex`), resolving it against the base URL as it does for itself, and `Re` runs it. Nothing of Playwright's `urlMatch.ts` is repeated here. |
 | `Local_utils` | The utilities of the driver (archives of traces). |
 | `Files` | The paths that are handed to the driver: made absolute, and told apart as files and directories (in a system thread). The library opens no file; the driver reads and writes them. |
-| `Fibers` | `first` for operations that can fail; `in_systhread` for blocking work that must end when its fiber is cancelled; `is_cancellation`. |
+| `Fibers` | `first` for operations that can fail; `is_cancellation`. |
 | `Serial` | Numbers that tell the objects of the process apart: see *Identity*. |
 | `Context_options`, `Screenshot`, `Cookie` | Conversion of options into protocol records. |
 | `Route` | Routing of requests and WebSockets: see *Route handlers*. |
@@ -311,7 +312,7 @@ the state consistent is which fiber does what:
 | What the client does by itself in answer to an event: subscribing to events on demand, dismissing a dialog that nobody listens for, releasing the result of a cancelled command, reading a remote connection | `Connection.fork`: a daemon fiber in the same scope | Short, and no more of it than there are events, so not counted. Exceptions are reported. |
 | The predicate of an `expect_*` or `wait_for_*` | a fiber of the waiting call (`Waiter.around`) | One event at a time, in the order of arrival, while the action runs. |
 | Closing, disposing, cleaning up | `Connection.start` and what is built on it: a daemon fiber in the scope of the instance, for which the caller waits | Not interrupted when the caller is cancelled: see *Cancellation*. |
-| Blocking system calls: looking at paths, installing the driver, the pipes of the thread-based driver process, the driver's standard error | system threads (`Files.partition_directories`, `Fibers.in_systhread`, `Driver_process`) | Hand their results to fibers; touch no client state. |
+| Blocking system calls: looking at paths, the pipes of the thread-based driver process, the driver's standard error | system threads (`Files.partition_directories`, `Driver_process`) | Hand their results to fibers; touch no client state. |
 
 Code that reads and then writes client state outside the reader does so without yielding in
 between.

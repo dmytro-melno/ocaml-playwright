@@ -6,8 +6,6 @@ The library builds for 64-bit Windows with a cross compiler on Linux, and the re
 been run under Wine, with Node.js for Windows and Playwright's Chromium for Windows:
 
 - installing the driver, and installing a browser with the command line tool;
-- an installation that exceeds its time limit, and one whose caller is cancelled: the
-  installer is killed and nothing is left in the cache;
 - a session with a real browser: launch, a route that is fulfilled, navigation, a
   listener and `expect_event` around a click, an upload from disk, evaluation, a
   screenshot written to a file, a call cancelled with `Eio.Time.with_timeout`, close;
@@ -25,8 +23,8 @@ Treat Windows as experimental.
 ## What is different there
 
 Little, and all of it in two modules. Everything else that touches the system (files, the
-installation of the driver, the driver's standard error) is done with the Unix library in
-system threads, in the same way on every system.
+installation of the driver, the driver's standard error) is done with the Unix library, in
+the same way on every system.
 
 **Processes and pipes (`driver_process.ml`).** Eio has no process manager on Windows and its
 pipes cannot be read without blocking there. So the driver is started with
@@ -52,10 +50,8 @@ entries of `PATH` are ignored for the same reason. `PLAYWRIGHT_NODEJS_PATH` name
 executable directly.
 
 **Installing the driver (`driver.ml`).** The installer is a Node.js script, started with
-`Unix.create_process_env` and polled with `Unix.waitpid [ WNOHANG ]` until it ends, its time
-is up or the caller is cancelled; it is then killed with `Unix.kill pid Sys.sigkill`, which
-the Unix library carries out with `TerminateProcess` on Windows. Its standard input is
-`NUL` there. The unpacked package is renamed into place with `Unix.rename`. When that fails
+`Unix.create_process_env` and waited for with `Unix.waitpid`. Its standard input is `NUL`
+there. The unpacked package is renamed into place with `Unix.rename`. When that fails
 because another process has installed the driver meanwhile, as it does on Windows where a
 directory cannot be renamed over another, the installation counts as done.
 

@@ -26,7 +26,7 @@ driver, so that every order of events can be produced, which no browser does on 
 | `test_process.ml` | running a child process over pipes, with both implementations of `Driver_process`: output, standard error, graceful stop, forced stop, cancellation. It uses `cat`, `sh` and `sleep` |
 | `test_values.ml` | JavaScript values, selectors, snapshot templates |
 | `test_urls.ml` | the URL parser, against a table of what Node.js gives; URL globs, against the tables of Playwright's own tests |
-| `test_support.ml` | timeouts, files, errors, and finding and installing the driver, with a script in place of Node.js: the time limit and cancellation of an installation |
+| `test_support.ml` | timeouts, files, errors, and finding and installing the driver, with a script in place of Node.js |
 
 ```sh
 dune build ./test/unit/main.exe && ./_build/default/test/unit/main.exe
@@ -73,6 +73,9 @@ takes it with `Harness.take_reports`.
 
 The browser is, in this order: the one named by `PLAYWRIGHT_TEST_CHROMIUM`; the Chromium
 that Playwright installed; a Chromium or Chrome found in the usual places of the system.
+
+The driver has to be installed, which `dune exec ocaml-playwright -- --version` does, and
+`dune exec ocaml-playwright -- install chromium` together with a browser.
 
 **When there is no Node.js, no driver or no browser, the tests are skipped and the run
 succeeds**, with a line that says why. This keeps `dune runtest` usable in sandboxes, such

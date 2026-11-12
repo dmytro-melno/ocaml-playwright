@@ -44,11 +44,16 @@ Add the library to a dune project, together with an Eio backend:
  (libraries playwright eio_main))
 ```
 
-and install a browser with the command line tool that comes with the package:
+and install Playwright's driver and a browser with the command line tool that comes with
+the package:
 
 ```sh
 ocaml-playwright install chromium
 ```
+
+The driver is a Node.js program that the library talks to. The command downloads it first,
+if it is missing, and then the browser. The library never downloads anything by itself:
+without the driver, starting Playwright fails with an error that names this command.
 
 The driver believes that it serves Playwright for Python, whose way of naming things is the
 closest to OCaml's. Where one of its messages says `playwright install`, the command is
@@ -70,9 +75,8 @@ let () =
     Browser.close browser
 ```
 
-`Playwright.run` starts Playwright's driver, a Node.js process that the library talks to, and
-stops it when the function returns. The first run downloads the driver, which takes a few
-seconds; after that, starting it takes a fraction of a second.
+`Playwright.run` starts the driver and stops it when the function returns. Starting it takes
+a fraction of a second.
 
 The browser runs headless, that is without a window. To watch it work, launch it with
 `~headless:false`, and perhaps `~slow_mo:250.` to make it pause for 250 ms between operations.
@@ -1044,8 +1048,7 @@ Cancellation leaves nothing behind:
 - Closing and disposing are carried through even if the fiber that asked for it is
   cancelled, see [Life cycle](#life-cycle); the fiber itself gets its `Cancelled` exception
   without waiting for that.
-- Starting the driver can be cancelled as well, including the download of the driver on
-  first use, which lets a service give up on a network that does not answer:
+- Starting the driver can be cancelled as well:
   `Eio.Time.with_timeout env#clock 60. (fun () -> Ok (Playwright.create ~sw ~env ()))`.
 
 ## Other ways to get a browser
@@ -1092,22 +1095,25 @@ things:
 | Variable | Meaning |
 | --- | --- |
 | `PLAYWRIGHT_NODEJS_PATH` | The Node.js executable to run the driver with. Default: `node` from the `PATH`. |
-| `PLAYWRIGHT_OCAML_CACHE_DIR` | Where the driver is kept. Default: `$XDG_CACHE_HOME/ocaml-playwright` or `~/.cache/ocaml-playwright`; on Windows `%LOCALAPPDATA%\ocaml-playwright`. |
-| `PLAYWRIGHT_OCAML_DRIVER` | A directory that holds the driver already, that is the `playwright-core` package in the right version, for machines without network access. Nothing is downloaded then. |
-| `PLAYWRIGHT_OCAML_DRIVER_URL` | Another place to download the driver's package from, such as a mirror of the npm registry. The checksum is verified all the same. |
-| `PLAYWRIGHT_OCAML_DRIVER_INSTALL_TIMEOUT` | How long the download of the driver may take, in milliseconds; `0` for as long as it takes. Default: five minutes. |
-| `HTTPS_PROXY`, `NO_PROXY` | The proxy for that download. This needs a recent Node.js (24, or 22.21 and later); browsers are downloaded through the proxy by any version. |
+| `PLAYWRIGHT_OCAML_DRIVER` | A directory that holds the driver, that is the `playwright-core` package in the right version: for machines without network access, mirrors of the npm registry, and programs that bring their own copy. Nothing is downloaded then. |
+| `XDG_CACHE_HOME` | The driver is installed in `$XDG_CACHE_HOME/ocaml-playwright`, which is `~/.cache/ocaml-playwright` by default; on Windows in `%LOCALAPPDATA%\ocaml-playwright`. |
+| `HTTPS_PROXY`, `NO_PROXY` | The proxy for the download of the driver. This needs a recent Node.js (24, or 22.21 and later); browsers are downloaded through the proxy by any version. |
 | `PLAYWRIGHT_BROWSERS_PATH` | Where Playwright installs and looks for browsers. This and the other [variables of Playwright](https://playwright.dev/docs/browsers#managing-browser-binaries) work as usual. |
 
 The driver is the npm package `playwright-core` in exactly the version that
 `Playwright.version` names. Its download is verified against a checksum that is compiled
 into the library.
 
-`ocaml-playwright` is the command line tool of that package. Besides `install` it offers,
-among others, `show-trace`, `codegen` (records interactions; the generated code is for the
-official languages, but its locators carry over) and `--help`.
-A program can run the tool itself, through `Playwright.Driver.command` and
-`Playwright.Driver.run`:
+`ocaml-playwright` is the command line tool of that package, which it downloads first when
+it is missing. Besides `install` it offers, among others, `show-trace`, `codegen` (records
+interactions; the generated code is for the official languages, but its locators carry over)
+and `--help`.
+
+A program can do the same through `Playwright.Driver`: `install` downloads the driver alone,
+`run` runs the tool, after downloading the driver if it is missing, and `command` is the
+tool's command line for a program that starts it itself. This is setting up, to be done before
+Playwright is started: `install` and `run` return when their work is done, and no other fiber
+runs meanwhile.
 
 ```ocaml
 let status = Playwright.Driver.run [ "install"; "chromium" ] in
