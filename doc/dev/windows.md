@@ -8,19 +8,19 @@ would first have to be ported, as the process tests use Unix tools and the test
 dependencies are not built for the target. Treat Windows as experimental.
 
 What there is instead is a session under Wine, with Node.js for Windows and Playwright's
-Chromium for Windows, during the work on 0.2:
+Chromium for Windows. It was last held with version 0.2.0 as released (Wine 11.21, Node.js
+22.23.5, the headless shell of Chromium 158):
 
-- installing the driver, and installing a browser with the command line tool;
+- installing the driver with `Driver.install` and with the command line tool, the message
+  when Node.js is not found, and installing browsers with the command line tool;
 - launch, a route that is fulfilled, navigation, a listener and `expect_event` around a
   click, an upload from disk, evaluation, a screenshot, a call cancelled with
-  `Eio.Time.with_timeout`, close;
+  `Eio.Time.with_timeout`, a call that times out, close;
 - the driver's log (`DEBUG=pw:browser`) arriving on the program's standard error;
-- stopping the driver when the program ends, when its switch fails, and when it dies of
-  an uncaught exception, with no process left behind.
+- stopping the driver when the program ends, when its switch fails, when it dies of an
+  uncaught exception and when it is killed, with no process left behind.
 
-Two changes came after that session and have only been cross-compiled and tested on Linux:
-installing the driver became a step of its own, and the way the driver process is run on
-Windows became the only one. Repeat the session (see below) before relying on the build.
+Repeat the session (see below) after a change to `driver.ml` or `driver_process.ml`.
 
 ## What is different there
 
@@ -95,6 +95,13 @@ wine _build/default.windows/bin/main.exe install chromium-headless-shell > out.t
 Under Wine, redirect the output of these programs to files: Node.js fails to write to the
 pipe or terminal of a Unix process that it inherits as standard output. This is a quirk of
 Wine and does not happen with the pipes that the library itself creates.
+
+`install` without the name of a browser makes Wine report a page fault. It is in
+`PrintDeps.exe`, the program with which Playwright checks the libraries of a browser that
+it has downloaded, and the command succeeds all the same.
+
+Wine refuses a `WINEPREFIX` whose parent directory belongs to someone else, such as one
+directly in `/tmp`.
 
 ## What needs doing
 
